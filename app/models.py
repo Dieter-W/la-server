@@ -20,8 +20,14 @@ class BaseModel(db.Model):
     updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
 
-# Add your application models here, inheriting from BaseModel
-# Example:
-# class Example(BaseModel):
-#     __tablename__ = "examples"
-#     name = db.Column(db.String(255), nullable=False)
+class Employee(BaseModel):
+    """Job center employee with soft-delete support via active flag."""
+
+    __tablename__ = "employees"
+
+    first_name = db.Column(db.String(255), nullable=False)
+    last_name = db.Column(db.String(255), nullable=False)
+    employee_number = db.Column(db.String(64), nullable=False)
+    role = db.Column(db.String(255), nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    notes = db.Column(db.Text, nullable=True)

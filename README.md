@@ -104,6 +104,73 @@ waitress-serve --host=0.0.0.0 --port=5000 --threads=4 main:app
 |----------------|--------------------------|
 | `GET /api/health`   | Basic health check       |
 | `GET /api/health/db` | Database connectivity   |
+| `GET /api/employees` | List employees (optional `?active=true` or `?active=false`) |
+| `GET /api/employees/<id>` | Fetch a single employee |
+| `POST /api/employees` | Create a new employee |
+| `PUT /api/employees/<id>` | Update an employee |
+| `DELETE /api/employees/<id>` | Soft delete (set `active=false`); use `?hard=true` to permanently delete |
+
+### Employee API examples
+
+With the server running at `http://localhost:5000`:
+
+**List all employees**
+```bash
+curl http://localhost:5000/api/employees
+```
+
+**List only active employees**
+```bash
+curl "http://localhost:5000/api/employees?active=true"
+```
+
+**Get a single employee**
+```bash
+curl http://localhost:5000/api/employees/1
+```
+
+**Create an employee**
+```bash
+curl -X POST http://localhost:5000/api/employees \
+  -H "Content-Type: application/json" \
+  -d "{\"first_name\":\"Max\",\"last_name\":\"Mustermann\",\"employee_number\":\"M001\",\"role\":\"Betreuer\",\"active\":true,\"notes\":\"Works weekends\"}"
+```
+
+**Update an employee**
+```bash
+curl -X PUT http://localhost:5000/api/employees/1 \
+  -H "Content-Type: application/json" \
+  -d "{\"employee_number\":\"M001-UPD\",\"active\":true}"
+```
+
+**Soft delete (deactivate) an employee**
+```bash
+curl -X DELETE http://localhost:5000/api/employees/1
+```
+
+**Hard delete (permanently remove) an employee**
+```bash
+curl -X DELETE "http://localhost:5000/api/employees/1?hard=true"
+```
+
+### CSV bulk import
+
+Import employees from a CSV file:
+
+```bash
+python scripts/bulk_import_employees.py employees.csv
+```
+
+**CSV format:** Comma-separated with a header row. Required columns: `first_name`, `last_name`, `employee_number`, `role`, `active`, `notes`.
+
+Example `employees.csv`:
+```csv
+first_name,last_name,employee_number,role,active,notes
+Max,Mustermann,M001,Betreuer,true,Works weekends
+Anna,Schmidt,A002,Helferin,true,
+```
+
+The script creates or updates employees (by employee_number) and logs successes and errors to stdout. It exits with a non-zero code if any row fails to import.
 
 ## Test endpoints
 
@@ -124,8 +191,9 @@ python scripts/test_endpoints.py http://localhost:5000
 ```
 Server/
 ├── scripts/
-│   ├── create_database.py   # Create MariaDB database
-│   └── test_endpoints.py    # Test API endpoints
+│   ├── bulk_import_employees.py  # Import employees from CSV
+│   ├── create_database.py       # Create MariaDB database
+│   └── test_endpoints.py        # Test API endpoints
 ├── app/
 │   ├── __init__.py      # App factory
 │   ├── config.py        # Configuration

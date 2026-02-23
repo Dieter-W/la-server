@@ -1,4 +1,4 @@
-"""Create the MariaDB database if it does not exist."""
+"""Create the MariaDB database and tables (e.g. employees) if they do not exist."""
 
 import os
 import sys
@@ -39,9 +39,21 @@ def create_database() -> None:
         conn.close()
 
 
+def create_tables() -> None:
+    """Create all tables (e.g. employees) via SQLAlchemy."""
+    from app import create_app
+
+    create_app()  # init_db() inside create_app runs db.create_all()
+    print("Tables created (employees and any other models).")
+
+
 if __name__ == "__main__":
     try:
         create_database()
+        create_tables()
     except pymysql.Error as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
