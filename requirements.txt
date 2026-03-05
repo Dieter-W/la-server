@@ -10,6 +10,9 @@ cryptography>=42.0.0
 # Environment & config
 python-dotenv>=1.0.0
 
+# Modulo97 10 Check Digit
+python-stdnum>=2.2.0
+
 # Production WSGI server (multithreaded, Windows-friendly)
 waitress>=3.0.0
 

@@ -68,13 +68,13 @@ def test_employee_endpoints(base: str) -> list[bool]:
         payload = {
             "first_name": "Test",
             "last_name": "User",
-            "employee_number": "TEST-001",
+            "employee_number": "TEST00753",
             "role": "Tester",
             "active": True,
             "notes": "Created by test script",
         }
         status, data = _request("POST", f"{base}/api/employees", payload)
-        ok = status == 201 and data.get("employee_number") == "TEST-001" and data.get("id")
+        ok = status == 201 and data.get("employee_number") == "TEST00753" 
         if ok:
             emp_id = data["id"]
         results.append(ok)

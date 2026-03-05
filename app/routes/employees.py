@@ -1,12 +1,16 @@
 """Employee CRUD endpoints for job center management."""
 
+import os
+
 from flask import Blueprint, jsonify, request
+from stdnum.iso7064 import mod_97_10
 
 from app.database import db
 from app.models import Employee
 
 employees_bp = Blueprint("employees", __name__)
 
+VALIDATE_CHECK_SUM = os.getenv("VALIDATE_CHECK_SUM", "true").lower() == "true"        
 
 def _employee_to_dict(emp: Employee) -> dict:
     """Serialize Employee to JSON-serializable dict."""
@@ -32,6 +36,8 @@ def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
         val = data.get(field)
         if val is None or (isinstance(val, str) and not val.strip()):
             return False, f"Missing or empty required field: {field}"
+    if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(data.get("employee_number")):
+        return False, f"Employee Number is wrong"       
     return True, None
 
 
@@ -39,6 +45,9 @@ def _validate_update_payload(data: dict) -> tuple[bool, str | None]:
     """Validate PUT payload. Returns (valid, error_message)."""
     if not data or not isinstance(data, dict):
         return False, "Request body must be a JSON object"
+    emplyee_number = data.get("employee_number")
+    if emplyee_number is not None and VALIDATE_CHECK_SUM and not mod_97_10.is_valid(emplyee_number):
+        return False, f"Employee Number is wrong"           
     return True, None
 
 

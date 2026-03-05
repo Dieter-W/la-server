@@ -16,6 +16,8 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
+    VALIDATE_CHECK_SUM = os.getenv("VALIDATE_CHECK_SUM", "true").lower() == "true"
+
     # MariaDB configuration
     MARIADB_HOST = os.getenv("MARIADB_HOST", "localhost")
     MARIADB_PORT = int(os.getenv("MARIADB_PORT", "3306"))
