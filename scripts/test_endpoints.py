@@ -5,6 +5,7 @@ import sys
 import urllib.error
 import urllib.request
 
+TEST_EMPLOYEE_NUMBER = "TEST00753" # This is the employee number used for testing
 
 def test_endpoint(url: str, name: str) -> bool:
     """GET an endpoint and print pass/fail. Returns True if status 200 and status==ok."""
@@ -68,13 +69,13 @@ def test_employee_endpoints(base: str) -> list[bool]:
         payload = {
             "first_name": "Test",
             "last_name": "User",
-            "employee_number": "TEST00753",
+            "employee_number": TEST_EMPLOYEE_NUMBER,
             "role": "Tester",
             "active": True,
             "notes": "Created by test script",
         }
         status, data = _request("POST", f"{base}/api/employees", payload)
-        ok = status == 201 and data.get("employee_number") == "TEST00753" 
+        ok = status == 201 and data.get("employee_number") == TEST_EMPLOYEE_NUMBER 
         if ok:
             emp_id = data["id"]
         results.append(ok)
@@ -86,26 +87,26 @@ def test_employee_endpoints(base: str) -> list[bool]:
     if not emp_id:
         return results
 
-    # GET /api/employees/<id>
+    # GET /api/employees/<emplyee_number>
     try:
-        status, data = _request("GET", f"{base}/api/employees/{emp_id}")
+        status, data = _request("GET", f"{base}/api/employees/{TEST_EMPLOYEE_NUMBER}")
         ok = status == 200 and data.get("id") == emp_id and data.get("first_name") == "Test"
         results.append(ok)
-        print(f"  GET /api/employees/<id>: {'PASS' if ok else 'FAIL'} - {status}")
+        print(f"  GET /api/employees/<emplyee_number>: {'PASS' if ok else 'FAIL'} - {status}")
     except Exception as e:
         results.append(False)
-        print(f"  GET /api/employees/<id>: FAIL - {e}")
+        print(f"  GET /api/employees/<emplyee_number>: FAIL - {e}")
 
-    # PUT /api/employees/<id>
+    # PUT /api/employees/<emplyee_number>
     try:
         payload = {"first_name": "Updated", "notes": "Modified by test"}
-        status, data = _request("PUT", f"{base}/api/employees/{emp_id}", payload)
+        status, data = _request("PUT", f"{base}/api/employees/{TEST_EMPLOYEE_NUMBER}", payload)
         ok = status == 200 and data.get("first_name") == "Updated" and data.get("notes") == "Modified by test"
         results.append(ok)
-        print(f"  PUT /api/employees/<id>: {'PASS' if ok else 'FAIL'} - {status}")
+        print(f"  PUT /api/employees/<employee_number>: {'PASS' if ok else 'FAIL'} - {status}")
     except Exception as e:
         results.append(False)
-        print(f"  PUT /api/employees/<id>: FAIL - {e}")
+        print(f"  PUT /api/employees/<employee_number>: FAIL - {e}")
 
     # GET /api/employees?active=true (filter)
     try:
@@ -117,35 +118,35 @@ def test_employee_endpoints(base: str) -> list[bool]:
         results.append(False)
         print(f"  GET /api/employees?active=true: FAIL - {e}")
 
-    # DELETE /api/employees/<id> (soft delete)
+    # DELETE /api/employees/<employee_numbeer> (soft delete)
     try:
-        status, data = _request("DELETE", f"{base}/api/employees/{emp_id}")
+        status, data = _request("DELETE", f"{base}/api/employees/{TEST_EMPLOYEE_NUMBER}")
         ok = status == 200 and data.get("active") is False
         results.append(ok)
-        print(f"  DELETE /api/employees/<id> (soft): {'PASS' if ok else 'FAIL'} - {status}")
+        print(f"  DELETE /api/employees/<employee_number> (soft): {'PASS' if ok else 'FAIL'} - {status}")
     except Exception as e:
         results.append(False)
-        print(f"  DELETE /api/employees/<id> (soft): FAIL - {e}")
+        print(f"  DELETE /api/employees/<employee_number> (soft): FAIL - {e}")
 
-    # DELETE /api/employees/<id>?hard=true (hard delete, cleanup)
+    # DELETE /api/employees/<employee_number>?hard=true (hard delete, cleanup)
     try:
-        status, data = _request("DELETE", f"{base}/api/employees/{emp_id}?hard=true")
+        status, data = _request("DELETE", f"{base}/api/employees/{TEST_EMPLOYEE_NUMBER}?hard=true")
         ok = status == 200 and data.get("message") == "Employee deleted permanently"
         results.append(ok)
-        print(f"  DELETE /api/employees/<id>?hard=true: {'PASS' if ok else 'FAIL'} - {status}")
+        print(f"  DELETE /api/employees/<employee_number>?hard=true: {'PASS' if ok else 'FAIL'} - {status}")
     except Exception as e:
         results.append(False)
-        print(f"  DELETE /api/employees/<id>?hard=true: FAIL - {e}")
+        print(f"  DELETE /api/employees/<employee_number>?hard=true: FAIL - {e}")
 
-    # GET /api/employees/<id> (404 after delete)
+    # GET /api/employees/<employee_number> (404 after delete)
     try:
-        status, data = _request_expect_error("GET", f"{base}/api/employees/{emp_id}")
+        status, data = _request_expect_error("GET", f"{base}/api/employees/{TEST_EMPLOYEE_NUMBER}")
         ok = status == 404 and data.get("error") == "Employee not found"
         results.append(ok)
-        print(f"  GET /api/employees/<id> (404): {'PASS' if ok else 'FAIL'} - {status}")
+        print(f"  GET /api/employees/<employee_number> (404): {'PASS' if ok else 'FAIL'} - {status}")
     except Exception as e:
         results.append(False)
-        print(f"  GET /api/employees/<id> (404): FAIL - {e}")
+        print(f"  GET /api/employees/<employee_number> (404): FAIL - {e}")
 
     return results
 

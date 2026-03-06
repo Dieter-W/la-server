@@ -37,7 +37,7 @@ def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
         if val is None or (isinstance(val, str) and not val.strip()):
             return False, f"Missing or empty required field: {field}"
     if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(data.get("employee_number")):
-        return False, f"Employee Number is wrong"       
+        return False, "Employee Number is wrong"       
     return True, None
 
 
@@ -47,7 +47,7 @@ def _validate_update_payload(data: dict) -> tuple[bool, str | None]:
         return False, "Request body must be a JSON object"
     emplyee_number = data.get("employee_number")
     if emplyee_number is not None and VALIDATE_CHECK_SUM and not mod_97_10.is_valid(emplyee_number):
-        return False, f"Employee Number is wrong"           
+        return False, "Employee Number is wrong"           
     return True, None
 
 
@@ -65,10 +65,12 @@ def list_employees():
     return jsonify({"employees": [_employee_to_dict(e) for e in employees]})
 
 
-@employees_bp.route("/employees/<int:employee_id>", methods=["GET"])
-def get_employee(employee_id: int):
-    """Fetch a single employee by ID."""
-    emp = db.session.get(Employee, employee_id)
+@employees_bp.route("/employees/<string:employee_number>", methods=["GET"])
+def get_employee(employee_number: str):
+    """Fetch a single employee by employee number."""
+    if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(employee_number):
+        return jsonify({"error": "Employee Number is wrong"}), 400       
+    emp = Employee.query.filter(Employee.employee_number == employee_number).first()
     if emp is None:
         return jsonify({"error": "Employee not found"}), 404
     return jsonify(_employee_to_dict(emp))
@@ -94,10 +96,12 @@ def create_employee():
     return jsonify(_employee_to_dict(emp)), 201
 
 
-@employees_bp.route("/employees/<int:employee_id>", methods=["PUT"])
-def update_employee(employee_id: int):
+@employees_bp.route("/employees/<string:employee_number>", methods=["PUT"])
+def update_employee(employee_number: str):
     """Update fields of an employee."""
-    emp = db.session.get(Employee, employee_id)
+    if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(employee_number):
+        return jsonify({"error": "Employee Number is wrong"}), 400       
+    emp = Employee.query.filter(Employee.employee_number == employee_number).first()
     if emp is None:
         return jsonify({"error": "Employee not found"}), 404
     data = request.get_json(silent=True)
@@ -118,10 +122,12 @@ def update_employee(employee_id: int):
     return jsonify(_employee_to_dict(emp))
 
 
-@employees_bp.route("/employees/<int:employee_id>", methods=["DELETE"])
-def delete_employee(employee_id: int):
+@employees_bp.route("/employees/<string:employee_number>", methods=["DELETE"])
+def delete_employee(employee_number: str):
     """Soft delete (set active=false) or hard delete if ?hard=true."""
-    emp = db.session.get(Employee, employee_id)
+    if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(employee_number):
+        return jsonify({"error": "Employee Number is wrong"}), 400       
+    emp = Employee.query.filter(Employee.employee_number == employee_number).first()
     if emp is None:
         return jsonify({"error": "Employee not found"}), 404
     hard = request.args.get("hard", "").lower() in ("true", "1", "yes")

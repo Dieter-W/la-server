@@ -34,15 +34,11 @@ Python Flask server with MariaDB database backend.
 
 4. **Create database**
 
-   Either run the script:
+   Run the script:
    ```bash
    python scripts/create_database.py
    ```
-   Or create manually in MariaDB:
-   ```sql
-   CREATE DATABASE kinderspielstadt CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-   ```
-
+   
 ## Run
 
 **Option 1 – Start scripts** (activate venv automatically):
@@ -105,10 +101,10 @@ waitress-serve --host=0.0.0.0 --port=5000 --threads=4 main:app
 | `GET /api/health`   | Basic health check       |
 | `GET /api/health/db` | Database connectivity   |
 | `GET /api/employees` | List employees (optional `?active=true` or `?active=false`) |
-| `GET /api/employees/<id>` | Fetch a single employee |
+| `GET /api/employees/<employee_number>` | Fetch a single employee |
 | `POST /api/employees` | Create a new employee |
-| `PUT /api/employees/<id>` | Update an employee |
-| `DELETE /api/employees/<id>` | Soft delete (set `active=false`); use `?hard=true` to permanently delete |
+| `PUT /api/employees/<employee_number>` | Update an employee |
+| `DELETE /api/employees/<employee_number>` | Soft delete (sets `active=false`); use `?hard=true` to permanently delete |
 
 ### Employee API examples
 
@@ -126,31 +122,31 @@ curl "http://localhost:5000/api/employees?active=true"
 
 **Get a single employee**
 ```bash
-curl http://localhost:5000/api/employees/1
+curl http://localhost:5000/api/employees/M00155
 ```
 
 **Create an employee**
 ```bash
 curl -X POST http://localhost:5000/api/employees \
   -H "Content-Type: application/json" \
-  -d "{\"first_name\":\"Max\",\"last_name\":\"Mustermann\",\"employee_number\":\"M001\",\"role\":\"Betreuer\",\"active\":true,\"notes\":\"Works weekends\"}"
+  -d "{\"first_name\":\"Max\",\"last_name\":\"Mustermann\",\"employee_number\":\"M00155\",\"role\":\"Betreuer\",\"active\":true,\"notes\":\"Works weekends\"}"
 ```
 
 **Update an employee**
 ```bash
-curl -X PUT http://localhost:5000/api/employees/1 \
+curl -X PUT http://localhost:5000/api/employees/M00155 \
   -H "Content-Type: application/json" \
-  -d "{\"employee_number\":\"M001-UPD\",\"active\":true}"
+  -d "{\"active\":true,\"notes\":\"Works Sundays\"}"
 ```
 
 **Soft delete (deactivate) an employee**
 ```bash
-curl -X DELETE http://localhost:5000/api/employees/1
+curl -X DELETE http://localhost:5000/api/employees/M00155
 ```
 
 **Hard delete (permanently remove) an employee**
 ```bash
-curl -X DELETE "http://localhost:5000/api/employees/1?hard=true"
+curl -X DELETE "http://localhost:5000/api/employees/M00155?hard=true"
 ```
 
 ### CSV bulk import
@@ -166,8 +162,8 @@ python scripts/bulk_import_employees.py employees.csv
 Example `employees.csv`:
 ```csv
 first_name,last_name,employee_number,role,active,notes
-Max,Mustermann,M001,Betreuer,true,Works weekends
-Anna,Schmidt,A002,Helferin,true,
+Max,Mustermann,M00155,Betreuer,true,Works weekends
+Anna,Schmidt,A00265,Helferin,true,
 ```
 
 The script creates or updates employees (by employee_number) and logs successes and errors to stdout. It exits with a non-zero code if any row fails to import.
