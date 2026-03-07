@@ -1,4 +1,4 @@
 first_name,last_name,employee_number,role,active,notes
-Max,Mustermann,M001,Betreuer,true,Works weekends
-Anna,Schmidt,A002,Helferin,true,
-Peter,Krause,P003,Leiter,true,Team lead
+Max,Mustermann,M00155,Betreuer,true,Works weekends
+Anna,Schmidt,A00265,Helferin,true,
+Peter,Krause,P00370,Leiter,true,Team lead

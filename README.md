@@ -154,7 +154,7 @@ curl -X DELETE "http://localhost:5000/api/employees/M00155?hard=true"
 Import employees from a CSV file:
 
 ```bash
-python scripts/bulk_import_employees.py employees.csv
+python ./scripts/bulk_import_employees.py employees.csv
 ```
 
 **CSV format:** Comma-separated with a header row. Required columns: `first_name`, `last_name`, `employee_number`, `role`, `active`, `notes`.
@@ -173,13 +173,13 @@ The script creates or updates employees (by employee_number) and logs successes 
 With the server running, call:
 
 ```bash
-python scripts/test_endpoints.py
+python ./scripts/test_endpoints.py
 ```
 
 Optional: pass a base URL to test another host/port:
 
 ```bash
-python scripts/test_endpoints.py http://localhost:5000
+python ./scripts/test_endpoints.py http://localhost:5000
 ```
 
 ## Project Structure
