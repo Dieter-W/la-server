@@ -4,6 +4,7 @@ from flask import Flask
 
 from app.config import Config
 from app.database import db, init_db
+from app.errors import register_error_handlers
 
 
 def create_app(config_class=Config) -> Flask:
@@ -20,6 +21,7 @@ def create_app(config_class=Config) -> Flask:
     # #endregion
 
     init_db(app)
+    register_error_handlers(app)
 
     from app.routes import register_routes
     register_routes(app)
