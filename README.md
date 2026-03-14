@@ -1,4 +1,4 @@
-# Kinderspielstadt Ammerbuch Server
+# Kinderspielstadt Ammerbuch - Server
 
 Python Flask server with MariaDB database backend.
 
@@ -100,13 +100,20 @@ waitress-serve --host=0.0.0.0 --port=5000 --threads=4 main:app
 |----------------|--------------------------|
 | `GET /api/health`   | Basic health check       |
 | `GET /api/health/db` | Database connectivity   |
-| `GET /api/employees` | List employees (optional `?active=true` or `?active=false`) |
+| `GET /api/employees` | List all employees (optional `?active=true` or `?active=false`) |
 | `GET /api/employees/<employee_number>` | Fetch a single employee |
 | `POST /api/employees` | Create a new employee |
 | `PUT /api/employees/<employee_number>` | Update an employee |
 | `DELETE /api/employees/<employee_number>` | Soft delete (sets `active=false`); use `?hard=true` to permanently delete |
+| `GET /api/companies` | List all companies optional `?active=true` or `?active=false`)|
+| `GET /api/companies/<company_name>` | Fetch a single company |
+| `POST /api/companies` | Create a new company |
+| `PUT /api/companies/<company_name>` | Update an company |
+| `DELETE /api/companies/<company_name>` | Delete company |
 
 ### Employee API examples
+
+TODO: we have to create a seperate README to explain the endpoints in more detail
 
 With the server running at `http://localhost:5000`:
 
@@ -151,10 +158,29 @@ curl -X DELETE "http://localhost:5000/api/employees/M00155?hard=true"
 
 ### CSV bulk import
 
+Import companies from a CSV file:
+
+```bash
+python ./scripts/bulk_import_companies.py employees.csv 
+```
+
+**CSV format:** Comma-separated with a header row. Required columns: `company_name`, `number_of_jobs`, `pay_per_hour`, `active`, `notes`.
+
+Example `company.csv`:
+```csv
+company_name,number_of_jobs,pay_per_hour,active,notes
+Bank,8,10,true,,
+Arbeitsamt,7,10,true,
+Bauhof,8,10,true,
+Küche,10,15,false,Only weekdays
+```
+
+The script creates or updates companies (by company_name) and logs successes and errors to stdout. It exits with a non-zero code if any row fails to import.
+
 Import employees from a CSV file:
 
 ```bash
-python ./scripts/bulk_import_employees.py employees.csv
+python ./scripts/bulk_import_employees.py employees.csv (optional `--nochecksum-check`)
 ```
 
 **CSV format:** Comma-separated with a header row. Required columns: `first_name`, `last_name`, `employee_number`, `role`, `active`, `notes`.
@@ -187,6 +213,7 @@ python ./scripts/test_endpoints.py http://localhost:5000
 ```
 Server/
 ├── scripts/
+│   ├── bulk_import_companies.py  # Import companies from CSV
 │   ├── bulk_import_employees.py  # Import employees from CSV
 │   ├── create_database.py       # Create MariaDB database
 │   └── test_endpoints.py        # Test API endpoints
@@ -194,6 +221,7 @@ Server/
 │   ├── __init__.py      # App factory
 │   ├── config.py        # Configuration
 │   ├── database.py      # SQLAlchemy setup
+│   ├── errors.py        # Error handler
 │   ├── models.py        # Database models
 │   └── routes/          # API routes
 ├── main.py              # Entry point

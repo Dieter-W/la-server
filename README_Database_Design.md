@@ -1,5 +1,7 @@
 ## Database Design (Draft)
 
+TODO: Employee table is missing
+
 This is an initial, high-level ER diagram for the project.  
 You can expand it with more entities, attributes, and relations as the design evolves.
 
@@ -13,6 +15,8 @@ erDiagram
         string role
         bool active
         text notes
+        utc cerated_at
+        utc updates_at
     }
 ```
 

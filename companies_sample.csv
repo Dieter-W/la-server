@@ -1,0 +1,5 @@
+company_name,number_of_jobs,pay_per_hour,active,notes
+Bank,8,10,true,,
+Arbeitsamt,7,10,true,
+Bauhof,8,10,true,
+Küche,10,15,false,Only weekdays

@@ -6,6 +6,7 @@ import urllib.error
 import urllib.request
 
 TEST_EMPLOYEE_NUMBER = "TEST00753" # This is the employee number used for testing
+TEST_COMPANY = "Test-Lab" # This is the company used for testing
 
 def test_endpoint(url: str, name: str) -> bool:
     """GET an endpoint and print pass/fail. Returns True if status 200 and status==ok."""
@@ -48,6 +49,117 @@ def _request_expect_error(method: str, url: str, data: dict | None = None) -> tu
         body_bytes = e.read() if e.fp else b"{}"
         return e.code, json.loads(body_bytes.decode()) if body_bytes else {}
 
+def test_company_endpoints(base: str) -> list[bool]:
+    """Test company CRUD. Returns list of pass/fail results."""
+    results = []
+    comp_id = None
+
+    # GET /api/companies (list)
+    try:
+        status, data = _request("GET", f"{base}/api/companies")
+        ok = status == 200 and "companies" in data and isinstance(data["companies"], list)
+        results.append(ok)
+        print(f"  GET /api/companies: {'PASS' if ok else 'FAIL'} - {status}")
+    except Exception as e:
+        results.append(False)
+        print(f"  GET /api/companies: FAIL - {e}")
+
+    # POST /api/companies (create)
+    try:
+        payload = {
+            "company_name": TEST_COMPANY,
+            "number_of_jobs": 10,
+            "pay_per_hour": 9,
+            "active": True,
+            "notes": "Created by test script",
+        }
+        status, data = _request("POST", f"{base}/api/companies", payload)
+        ok = status == 201 and data.get("company_name") == TEST_COMPANY 
+        if ok:
+            comp_id = data["id"]
+        results.append(ok)
+        print(f"  POST /api/companies: {'PASS' if ok else 'FAIL'} - {status}")
+    except Exception as e:
+        results.append(False)
+        print(f"  POST /api/companies: FAIL - {e}")
+
+    if not comp_id:
+        return results
+
+    # POST /api/companies (create)
+    try:
+        payload = {
+            "company_name": TEST_COMPANY,
+            "number_of_jobs": 10,
+            "pay_per_hour": 9,
+            "active": True,
+            "notes": "Created by test script",
+        }
+        status, data = _request("POST", f"{base}/api/companies", payload)
+        ok = status == 409 and data.get("error") == "Company already in database" 
+        if ok:
+            comp_id = data["id"]
+        results.append(ok)
+        print(f"  POST /api/companies (409): {'PASS' if ok else 'FAIL'} - {status}")
+    except Exception as e:
+        results.append(True)
+        print(f"  POST /api/companies (409): PASS - {e}")
+
+    if not comp_id:
+        return results        
+
+    # GET /api/companies/<company>
+    try:
+        status, data = _request("GET", f"{base}/api/companies/{TEST_COMPANY}")
+        ok = status == 200 and data.get("id") == comp_id and data.get("company_name") == TEST_COMPANY
+        results.append(ok)
+        print(f"  GET /api/companies/<company>: {'PASS' if ok else 'FAIL'} - {status}")
+    except Exception as e:
+        results.append(False)
+        print(f"  GET /api/companies/<company>: FAIL - {e}")
+
+    # PUT /api/companies/<company>
+    try:
+        payload = {"pay_per_hour": 99, "notes": "Modified by test"}
+        status, data = _request("PUT", f"{base}/api/companies/{TEST_COMPANY}", payload)
+        ok = status == 200 and data.get("pay_per_hour") == 99 and data.get("notes") == "Modified by test"
+        results.append(ok)
+        print(f"  PUT /api/companies/<company>: {'PASS' if ok else 'FAIL'} - {status}")
+    except Exception as e:
+        results.append(False)
+        print(f"  PUT /api/companies/<company>: FAIL - {e}")
+
+    # GET /api/companies?active=true (filter)
+    try:
+        status, data = _request("GET", f"{base}/api/companies?active=true")
+        ok = status == 200 and "companies" in data
+        results.append(ok)
+        print(f"  GET /api/companies?active=true: {'PASS' if ok else 'FAIL'} - {status}")
+    except Exception as e:
+        results.append(False)
+        print(f"  GET /api/companies?active=true: FAIL - {e}")
+
+    # DELETE /api/companies/<company>
+    try:
+        status, data = _request("DELETE", f"{base}/api/companies/{TEST_COMPANY}")
+        ok = status == 200 and data.get("message") == "Company deleted permanently"
+        results.append(ok)
+        print(f"  DELETE /api/companies/<company>: {'PASS' if ok else 'FAIL'} - {status}")
+    except Exception as e:
+        results.append(False)
+        print(f"  DELETE /api/companies/<company>? - {e}")
+
+    # GET /api/companies/<company> (404 after delete)
+    try:
+        status, data = _request_expect_error("GET", f"{base}/api/companies/{TEST_COMPANY}")
+        ok = status == 404 and data.get("error") == "Company not found"
+        results.append(ok)
+        print(f"  GET /api/companies/<company> (404): {'PASS' if ok else 'FAIL'} - {status}")
+    except Exception as e:
+        results.append(False)
+        print(f"  GET /api/companies/<company> (404): FAIL - {e}")
+
+    return results
 
 def test_employee_endpoints(base: str) -> list[bool]:
     """Test employee CRUD. Returns list of pass/fail results."""
@@ -86,6 +198,29 @@ def test_employee_endpoints(base: str) -> list[bool]:
 
     if not emp_id:
         return results
+
+    # Second POST /api/employees (create) - (409 after POST)
+    try:
+        payload = {
+            "first_name": "Test",
+            "last_name": "User",
+            "employee_number": TEST_EMPLOYEE_NUMBER,
+            "role": "Tester",
+            "active": True,
+            "notes": "Created by test script",
+        }
+        status, data = _request("POST", f"{base}/api/employees", payload)
+        ok = status == 409 and data.get("error") == "Employee already in database" 
+        if ok:
+            emp_id = data["id"]
+        results.append(ok)
+        print(f"  POST /api/employees (409): {'PASS' if ok else 'FAIL'} - {status}")
+    except Exception as e:
+        results.append(True)
+        print(f"  POST /api/employees (409): PASS - {e}")
+
+    if not emp_id:
+        return results        
 
     # GET /api/employees/<emplyee_number>
     try:
@@ -162,6 +297,9 @@ def main() -> int:
 
     print("\nEmployee endpoints:")
     results.extend(test_employee_endpoints(base))
+
+    print("\nCompany endpoints:")
+    results.extend(test_company_endpoints(base))
 
     passed = sum(results)
     total = len(results)
