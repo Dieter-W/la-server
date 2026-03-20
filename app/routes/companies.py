@@ -6,12 +6,13 @@ from app.database import db
 from app.errors import APIError
 from app.models import Company
 
-companies_bp = Blueprint("companies", __name__)      
+companies_bp = Blueprint("companies", __name__)
+
 
 def _company_to_dict(comp: Company) -> dict:
     """Serialize Companye to JSON-serializable dict."""
     return {
-        "id": comp.id,   
+        "id": comp.id,
         "company_name": comp.company_name,
         "number_of_jobs": comp.number_of_jobs,
         "pay_per_hour": comp.pay_per_hour,
@@ -37,10 +38,13 @@ def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
 def _validate_update_payload(data: dict) -> tuple[bool, str | None]:
     """Validate PUT payload. Returns (valid, error_message)."""
     if not data or not isinstance(data, dict):
-        return False, "Request body must be a JSON object"  
-    company_name = data.get("company_name")      
-    if company_name is not None and not Company.query.filter(Company.company_name == company_name).first():
-        return False, "Company not found"   
+        return False, "Request body must be a JSON object"
+    company_name = data.get("company_name")
+    if (
+        company_name is not None
+        and not Company.query.filter(Company.company_name == company_name).first()
+    ):
+        return False, "Company not found"
     return True, None
 
 
@@ -52,12 +56,16 @@ def list_companies():
         query = Company.query
         if active_param is not None:
             if active_param.lower() in ("true", "1", "yes"):
-                query = query.filter(Company.active == True)
+                query = query.filter(Company.active.is_(True))
             elif active_param.lower() in ("false", "0", "no"):
-                query = query.filter(Company.active == False)
+                query = query.filter(Company.active.is_(False))
         companies = query.order_by(Company.company_name).all()
-        return jsonify({"companies": [_company_to_dict(e) for e in companies],
-                        "count": len(companies)})
+        return jsonify(
+            {
+                "companies": [_company_to_dict(e) for e in companies],
+                "count": len(companies),
+            }
+        )
 
 
 @companies_bp.route("/companies/<string:company_name>", methods=["GET"])
@@ -77,7 +85,7 @@ def create_company():
     valid, err = _validate_create_payload(data)
     if not valid:
         raise APIError(err, 400)
-    with db.session.begin():    
+    with db.session.begin():
         comp = Company(
             company_name=data["company_name"].strip(),
             number_of_jobs=data["number_of_jobs"],
@@ -97,11 +105,17 @@ def update_company(company_name: str):
     valid, err = _validate_update_payload(data)
     if not valid:
         raise APIError(err, 400)
-    with db.session.begin():    
+    with db.session.begin():
         comp = Company.query.filter(Company.company_name == company_name).first()
         if comp is None:
-            raise APIError("Company not found", 404)        
-        updatable = ("company_name", "number_of_jobs", "pay_per_hour", "active", "notes")
+            raise APIError("Company not found", 404)
+        updatable = (
+            "company_name",
+            "number_of_jobs",
+            "pay_per_hour",
+            "active",
+            "notes",
+        )
         for field in updatable:
             if field in data:
                 val = data[field]
@@ -123,5 +137,5 @@ def delete_company(company_name: str):
         comp = Company.query.filter(Company.company_name == company_name).first()
         if comp is None:
             raise APIError("Company not found", 404)
-        db.session.delete(comp)   
-        return jsonify({"message": "Company deleted permanently"}), 200    
+        db.session.delete(comp)
+        return jsonify({"message": "Company deleted permanently"}), 200

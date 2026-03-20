@@ -7,16 +7,23 @@ from pathlib import Path
 from dotenv import load_dotenv
 from stdnum.iso7064 import mod_97_10
 
+from app import create_app
+from app.database import db
+from app.models import Employee
+
 # Add project root to path and load .env
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 load_dotenv(project_root / ".env")
 
-from app import create_app
-from app.database import db
-from app.models import Employee
-
-REQUIRED_COLUMNS = ("first_name", "last_name", "employee_number", "role", "active", "notes")
+REQUIRED_COLUMNS = (
+    "first_name",
+    "last_name",
+    "employee_number",
+    "role",
+    "active",
+    "notes",
+)
 
 
 def _parse_active(value: str) -> bool:
@@ -37,7 +44,9 @@ def import_row(row: dict, row_num: int) -> bool:
     last_name = (row.get("last_name") or "").strip()
     role = (row.get("role") or "").strip()
     if not first_name or not last_name or not role:
-        print(f"  Row {row_num}: SKIP - missing required field (first_name, last_name, or role)")
+        print(
+            f"  Row {row_num}: SKIP - missing required field (first_name, last_name, or role)"
+        )
         return False
 
     active = _parse_active(row.get("active", "true"))
@@ -69,7 +78,10 @@ def import_row(row: dict, row_num: int) -> bool:
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("Usage: python ./scripts/bulk_import_employees.py <path_to_csv> <--nochecksum-check>", file=sys.stderr)
+        print(
+            "Usage: python ./scripts/bulk_import_employees.py <path_to_csv> <--nochecksum-check>",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     csv_path = Path(sys.argv[1])
@@ -77,10 +89,13 @@ def main() -> int:
         print(f"Error: File not found: {csv_path}", file=sys.stderr)
         sys.exit(1)
 
-    if len(sys.argv) < 3 or "--nochecksum-check" not in sys.argv[2].lower():        
-       employee_checksum_validation = True
-    else:   
-        print(f"Warning: Checksum validation of employee number is deactivated", file=sys.stderr) 
+    if len(sys.argv) < 3 or "--nochecksum-check" not in sys.argv[2].lower():
+        employee_checksum_validation = True
+    else:
+        print(
+            "Warning: Checksum validation of employee number is deactivated",
+            file=sys.stderr,
+        )
         employee_checksum_validation = False
 
     app = create_app()
@@ -98,13 +113,16 @@ def main() -> int:
 
         rows = list(reader)
 
-        if employee_checksum_validation == True:
+        if employee_checksum_validation is not False:
             for i, row in enumerate(rows, start=2):  # row 1 is header
                 if not mod_97_10.is_valid((row.get("employee_number") or "").strip()):
                     employee_numbert = (row.get("employee_number") or "").strip()
                     first_name = (row.get("first_name") or "").strip()
                     last_name = (row.get("last_name") or "").strip()
-                    print(f"Error: Checksum of Employee Number is wrong - {first_name} {last_name} - {employee_numbert} ", file=sys.stderr)
+                    print(
+                        f"Error: Checksum of Employee Number is wrong - {first_name} {last_name} - {employee_numbert} ",
+                        file=sys.stderr,
+                    )
                     sys.exit(1)
 
     with app.app_context():

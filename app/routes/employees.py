@@ -11,7 +11,8 @@ from app.models import Employee
 
 employees_bp = Blueprint("employees", __name__)
 
-VALIDATE_CHECK_SUM = os.getenv("VALIDATE_CHECK_SUM", "true").lower() == "true"        
+VALIDATE_CHECK_SUM = os.getenv("VALIDATE_CHECK_SUM", "true").lower() == "true"
+
 
 def _employee_to_dict(emp: Employee) -> dict:
     """Serialize Employee to JSON-serializable dict."""
@@ -38,7 +39,7 @@ def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
         if val is None or (isinstance(val, str) and not val.strip()):
             return False, f"Missing or empty required field: {field}"
     if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(data.get("employee_number")):
-        return False, "Employee Number is wrong"       
+        return False, "Employee Number is wrong"
     return True, None
 
 
@@ -47,8 +48,12 @@ def _validate_update_payload(data: dict) -> tuple[bool, str | None]:
     if not data or not isinstance(data, dict):
         return False, "Request body must be a JSON object"
     emplyee_number = data.get("employee_number")
-    if emplyee_number is not None and VALIDATE_CHECK_SUM and not mod_97_10.is_valid(emplyee_number):
-        return False, "Employee Number is wrong"           
+    if (
+        emplyee_number is not None
+        and VALIDATE_CHECK_SUM
+        and not mod_97_10.is_valid(emplyee_number)
+    ):
+        return False, "Employee Number is wrong"
     return True, None
 
 
@@ -60,12 +65,19 @@ def list_employees():
         query = Employee.query
         if active_param is not None:
             if active_param.lower() in ("true", "1", "yes"):
-                query = query.filter(Employee.active == True)
+                query = query.filter(Employee.active.is_(True))
             elif active_param.lower() in ("false", "0", "no"):
-                query = query.filter(Employee.active == False)
+                query = query.filter(Employee.active.is_(False))
         employees = query.order_by(Employee.last_name, Employee.first_name).all()
-        return jsonify({"employees": [_employee_to_dict(e) for e in employees],
-                        "count": len(employees)}), 200
+        return (
+            jsonify(
+                {
+                    "employees": [_employee_to_dict(e) for e in employees],
+                    "count": len(employees),
+                }
+            ),
+            200,
+        )
 
 
 @employees_bp.route("/employees/<string:employee_number>", methods=["GET"])
@@ -105,7 +117,7 @@ def create_employee():
 def update_employee(employee_number: str):
     """Update fields of an employee."""
     if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(employee_number):
-        raise APIError("Employee Number is wrong", 400)     
+        raise APIError("Employee Number is wrong", 400)
     data = request.get_json(silent=True)
     valid, err = _validate_update_payload(data)
     if not valid:
@@ -114,14 +126,21 @@ def update_employee(employee_number: str):
         emp = Employee.query.filter(Employee.employee_number == employee_number).first()
         if emp is None:
             raise APIError("Employee not found", 404)
-        updatable = ("first_name", "last_name", "employee_number", "role", "active", "notes")
+        updatable = (
+            "first_name",
+            "last_name",
+            "employee_number",
+            "role",
+            "active",
+            "notes",
+        )
         for field in updatable:
             if field in data:
                 val = data[field]
                 if field == "active":
                     emp.active = bool(val)
                 elif field in ("first_name", "last_name", "employee_number", "role"):
-                    emp.__setattr__(field, (val or "").strip())                    
+                    emp.__setattr__(field, (val or "").strip())
                 else:
                     emp.__setattr__(field, val if val is not None else None)
         return jsonify(_employee_to_dict(emp)), 200
@@ -131,7 +150,7 @@ def update_employee(employee_number: str):
 def delete_employee(employee_number: str):
     """Soft delete (set active=false) or hard delete if ?hard=true."""
     if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(employee_number):
-        raise APIError("Employee Number is wrong", 400)   
+        raise APIError("Employee Number is wrong", 400)
     with db.session.begin():
         emp = Employee.query.filter(Employee.employee_number == employee_number).first()
         if emp is None:
@@ -140,6 +159,6 @@ def delete_employee(employee_number: str):
         if not hard:
             emp.active = False
             return jsonify(_employee_to_dict(emp)), 200
-        else:    
+        else:
             db.session.delete(emp)
             return jsonify({"message": "Employee deleted permanently"}), 200

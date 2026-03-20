@@ -3,20 +3,19 @@
 import csv
 import sys
 from pathlib import Path
-from typing import Literal
 
 from dotenv import load_dotenv
+
+from app import create_app
+from app.database import db
+from app.models import Company
 
 # Add project root to path and load .env
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 load_dotenv(project_root / ".env")
 
-from app import create_app
-from app.database import db
-from app.models import Company
-
-REQUIRED_COLUMNS = ("company_name", "number_of_jobs","pay_per_hour", "active", "notes")
+REQUIRED_COLUMNS = ("company_name", "number_of_jobs", "pay_per_hour", "active", "notes")
 
 
 def _parse_active(value: str) -> bool:
@@ -59,7 +58,10 @@ def import_row(row: dict, row_num: int) -> bool:
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("Usage: python ./scripts/bulk_import_companies.py <path_to_csv>", file=sys.stderr)
+        print(
+            "Usage: python ./scripts/bulk_import_companies.py <path_to_csv>",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     csv_path = Path(sys.argv[1])
