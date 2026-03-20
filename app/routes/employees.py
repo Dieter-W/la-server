@@ -64,7 +64,8 @@ def list_employees():
             elif active_param.lower() in ("false", "0", "no"):
                 query = query.filter(Employee.active == False)
         employees = query.order_by(Employee.last_name, Employee.first_name).all()
-        return jsonify({"employees": [_employee_to_dict(e) for e in employees]}), 200
+        return jsonify({"employees": [_employee_to_dict(e) for e in employees],
+                        "count": len(employees)}), 200
 
 
 @employees_bp.route("/employees/<string:employee_number>", methods=["GET"])

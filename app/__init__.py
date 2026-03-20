@@ -2,15 +2,17 @@
 
 from flask import Flask
 
-from app.config import Config
-from app.database import db, init_db
+from app.database import init_db
 from app.errors import register_error_handlers
 
 
-def create_app(config_class=Config) -> Flask:
+def create_app(config_object=None) -> Flask:
     """Application factory."""
+
     app = Flask(__name__)
-    app.config.from_object(config_class)
+    
+    if config_object: 
+        app.config.from_object(config_object)
 
     # #region agent log
     import json

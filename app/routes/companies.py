@@ -56,7 +56,8 @@ def list_companies():
             elif active_param.lower() in ("false", "0", "no"):
                 query = query.filter(Company.active == False)
         companies = query.order_by(Company.company_name).all()
-        return jsonify({"companies": [_company_to_dict(e) for e in companies]})
+        return jsonify({"companies": [_company_to_dict(e) for e in companies],
+                        "count": len(companies)})
 
 
 @companies_bp.route("/companies/<string:company_name>", methods=["GET"])

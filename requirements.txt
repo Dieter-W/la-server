@@ -18,3 +18,9 @@ waitress>=3.0.0
 
 # Development
 flask-cors>=4.0.0
+
+# Development, Test and Commit 
+pytest>=7.0
+pytest-xdist>=3.8.0
+requests>=2.32.5
+

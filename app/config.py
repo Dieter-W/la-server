@@ -35,3 +35,17 @@ class Config:
         "pool_recycle": 300,
     }
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    TESTING = False
+
+class TestingConfig(Config):
+    """Testing configuration."""
+
+    MARIADB_DATABASE = Config.MARIADB_DATABASE + "-test"
+
+    ADMIN_DB_URI = (
+        f"mysql+pymysql://{Config.MARIADB_USER}:{Config.MARIADB_PASSWORD}"
+        f"@{Config.MARIADB_HOST}:{Config.MARIADB_PORT}/mysql"
+    )
+
+    TESTING = True

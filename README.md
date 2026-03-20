@@ -196,16 +196,12 @@ The script creates or updates employees (by employee_number) and logs successes 
 
 ## Test endpoints
 
-With the server running, call:
+TODO: enhance the test discription
+
+The test is done with pytest:
 
 ```bash
-python ./scripts/test_endpoints.py
-```
-
-Optional: pass a base URL to test another host/port:
-
-```bash
-python ./scripts/test_endpoints.py http://localhost:5000
+pytest
 ```
 
 ## Project Structure
@@ -213,22 +209,30 @@ python ./scripts/test_endpoints.py http://localhost:5000
 ```
 Server/
 ├── scripts/
-│   ├── bulk_import_companies.py  # Import companies from CSV
-│   ├── bulk_import_employees.py  # Import employees from CSV
-│   ├── create_database.py       # Create MariaDB database
-│   └── test_endpoints.py        # Test API endpoints
+│   ├── bulk_import_companies.py        # Import companies from CSV
+│   ├── bulk_import_employees.py        # Import employees from CSV
+│   └── create_database.py              # Create MariaDB database│   
 ├── app/
-│   ├── __init__.py      # App factory
-│   ├── config.py        # Configuration
-│   ├── database.py      # SQLAlchemy setup
-│   ├── errors.py        # Error handler
-│   ├── models.py        # Database models
-│   └── routes/          # API routes
-├── main.py              # Entry point
-├── start.bat            # Start server (Windows CMD)
-├── start.ps1            # Start server (PowerShell)
-├── start.sh             # Start server (Linux/macOS)
+│   ├── __init__.py                     # App factory
+│   ├── config.py                       # Configuration
+│   ├── database.py                     # SQLAlchemy setup
+│   ├── errors.py                       # Error handler
+│   ├── models.py                       # Database models
+│   └── routes/                         # API routes
+├── tests/
+│   ├── conftest.py                     # ??
+│   ├── test_01_environment.py          # Test the environment
+|   ├── test_02_health.py               # Test basic functions
+|   ├── test_05_bulk_import_company.py  # Test the bulk import for companies
+|   ├── test_05_bulk_import_employee.py # Test the bulk import for employies
+|   ├── test_10_company.py              # Test company entpoints
+|   └── test_11_employee.py             # test employee entpoints
+├── main.py                             # Entry point
+├── start.bat                           # Start server (Windows CMD)
+├── start.ps1                           # Start server (PowerShell)
+├── start.sh                            # Start server (Linux/macOS)
 ├── requirements.txt
+├── pytest.ini                          
 ├── .env.example
 └── README.md
 ```
