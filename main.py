@@ -16,4 +16,5 @@ if __name__ == "__main__":
         app.run(host=host, port=port, debug=True, threaded=True)
     else:
         import waitress
+
         waitress.serve(app, host=host, port=port, threads=threads)

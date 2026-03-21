@@ -19,4 +19,5 @@ def init_db(app) -> None:
 
     with app.app_context():
         import app.models  # noqa: F401 - register models before create_all
+
         db.create_all()

@@ -44,7 +44,6 @@ Python Flask server with MariaDB database backend.
 **Option 1 – Start scripts** (activate venv automatically):
 
 ```bash
-.\start.bat      # Windows CMD
 .\start.ps1      # Windows PowerShell
 ./start.sh       # Linux/macOS (chmod +x start.sh first)
 ```
@@ -228,7 +227,6 @@ Server/
 |   ├── test_10_company.py              # Test company entpoints
 |   └── test_11_employee.py             # test employee entpoints
 ├── main.py                             # Entry point
-├── start.bat                           # Start server (Windows CMD)
 ├── start.ps1                           # Start server (PowerShell)
 ├── start.sh                            # Start server (Linux/macOS)
 ├── requirements.txt

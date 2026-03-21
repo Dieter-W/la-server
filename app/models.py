@@ -17,7 +17,9 @@ class BaseModel(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
-    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    updated_at = db.Column(
+        db.DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
 
 
 class Employee(BaseModel):

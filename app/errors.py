@@ -1,8 +1,9 @@
-""" Errorhandler for the REST Endpoits """
+"""Errorhandler for the REST Endpoits"""
 
 from flask import jsonify
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.database import db
+
 
 class APIError(Exception):
     def __init__(self, message, status_code=400):

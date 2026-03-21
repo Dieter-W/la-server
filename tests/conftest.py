@@ -157,4 +157,3 @@ def sample_employee(db_session):
 
     db.session.commit()
     return employee
-
