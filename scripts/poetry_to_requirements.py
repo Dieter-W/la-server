@@ -71,7 +71,7 @@ def main() -> int:
         print("Error adding requirements.txt to the commit: ", e)
         sys.exit(1)
 
-    print("requirements.txt updated and staged sucessfully")
+    print("requirements.txt updated and staged successfully")
     return 0
 
 

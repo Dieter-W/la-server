@@ -1,4 +1,4 @@
-"""Errorhandler for the REST Endpoits"""
+"""Errorhandler for the REST Endpoints"""
 
 from flask import jsonify
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -20,7 +20,7 @@ def register_error_handlers(app):
     @app.errorhandler(IntegrityError)
     def handle_integrity_error(e):
         db.session.rollback()
-        return jsonify({"error": "Contraint violation"}), 409
+        return jsonify({"error": "constraint violation"}), 409
 
     @app.errorhandler(SQLAlchemyError)
     def handle_sqlalchemy_error(e):

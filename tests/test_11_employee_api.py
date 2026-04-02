@@ -30,31 +30,31 @@ def test_query_all_employees(client, db_session, sample_employee):
     assert len(data["employees"]) == 3
     assert data["count"] == 3
     assert any(
-        emploee_data["id"] == sample_employee.id for emploee_data in data["employees"]
+        employee_data["id"] == sample_employee.id for employee_data in data["employees"]
     )
     assert any(
-        emploee_data["first_name"] == sample_employee.first_name
-        for emploee_data in data["employees"]
+        employee_data["first_name"] == sample_employee.first_name
+        for employee_data in data["employees"]
     )
     assert any(
-        emploee_data["last_name"] == sample_employee.last_name
-        for emploee_data in data["employees"]
+        employee_data["last_name"] == sample_employee.last_name
+        for employee_data in data["employees"]
     )
     assert any(
-        emploee_data["employee_number"] == sample_employee.employee_number
-        for emploee_data in data["employees"]
+        employee_data["employee_number"] == sample_employee.employee_number
+        for employee_data in data["employees"]
     )
     assert any(
-        emploee_data["role"] == sample_employee.role
-        for emploee_data in data["employees"]
+        employee_data["role"] == sample_employee.role
+        for employee_data in data["employees"]
     )
     assert any(
-        emploee_data["active"] == sample_employee.active
-        for emploee_data in data["employees"]
+        employee_data["active"] == sample_employee.active
+        for employee_data in data["employees"]
     )
     assert any(
-        emploee_data["notes"] == sample_employee.notes
-        for emploee_data in data["employees"]
+        employee_data["notes"] == sample_employee.notes
+        for employee_data in data["employees"]
     )
 
 

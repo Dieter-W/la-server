@@ -222,17 +222,17 @@ def test_employee_endpoints(base: str) -> list[bool]:
     if not emp_id:
         return results        
 
-    # GET /api/employees/<emplyee_number>
+    # GET /api/employees/<employee_number>
     try:
         status, data = _request("GET", f"{base}/api/employees/{TEST_EMPLOYEE_NUMBER}")
         ok = status == 200 and data.get("id") == emp_id and data.get("first_name") == "Test"
         results.append(ok)
-        print(f"  GET /api/employees/<emplyee_number>: {'PASS' if ok else 'FAIL'} - {status}")
+        print(f"  GET /api/employees/<employee_number>: {'PASS' if ok else 'FAIL'} - {status}")
     except Exception as e:
         results.append(False)
-        print(f"  GET /api/employees/<emplyee_number>: FAIL - {e}")
+        print(f"  GET /api/employees/<employee_number>: FAIL - {e}")
 
-    # PUT /api/employees/<emplyee_number>
+    # PUT /api/employees/<employee_number>
     try:
         payload = {"first_name": "Updated", "notes": "Modified by test"}
         status, data = _request("PUT", f"{base}/api/employees/{TEST_EMPLOYEE_NUMBER}", payload)
@@ -253,7 +253,7 @@ def test_employee_endpoints(base: str) -> list[bool]:
         results.append(False)
         print(f"  GET /api/employees?active=true: FAIL - {e}")
 
-    # DELETE /api/employees/<employee_numbeer> (soft delete)
+    # DELETE /api/employees/<employee_number> (soft delete)
     try:
         status, data = _request("DELETE", f"{base}/api/employees/{TEST_EMPLOYEE_NUMBER}")
         ok = status == 200 and data.get("active") is False

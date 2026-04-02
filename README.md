@@ -4,7 +4,7 @@ Python Flask server with MariaDB database backend.
 
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.14
 - MariaDB 10.6+
 
 ## Setup
