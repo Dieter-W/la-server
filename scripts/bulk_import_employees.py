@@ -7,13 +7,15 @@ from pathlib import Path
 from dotenv import load_dotenv
 from stdnum.iso7064 import mod_97_10
 
-from app import create_app
-from app.database import db
-from app.models import Employee
-
-# Add project root to path and load .env
+# Add project root to path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
+
+from app import create_app  # noqa: E402
+from app.config import Config  # noqa: E402
+from app.database import db  # noqa: E402
+from app.models import Employee  # noqa: E402
+
 load_dotenv(project_root / ".env")
 
 REQUIRED_COLUMNS = (
@@ -79,7 +81,7 @@ def import_row(row: dict, row_num: int) -> bool:
 def main() -> int:
     if len(sys.argv) < 2:
         print(
-            "Usage: python ./scripts/bulk_import_employees.py <path_to_csv> <--nochecksum-check>",
+            "Usage: python ./scripts/bulk_import_employees.py <path_to_csv> <--no-checksum-check>",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -98,7 +100,7 @@ def main() -> int:
         )
         employee_checksum_validation = False
 
-    app = create_app()
+    app = create_app(Config)
     failed = 0
 
     with open(csv_path, newline="", encoding="utf-8") as f:
@@ -116,11 +118,11 @@ def main() -> int:
         if employee_checksum_validation is not False:
             for i, row in enumerate(rows, start=2):  # row 1 is header
                 if not mod_97_10.is_valid((row.get("employee_number") or "").strip()):
-                    employee_numbert = (row.get("employee_number") or "").strip()
+                    employee_number = (row.get("employee_number") or "").strip()
                     first_name = (row.get("first_name") or "").strip()
                     last_name = (row.get("last_name") or "").strip()
                     print(
-                        f"Error: Checksum of Employee Number is wrong - {first_name} {last_name} - {employee_numbert} ",
+                        f"Error: Checksum of Employee Number is wrong - {first_name} {last_name} - {employee_number} ",
                         file=sys.stderr,
                     )
                     sys.exit(1)

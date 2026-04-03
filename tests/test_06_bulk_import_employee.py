@@ -1,0 +1,57 @@
+"""Bulk insert employees and update them"""
+
+import sys
+import subprocess
+
+from app.models import Employee
+
+
+def test_bulk_import_companies_create(app, db_session):
+    result = subprocess.run(
+        [
+            sys.executable,
+            "./scripts/bulk_import_employees.py",
+            "employees_sample.csv",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+
+    data = Employee.query.all()
+    assert len(data) == 3
+
+    # TODO: Check if the data is correct
+
+
+def test_bulk_import_companies_update(app, db_session):
+    result = subprocess.run(
+        [
+            sys.executable,
+            "./scripts/bulk_import_employees.py",
+            "employees_sample.csv",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+
+    data = Employee.query.all()
+    assert len(data) == 3
+
+    # In place update, we use the same data
+    result = subprocess.run(
+        [
+            sys.executable,
+            "./scripts/bulk_import_employees.py",
+            "employees_sample.csv",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+
+    data = Employee.query.all()
+    assert len(data) == 3
+
+    # TODO: Do an update and check if the data is correct
