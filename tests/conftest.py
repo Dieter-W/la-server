@@ -1,5 +1,6 @@
 """Test Spielstadt server"""
 
+import os
 import sys
 import pytest
 
@@ -15,27 +16,34 @@ from app import create_app
 from app.database import db
 from app.models import Employee, Company
 
-from app.config import TestingConfig
+from app.config import Config
 
 
 # ---------------------------------------------------------
 # 1. Create Test Database
 # ---------------------------------------------------------
 @pytest.fixture()
-def db_create():
-    engine = create_engine(TestingConfig.ADMIN_DB_URI)
+def env_patch(monkeypatch):
+    """Set needed environment variables"""
+    monkeypatch.setenv("TESTING", "true")
+    monkeypatch.setenv("MARIADB_DATABASE", "$$test-database$$")
+
+    yield
+
+
+@pytest.fixture()
+def db_create(env_patch):
+    engine = create_engine(Config.admin_db_uri())
     with engine.connect() as conn:
-        conn.execute(
-            text(f"DROP DATABASE IF EXISTS `{TestingConfig.MARIADB_DATABASE}`")
-        )
-        conn.execute(text(f"CREATE DATABASE `{TestingConfig.MARIADB_DATABASE}`"))
+        mariadb_db = os.getenv("MARIADB_DATABASE")
+        conn.execute(text(f"DROP DATABASE IF EXISTS `{mariadb_db}`"))
+        conn.execute(text(f"CREATE DATABASE `{mariadb_db}`"))
 
         yield
 
         with engine.connect() as conn:
-            conn.execute(
-                text(f"DROP DATABASE IF EXISTS `{TestingConfig.MARIADB_DATABASE}`")
-            )
+            mariadb_db = os.getenv("MARIADB_DATABASE")
+            conn.execute(text(f"DROP DATABASE IF EXISTS `{mariadb_db}`"))
 
 
 # ---------------------------------------------------------
@@ -44,10 +52,13 @@ def db_create():
 @pytest.fixture()
 def app(db_create):
     """Create and configure a Flask app for testing"""
-    app = create_app(TestingConfig)
+
+    app = create_app(Config)
     with app.app_context():
         db.create_all()
+
         yield app
+
         db.drop_all()
 
 
@@ -70,7 +81,8 @@ def db_session(app):
     transaction = connection.begin()
 
     # Bind Flask session to this transaction
-    Session = scoped_session(sessionmaker(bind=connection))
+    # Keep fixture objects usable after commit() inside tests/fixtures.
+    Session = scoped_session(sessionmaker(bind=connection, expire_on_commit=False))
     db.session = Session
 
     yield db.session

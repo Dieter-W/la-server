@@ -12,7 +12,13 @@ def create_app(config_object=None) -> Flask:
     app = Flask(__name__)
 
     if config_object:
-        app.config.from_object(config_object)
+        # Support dynamic configuration providers.
+        # If `config_object` exposes `get_config()`, we use its return value so
+        # env vars set right before app creation are respected.
+        if hasattr(config_object, "get_config") and callable(config_object.get_config):
+            app.config.from_mapping(config_object.get_config())
+        else:
+            app.config.from_object(config_object)
 
     # #region agent log
     import json

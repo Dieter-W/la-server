@@ -11,42 +11,74 @@ load_dotenv(env_path)
 
 
 class Config:
-    """Base configuration."""
+    """Runtime application configuration.
 
-    SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
-    DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+    Values are intentionally computed at access time (not as static class attributes)
+    so tests/scripts can monkeypatch environment variables before app creation.
+    """
 
-    VALIDATE_CHECK_SUM = os.getenv("VALIDATE_CHECK_SUM", "true").lower() == "true"
+    @staticmethod
+    def _env_bool(name: str, default: bool = False) -> bool:
+        val = os.getenv(name, "true" if default else "false")
+        return val.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
-    # MariaDB configuration
-    MARIADB_HOST = os.getenv("MARIADB_HOST", "localhost")
-    MARIADB_PORT = int(os.getenv("MARIADB_PORT", "3306"))
-    MARIADB_USER = os.getenv("MARIADB_USER", "root")
-    MARIADB_PASSWORD = os.getenv("MARIADB_PASSWORD", "")
-    MARIADB_DATABASE = os.getenv("MARIADB_DATABASE", "kinderspielstadt")
+    @classmethod
+    def mariadb_host(cls) -> str:
+        return os.getenv("MARIADB_HOST", "localhost")
 
-    SQLALCHEMY_DATABASE_URI = (
-        f"mysql+pymysql://{MARIADB_USER}:{MARIADB_PASSWORD}"
-        f"@{MARIADB_HOST}:{MARIADB_PORT}/{MARIADB_DATABASE}"
-    )
+    @classmethod
+    def mariadb_port(cls) -> int:
+        return int(os.getenv("MARIADB_PORT", "3306"))
 
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_pre_ping": True,
-        "pool_recycle": 300,
-    }
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    @classmethod
+    def mariadb_user(cls) -> str:
+        return os.getenv("MARIADB_USER", "root")
 
-    TESTING = False
+    @classmethod
+    def mariadb_password(cls) -> str:
+        return os.getenv("MARIADB_PASSWORD", "")
 
+    @classmethod
+    def mariadb_database(cls) -> str:
+        return os.getenv("MARIADB_DATABASE", "kinderspielstadt")
 
-class TestingConfig(Config):
-    """Testing configuration."""
+    @classmethod
+    def sqlalchemy_database_uri(cls) -> str:
+        return (
+            "mysql+pymysql://"
+            f"{cls.mariadb_user()}:{cls.mariadb_password()}"
+            f"@{cls.mariadb_host()}:{cls.mariadb_port()}/{cls.mariadb_database()}"
+        )
 
-    MARIADB_DATABASE = Config.MARIADB_DATABASE + "-test"
+    @classmethod
+    def admin_db_uri(cls) -> str:
+        return (
+            "mysql+pymysql://"
+            f"{cls.mariadb_user()}:{cls.mariadb_password()}"
+            f"@{cls.mariadb_host()}:{cls.mariadb_port()}/mysql"
+        )
 
-    ADMIN_DB_URI = (
-        f"mysql+pymysql://{Config.MARIADB_USER}:{Config.MARIADB_PASSWORD}"
-        f"@{Config.MARIADB_HOST}:{Config.MARIADB_PORT}/mysql"
-    )
+    @classmethod
+    def get_config(cls) -> dict:
+        """Return Flask config mapping computed from current environment."""
 
-    TESTING = True
+        return {
+            "MARIADB_HOST": cls.mariadb_host(),
+            "MARIADB_PORT": cls.mariadb_port(),
+            "MARIADB_USER": cls.mariadb_user(),
+            "MARIADB_PASSWORD": cls.mariadb_password(),
+            "MARIADB_DATABASE": cls.mariadb_database(),
+            "SECRET_KEY": os.getenv(
+                "SECRET_KEY", "dev-secret-key-change-in-production"
+            ),
+            "DEBUG": cls._env_bool("DEBUG", default=False),
+            "VALIDATE_CHECK_SUM": cls._env_bool("VALIDATE_CHECK_SUM", default=True),
+            "SQLALCHEMY_DATABASE_URI": cls.sqlalchemy_database_uri(),
+            "SQLALCHEMY_ENGINE_OPTIONS": {
+                "pool_pre_ping": True,
+                "pool_recycle": 300,
+            },
+            "SQLALCHEMY_TRACK_MODIFICATIONS": False,
+            "ADMIN_DB_URI": cls.admin_db_uri(),
+            "TESTING": cls._env_bool("TESTING", default=False),
+        }

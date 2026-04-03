@@ -9,7 +9,6 @@ payload_create = {
     "notes": "Created by create test",
 }
 
-# TODO: ???
 payload_put = {
     "first_name": "Test",
     "last_name": "Created-User",
@@ -20,7 +19,7 @@ payload_put = {
 }
 
 
-def test_query_all_employees(client, db_session, sample_employee):
+def test_query_all_employees(client, sample_employee):
     # Get /api/employees
     response = client.get("/api/employees")
     assert response.status_code == 200
@@ -58,7 +57,7 @@ def test_query_all_employees(client, db_session, sample_employee):
     )
 
 
-def test_query_all_employees_true(client, db_session, sample_employee):
+def test_query_all_employees_true(client, sample_employee):
     # Get /api/employees?active=true
     response = client.get("/api/employees?active=true")
     assert response.status_code == 200
@@ -68,7 +67,7 @@ def test_query_all_employees_true(client, db_session, sample_employee):
     assert data["count"] == 2
 
 
-def test_query_all_employees_false(client, db_session, sample_employee):
+def test_query_all_employees_false(client, sample_employee):
     # Get /api/employees?active=false
     response = client.get("/api/employees?active=false")
     assert response.status_code == 200
@@ -78,7 +77,10 @@ def test_query_all_employees_false(client, db_session, sample_employee):
     assert data["count"] == 1
 
 
-def test_query_all_employees_empty(client, db_session):
+def test_query_all_employees_empty(
+    client,
+    db_session,
+):
     # Get /api/employees
     response = client.get("/api/employees")
     assert response.status_code == 200
@@ -86,13 +88,12 @@ def test_query_all_employees_empty(client, db_session):
     assert isinstance(data["employees"], list)
     assert len(data["employees"]) == 0
     assert data["employees"] == []
-    # assert data["count"] == 0
+    assert data["count"] == 0
 
 
-# TODO: sample_employee.employee_number not working
-def test_query_employee(client, db_session, sample_employee):
+def test_query_employee(client, sample_employee):
     # Get /api/employees/<employee_number>
-    employee_number = "P00370"
+    employee_number = sample_employee.employee_number
     response = client.get(f"/api/employees/{employee_number}")
     assert response.status_code == 200
     data = response.get_json()
@@ -100,7 +101,7 @@ def test_query_employee(client, db_session, sample_employee):
     assert data["employee_number"] == sample_employee.employee_number
 
 
-def test_create_employee(client, db_session, sample_employee):
+def test_create_employee(client, sample_employee):
     # Post /api/employees
     response = client.post("/api/employees", json=payload_create)
     assert response.status_code == 201
@@ -108,7 +109,7 @@ def test_create_employee(client, db_session, sample_employee):
     assert isinstance(data, dict)
 
 
-def test_create_employee_wrong_checksum(client, db_session, sample_employee):
+def test_create_employee_wrong_checksum(client, sample_employee):
     # Post /api/employees
     payload_wrong = payload_create.copy()
     payload_wrong["employee_number"] = "Wrong"
@@ -118,17 +119,16 @@ def test_create_employee_wrong_checksum(client, db_session, sample_employee):
     assert isinstance(data, dict)
 
 
-def test_create_employee_duplicate(client, db_session, sample_employee):
+def test_create_employee_duplicate(client, sample_employee):
     # Post /api/employees
     response = client.post("/api/employees", json=payload_create)
     response = client.post("/api/employees", json=payload_create)
     assert response.status_code == 409
 
 
-# TODO: sample_employee.employee_number not working
 def test_update_employee(client, db_session, sample_employee):
     # Put /api/employee/<employee_number>
-    employee_number = "P00370"
+    employee_number = sample_employee.employee_number
     response = client.put(f"/api/employees/{employee_number}", json=payload_put)
     assert response.status_code == 200
     data = response.get_json()
@@ -142,21 +142,18 @@ def test_update_employee(client, db_session, sample_employee):
     assert data["active"] == payload_put["active"]
     assert data["notes"] == payload_put["notes"]
 
-
-# TODO: second request fails
-# employee_number = payload_put["employee_number"]
-# response2 = client.get(f"/api/employees/{employee_number}")
-# assert response2.status_code == 200
-# data2 = response2.get_json()
-# assert isinstance(data2, dict)
-# assert len(data2) == 8
-# assert data2["employee_number"] == payload_put["employee_number"]
+    employee_number = payload_put["employee_number"]
+    response2 = client.get(f"/api/employees/{employee_number}")
+    assert response2.status_code == 200
+    data2 = response2.get_json()
+    assert isinstance(data2, dict)
+    assert len(data2) == 9
+    assert data2["employee_number"] == payload_put["employee_number"]
 
 
-# TODO: sample_employee.employee_number not working
-def test_delete_employee_soft(client, db_session, sample_employee):
+def test_delete_employee_soft(client, sample_employee):
     # Delete /api/employees/<employee_number>
-    employee_number = "P00370"
+    employee_number = sample_employee.employee_number
     response = client.delete(f"/api/employees/{employee_number}")
     assert response.status_code == 200
     data = response.get_json()
@@ -167,10 +164,9 @@ def test_delete_employee_soft(client, db_session, sample_employee):
     assert data["active"] is not True
 
 
-# TODO: sample_employee.employee_number not working
 def test_delete_employee_hard(client, db_session, sample_employee):
     # Delete /api/employees/<employee_number>?hard=true
-    employee_number = "P00370"
+    employee_number = sample_employee.employee_number
     response = client.delete(f"/api/employees/{employee_number}?hard=true")
     assert response.status_code == 200
     data = response.get_json()

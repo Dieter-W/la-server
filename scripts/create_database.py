@@ -7,43 +7,33 @@ from pathlib import Path
 from dotenv import load_dotenv
 import pymysql
 
+from sqlalchemy import create_engine, text
+
 # Add project root to path and load .env
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
-load_dotenv(project_root / ".env")
 
-HOST = os.getenv("MARIADB_HOST", "localhost")
-PORT = int(os.getenv("MARIADB_PORT", "3306"))
-USER = os.getenv("MARIADB_USER", "root")
-PASSWORD = os.getenv("MARIADB_PASSWORD", "")
-DATABASE = os.getenv("MARIADB_DATABASE", "kinderspielstadt")
+
+from app import create_app  # noqa: E402
+from app.config import Config  # noqa: E402
+
+load_dotenv(project_root / ".env")
 
 
 def create_database() -> None:
     """Create the database if it does not exist."""
-    conn = pymysql.connect(
-        host=HOST,
-        port=PORT,
-        user=USER,
-        password=PASSWORD,
-    )
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute(
-                f"CREATE DATABASE IF NOT EXISTS `{DATABASE}` "
-                "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
-            )
-            conn.commit()
-        print(f"Database '{DATABASE}' is ready.")
-    finally:
-        conn.close()
+
+    # def db_create(env_patch):
+    engine = create_engine(Config.admin_db_uri())
+    with engine.connect() as conn:
+        mariadb_db = os.getenv("MARIADB_DATABASE")
+        conn.execute(text(f"CREATE DATABASE `{mariadb_db}`"))
 
 
 def create_tables() -> None:
     """Create all tables (e.g. employees) via SQLAlchemy."""
-    from app import create_app
 
-    create_app()  # init_db() inside create_app runs db.create_all()
+    create_app(Config)  # init_db() inside create_app runs db.create_all()
     print("Tables created (employees and any other models).")
 
 
@@ -51,6 +41,7 @@ if __name__ == "__main__":
     try:
         create_database()
         create_tables()
+        sys.exit(0)
     except pymysql.Error as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

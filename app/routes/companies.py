@@ -39,12 +39,6 @@ def _validate_update_payload(data: dict) -> tuple[bool, str | None]:
     """Validate PUT payload. Returns (valid, error_message)."""
     if not data or not isinstance(data, dict):
         return False, "Request body must be a JSON object"
-    company_name = data.get("company_name")
-    if (
-        company_name is not None
-        and not Company.query.filter(Company.company_name == company_name).first()
-    ):
-        return False, "Company not found"
     return True, None
 
 

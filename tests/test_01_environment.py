@@ -1,17 +1,16 @@
 """Environment tests"""
 
-from app.config import TestingConfig
 
-
-def test_environment_variables(client):
+def test_config_env(
+    app,
+):
 
     print("\n")
     print("Environment Variables")
     print("---------------------")
-    print("MARIADB_HOST:", TestingConfig.MARIADB_HOST)
-    print("MARIADB_DATABASE:", TestingConfig.MARIADB_DATABASE)
+    print("MARIADB_HOST:", app.config["MARIADB_HOST"])
+    print("MARIADB_DATABASE:", app.config["MARIADB_DATABASE"])
+    print("TESTING:", app.config["TESTING"])
 
-
-# TODO: This should also work for testing the .env variables
-# def test_config_is_test(app, client, db_session):
-#    assert app.config("TESTING") is True
+    assert app.config["MARIADB_DATABASE"] == "$$test-database$$"
+    assert app.config["TESTING"] is True
