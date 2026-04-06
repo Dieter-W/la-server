@@ -21,8 +21,6 @@ def test_bulk_import_companies_create(app, db_session):
     data = Employee.query.all()
     assert len(data) == 3
 
-    # TODO: Check if the data is correct
-
 
 def test_bulk_import_companies_update(app, db_session):
     result = subprocess.run(
@@ -53,5 +51,3 @@ def test_bulk_import_companies_update(app, db_session):
 
     data = Employee.query.all()
     assert len(data) == 3
-
-    # TODO: Do an update and check if the data is correct

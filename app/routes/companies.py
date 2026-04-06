@@ -1,8 +1,7 @@
 """Company CRUD endpoints for job center management."""
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 
-from app.database import db
 from app.errors import APIError
 from app.models import Company
 
@@ -10,7 +9,7 @@ companies_bp = Blueprint("companies", __name__)
 
 
 def _company_to_dict(comp: Company) -> dict:
-    """Serialize Companye to JSON-serializable dict."""
+    """Serialize Company to JSON-serializable dict."""
     return {
         "id": comp.id,
         "company_name": comp.company_name,
@@ -46,8 +45,8 @@ def _validate_update_payload(data: dict) -> tuple[bool, str | None]:
 def list_companies():
     """List companies, optionally filtered by active status."""
     active_param = request.args.get("active")
-    with db.session.begin():
-        query = Company.query
+    with g.db.begin():
+        query = g.db.query(Company)
         if active_param is not None:
             if active_param.lower() in ("true", "1", "yes"):
                 query = query.filter(Company.active.is_(True))
@@ -65,8 +64,8 @@ def list_companies():
 @companies_bp.route("/companies/<string:company_name>", methods=["GET"])
 def get_company(company_name: str):
     """Fetch a single company by id."""
-    with db.session.begin():
-        comp = Company.query.filter(Company.company_name == company_name).first()
+    with g.db.begin():
+        comp = g.db.query(Company).filter(Company.company_name == company_name).first()
         if comp is None:
             raise APIError("Company not found", 404)
         return jsonify(_company_to_dict(comp))
@@ -79,7 +78,7 @@ def create_company():
     valid, err = _validate_create_payload(data)
     if not valid:
         raise APIError(err, 400)
-    with db.session.begin():
+    with g.db.begin():
         comp = Company(
             company_name=data["company_name"].strip(),
             number_of_jobs=data["number_of_jobs"],
@@ -87,8 +86,8 @@ def create_company():
             active=data.get("active", True),
             notes=data.get("notes") or None,
         )
-        db.session.add(comp)
-        db.session.flush()
+        g.db.add(comp)
+        g.db.flush()
         return jsonify(_company_to_dict(comp)), 201
 
 
@@ -99,8 +98,9 @@ def update_company(company_name: str):
     valid, err = _validate_update_payload(data)
     if not valid:
         raise APIError(err, 400)
-    with db.session.begin():
-        comp = Company.query.filter(Company.company_name == company_name).first()
+
+    with g.db.begin():
+        comp = g.db.query(Company).filter(Company.company_name == company_name).first()
         if comp is None:
             raise APIError("Company not found", 404)
         updatable = (
@@ -121,15 +121,16 @@ def update_company(company_name: str):
                     comp.__setattr__(field, int(val) if val is not None else None)
                 else:
                     comp.__setattr__(field, val if val is not None else None)
+
         return jsonify(_company_to_dict(comp))
 
 
 @companies_bp.route("/companies/<string:company_name>", methods=["DELETE"])
 def delete_company(company_name: str):
     """Delete a company."""
-    with db.session.begin():
-        comp = Company.query.filter(Company.company_name == company_name).first()
+    with g.db.begin():
+        comp = g.db.query(Company).filter(Company.company_name == company_name).first()
         if comp is None:
             raise APIError("Company not found", 404)
-        db.session.delete(comp)
+        g.db.delete(comp)
         return jsonify({"message": "Company deleted permanently"}), 200

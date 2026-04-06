@@ -1,6 +1,6 @@
-"""Kinderspielstadt Ammerbuch Server Application."""
+"""Kinderspielstadt Los Ämmerles - LA-Server Application."""
 
-from flask import Flask
+from flask import Flask, g
 
 from app.database import init_db
 from app.errors import register_error_handlers
@@ -41,6 +41,27 @@ def create_app(config_object=None) -> Flask:
     # #endregion
 
     init_db(app)
+
+    # Session per request
+    @app.before_request
+    def create_session():
+        g.db = app.SessionLocal()
+
+    @app.teardown_request
+    def shutdown_sessions(exception=None):
+        db = g.get("db")
+
+        if db is None:
+            return
+
+        try:
+            if exception is None:
+                db.commit()
+            else:
+                db.rollback()
+        finally:
+            db.close()
+
     register_error_handlers(app)
 
     from app.routes import register_routes

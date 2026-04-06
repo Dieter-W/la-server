@@ -1,4 +1,4 @@
-"""Test Spielstadt server"""
+"""Test Kinderspielstadt Los Ämmerles - LA-Server"""
 
 import os
 import sys
@@ -96,76 +96,94 @@ def db_session(app):
 # 4. Sample data fixture
 # ---------------------------------------------------------
 @pytest.fixture()
-def sample_company(db_session):
+def sample_company(
+    app,
+):
     """Add 4 companies for testing"""
+    with app.app_context():
+        session = app.SessionLocal()
 
-    company = Company(
-        company_name="Bank",
-        number_of_jobs=10,
-        pay_per_hour=9,
-        active=True,
-        notes="Created by test script",
-    )
-    db.session.add(company)
-    company = Company(
-        company_name="Arbeitsamt",
-        number_of_jobs=10,
-        pay_per_hour=9,
-        active=True,
-        notes="Created by test script",
-    )
-    db.session.add(company)
-    company = Company(
-        company_name="Bauhof",
-        number_of_jobs=10,
-        pay_per_hour=9,
-        active=False,
-        notes="Created by test script",
-    )
-    db.session.add(company)
-    company = Company(
-        company_name="Küche",
-        number_of_jobs=10,
-        pay_per_hour=9,
-        active=True,
-        notes="Created by test script",
-    )
-    db.session.add(company)
+        company = Company(
+            company_name="Bank",
+            number_of_jobs=10,
+            pay_per_hour=9,
+            active=True,
+            notes="Created by test script",
+        )
+        session.add(company)
+        company = Company(
+            company_name="Arbeitsamt",
+            number_of_jobs=10,
+            pay_per_hour=9,
+            active=True,
+            notes="Created by test script",
+        )
+        session.add(company)
+        company = Company(
+            company_name="Bauhof",
+            number_of_jobs=10,
+            pay_per_hour=9,
+            active=False,
+            notes="Created by test script",
+        )
+        session.add(company)
+        company = Company(
+            company_name="Küche",
+            number_of_jobs=10,
+            pay_per_hour=9,
+            active=True,
+            notes="Created by test script",
+        )
+        session.add(company)
+        session.commit()
 
-    db.session.commit()
+        yield company
+
+        session.close()
+
     return company
 
 
 @pytest.fixture()
-def sample_employee(db_session):
+def sample_employee(
+    app,
+):
     """Add 4 employees for testing"""
-    employee = Employee(
-        first_name="Max",
-        last_name="Mustermann",
-        employee_number="M00155",
-        role="Betreuer",
-        active=False,
-        notes="Created by test script",
-    )
-    db.session.add(employee)
-    employee = Employee(
-        first_name="Anna",
-        last_name="Schmidt",
-        employee_number="A00265",
-        role="Helferin",
-        active=True,
-        notes="Created by test script",
-    )
-    db.session.add(employee)
-    employee = Employee(
-        first_name="Peter",
-        last_name="Krause",
-        employee_number="P00370",
-        role="Leiter",
-        active=True,
-        notes="Created by test script",
-    )
-    db.session.add(employee)
+    with app.app_context():
+        session = app.SessionLocal()
 
-    db.session.commit()
+        employee = Employee(
+            first_name="Max",
+            last_name="Mustermann",
+            employee_number="M00155",
+            role="Betreuer",
+            active=False,
+            notes="Created by test script",
+        )
+        session.add(employee)
+        employee = Employee(
+            first_name="Anna",
+            last_name="Schmidt",
+            employee_number="A00265",
+            role="Helferin",
+            active=True,
+            notes="Created by test script",
+        )
+        session.add(employee)
+        employee = Employee(
+            first_name="Peter",
+            last_name="Krause",
+            employee_number="P00370",
+            role="Leiter",
+            active=True,
+            notes="Created by test script",
+        )
+        session.add(employee)
+
+        session.commit()
+
+        yield employee
+
+        session.close()
+
     return employee

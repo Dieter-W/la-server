@@ -1,4 +1,7 @@
 repos:
+  # ------------------------------------
+  # Generate requirements.txt if needed
+  # ------------------------------------
   - repo: local
     hooks:
       - id: requirements.txt
@@ -8,6 +11,27 @@ repos:
         types: [python]
         pass_filenames: false
 
+  # ------------------------------------
+  # General repo hygiene
+  # ------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # ------------------------------------
+  # Run local installed tools
+  # ------------------------------------
+  - repo: local
+    hooks:
+      # ------------------------------------
+      # Black (formatting)
+      # ------------------------------------
       - id: black
         name: Black code format check
         entry: "poetry run black"
@@ -16,6 +40,9 @@ repos:
         types: [python]
         pass_filenames: true
 
+      # ------------------------------------
+      # Black (formatting)
+      # ------------------------------------
       - id: ruff
         name: Ruff lint check
         entry: "poetry run ruff"
@@ -24,6 +51,9 @@ repos:
         types: [python]
         pass_filenames: true
 
+      # ------------------------
+      # Pytest (pre-push)
+      # ------------------------
       - id: pytest
         name: Run Pytest
         entry: "poetry run pytest"

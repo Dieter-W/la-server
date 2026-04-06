@@ -1,8 +1,7 @@
 """Errorhandler for the REST Endpoints"""
 
-from flask import jsonify
+from flask import jsonify, g
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from app.database import db
 
 
 class APIError(Exception):
@@ -19,15 +18,15 @@ def register_error_handlers(app):
 
     @app.errorhandler(IntegrityError)
     def handle_integrity_error(e):
-        db.session.rollback()
+        g.db.rollback()
         return jsonify({"error": "constraint violation"}), 409
 
     @app.errorhandler(SQLAlchemyError)
     def handle_sqlalchemy_error(e):
-        db.session.rollback()
+        g.db.rollback()
         return jsonify({"error": "database error"}), 500
 
     @app.errorhandler(Exception)
     def handle_unknown_error(e):
-        db.session.rollback()
+        g.db.rollback()
         return jsonify({"error": "internal server error"}), 500
