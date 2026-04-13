@@ -1,10 +1,9 @@
 """Environment tests"""
 
-
-def test_config_env(
-    app,
-):
-
+# ---------------------------------------------------------------------
+# Environment check with print to the console
+# ---------------------------------------------------------------------
+def test_config_env(app,):  # fmt: skip
     print("\n")
     print("Environment Variables")
     print("---------------------")

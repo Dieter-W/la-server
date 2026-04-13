@@ -16,7 +16,7 @@ from app.models import Company  # noqa: E402
 
 load_dotenv(project_root / ".env")
 
-REQUIRED_COLUMNS = ("company_name", "number_of_jobs", "pay_per_hour", "active", "notes")
+REQUIRED_COLUMNS = ("company_name", "jobs_max", "pay_per_hour", "active", "notes")
 
 
 def _parse_active(value: str) -> bool:
@@ -29,7 +29,7 @@ def _parse_active(value: str) -> bool:
 def import_row(row: dict, row_num: int) -> bool:
     """Create or update a company from a CSV row. Returns True on success. Must be called within app context."""
     company_name = (row.get("company_name") or "").strip()
-    number_of_jobs = (row.get("number_of_jobs") or "").strip()
+    jobs_max = (row.get("jobs_max") or "").strip()
     pay_per_hour = (row.get("pay_per_hour") or "").strip()
     active = _parse_active(row.get("active", "true"))
     notes = (row.get("notes") or "").strip() or None
@@ -37,7 +37,7 @@ def import_row(row: dict, row_num: int) -> bool:
     existing = Company.query.filter_by(company_name=company_name).first()
     if existing:
         existing.company_name = company_name
-        existing.number_of_jobs = number_of_jobs
+        existing.jobs_max = jobs_max
         existing.pay_per_hour = pay_per_hour
         existing.active = active
         existing.notes = notes
@@ -46,7 +46,7 @@ def import_row(row: dict, row_num: int) -> bool:
     else:
         comp = Company(
             company_name=company_name,
-            number_of_jobs=number_of_jobs,
+            jobs_max=jobs_max,
             pay_per_hour=pay_per_hour,
             active=active,
             notes=notes,

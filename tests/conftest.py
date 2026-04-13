@@ -11,10 +11,11 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.pool import NullPool
 
 from app import create_app
 from app.database import db
-from app.models import Employee, Company
+from app.models import Company, Employee, JobAssignment
 
 from app.config import Config
 
@@ -33,7 +34,7 @@ def env_patch(monkeypatch):
 
 @pytest.fixture()
 def db_create(env_patch):
-    engine = create_engine(Config.admin_db_uri())
+    engine = create_engine(Config.admin_db_uri(), poolclass=NullPool)
     with engine.connect() as conn:
         mariadb_db = os.getenv("MARIADB_DATABASE")
         conn.execute(text(f"DROP DATABASE IF EXISTS `{mariadb_db}`"))
@@ -105,15 +106,23 @@ def sample_company(
 
         company = Company(
             company_name="Bank",
-            number_of_jobs=10,
+            jobs_max=5,
+            pay_per_hour=9,
+            active=False,
+            notes="Created by test script",
+        )
+        session.add(company)
+        company = Company(
+            company_name="Arbeitsamt",
+            jobs_max=10,
             pay_per_hour=9,
             active=True,
             notes="Created by test script",
         )
         session.add(company)
         company = Company(
-            company_name="Arbeitsamt",
-            number_of_jobs=10,
+            company_name="Küche",
+            jobs_max=2,
             pay_per_hour=9,
             active=True,
             notes="Created by test script",
@@ -121,15 +130,7 @@ def sample_company(
         session.add(company)
         company = Company(
             company_name="Bauhof",
-            number_of_jobs=10,
-            pay_per_hour=9,
-            active=False,
-            notes="Created by test script",
-        )
-        session.add(company)
-        company = Company(
-            company_name="Küche",
-            number_of_jobs=10,
+            jobs_max=1,
             pay_per_hour=9,
             active=True,
             notes="Created by test script",
@@ -187,3 +188,36 @@ def sample_employee(
         session.close()
 
     return employee
+
+
+@pytest.fixture()
+def sample_job_assignment(
+    app,
+    sample_employee,
+    sample_company,
+):
+    """Add 3 job assignments for testing"""
+    with app.app_context():
+        session = app.SessionLocal()
+
+        job_assignment = JobAssignment(
+            company_id=1,  # Bank
+            employee_id=1,  # M00155
+            notes="Created by test script",
+        )
+        session.add(job_assignment)
+
+        job_assignment = JobAssignment(
+            company_id=4,  # Bauhof
+            employee_id=3,  # P00370
+            notes="Created by test script",
+        )
+        session.add(job_assignment)
+
+        session.commit()
+
+        yield job_assignment
+
+        session.close()
+
+    return job_assignment

@@ -8,14 +8,17 @@ from urllib.parse import quote
 
 company_check = {
     "company_name": "Küche",
-    "number_of_jobs": 10,
+    "jobs": {
+        "max": 10,
+        "assigned": 0,
+    },
     "pay_per_hour": 15,
     "active": False,
     "notes": "Only weekdays",
 }
 
 payload_put = {
-    "number_of_jobs": 5,
+    "jobs_max": 5,
     "pay_per_hour": 99,
     "active": True,
     "notes": "Updated by test",
@@ -27,9 +30,10 @@ def _nfc(s: str) -> str:
     return unicodedata.normalize("NFC", s)
 
 
-def test_bulk_import_companies_create(
-    client,
-):
+# ---------------------------------------------------------------------
+# Companies bulk import with API check
+# ---------------------------------------------------------------------
+def test_bulk_import_companies_create(client,): # fmt: skip
     # Bulk insert
     result = subprocess.run(
         [
@@ -44,6 +48,8 @@ def test_bulk_import_companies_create(
 
     # Query all
     response = client.get("/api/companies")
+    if response.status_code != 200:
+        print(response.text)
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
@@ -56,7 +62,11 @@ def test_bulk_import_companies_create(
         for company_data in data["companies"]
     )
     assert any(
-        company_data["number_of_jobs"] == company_check["number_of_jobs"]
+        company_data["jobs"]["max"] == company_check["jobs"]["max"]
+        for company_data in data["companies"]
+    )
+    assert any(
+        company_data["jobs"]["assigned"] == company_check["jobs"]["assigned"]
         for company_data in data["companies"]
     )
     assert any(
@@ -73,9 +83,10 @@ def test_bulk_import_companies_create(
     )
 
 
-def test_bulk_import_companies_update(
-    client,
-):
+# ---------------------------------------------------------------------
+# Companies bulk update with API check
+# ---------------------------------------------------------------------
+def test_bulk_import_companies_update(client,): # fmt: skip
     # Bulk insert
     result = subprocess.run(
         [
@@ -95,11 +106,14 @@ def test_bulk_import_companies_update(
         json=payload_put,
     )
     # and check if update was successful
+    if response.status_code != 200:
+        print(response.text)
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
     assert len(data) == 8
-    assert data["number_of_jobs"] == payload_put["number_of_jobs"]
+    assert data["jobs"]["max"] == payload_put["jobs_max"]
+    assert data["jobs"]["assigned"] == 0
     assert data["pay_per_hour"] == payload_put["pay_per_hour"]
     assert data["active"] == payload_put["active"]
     assert data["notes"] == payload_put["notes"]
@@ -118,18 +132,23 @@ def test_bulk_import_companies_update(
     # Check if the original content again available
     company_name = company_check["company_name"]
     response2 = client.get(f"/api/companies/{quote(company_name, safe='')}")
-    assert response2.status_code == 200
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
     assert len(data2) == 8
     assert _nfc(data2["company_name"]) == _nfc(company_check["company_name"])
-    assert data2["number_of_jobs"] == company_check["number_of_jobs"]
+    assert data["jobs"]["max"] == payload_put["jobs_max"]
+    assert data["jobs"]["assigned"] == 0
     assert data2["pay_per_hour"] == company_check["pay_per_hour"]
     assert data2["active"] == company_check["active"]
     assert data2["notes"] == company_check["notes"]
 
     # Check if we have still 4 records
     response = client.get("/api/companies")
+    if response.status_code != 200:
+        print(response.text)
     assert response.status_code == 200
     data = response.get_json()
     assert data["count"] == 4

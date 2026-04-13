@@ -19,14 +19,14 @@ def register_error_handlers(app):
     @app.errorhandler(IntegrityError)
     def handle_integrity_error(e):
         g.db.rollback()
-        return jsonify({"error": "constraint violation"}), 409
+        return jsonify({"error": "CONSTRAINT_VIOLATION", "message": f"{e}"}), 409
 
     @app.errorhandler(SQLAlchemyError)
     def handle_sqlalchemy_error(e):
         g.db.rollback()
-        return jsonify({"error": "database error"}), 500
+        return jsonify({"error": "DATABASE_ERROR", "message": f"{e}"}), 500
 
     @app.errorhandler(Exception)
     def handle_unknown_error(e):
         g.db.rollback()
-        return jsonify({"error": "internal server error"}), 500
+        return jsonify({"error": "INTERNAL_SERVER_ERROR", "message": f"{e}"}), 500

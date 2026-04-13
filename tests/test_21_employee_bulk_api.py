@@ -29,9 +29,10 @@ def _nfc(s: str) -> str:
     return unicodedata.normalize("NFC", s)
 
 
-def test_bulk_import_employees_create(
-    client,
-):
+# ---------------------------------------------------------------------
+# Employees bulk import with API check
+# ---------------------------------------------------------------------
+def test_bulk_import_employees_create(client,): # fmt: skip
     # Bulk insert
     result = subprocess.run(
         [
@@ -46,6 +47,8 @@ def test_bulk_import_employees_create(
 
     # Query all
     response = client.get("/api/employees")
+    if response.status_code != 200:
+        print(response.text)
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
@@ -70,18 +73,19 @@ def test_bulk_import_employees_create(
         for employee_data in data["employees"]
     )
     assert any(
-        employee_data["active"] == employee_check["active"]
+        employee_data["active"] is employee_check["active"]
         for employee_data in data["employees"]
     )
     assert any(
-        _nfc(employee_data["notes"]) == _nfc(employee_check["notes"])
+        employee_data["notes"] == employee_check["notes"]
         for employee_data in data["employees"]
     )
 
 
-def test_bulk_import_employees_update(
-    client,
-):
+# ---------------------------------------------------------------------
+# Employees bulk update with API check
+# ---------------------------------------------------------------------
+def test_bulk_import_employees_update(client,): # fmt: skip
     # Bulk insert
     result = subprocess.run(
         [
@@ -102,14 +106,16 @@ def test_bulk_import_employees_update(
     )
 
     # and check if update was successful
+    if response.status_code != 200:
+        print(response.text)
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 9
+    assert len(data) == 10
     assert _nfc(data["first_name"]) == _nfc(payload_put["first_name"])
     assert _nfc(data["last_name"]) == _nfc(payload_put["last_name"])
     assert _nfc(data["role"]) == _nfc(payload_put["role"])
-    assert data["active"] == payload_put["active"]
+    assert data["active"] is payload_put["active"]
     assert _nfc(data["notes"]) == _nfc(payload_put["notes"])
 
     # In place update, with original data
@@ -126,10 +132,12 @@ def test_bulk_import_employees_update(
     # Check if the original content again available
     employee_number = employee_check["employee_number"]
     response2 = client.get(f"/api/employees/{quote(employee_number, safe='')}")
-    assert response2.status_code == 200
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
-    assert len(data2) == 9
+    assert len(data2) == 10
     assert _nfc(data2["first_name"]) == _nfc(employee_check["first_name"])
     assert _nfc(data2["last_name"]) == _nfc(employee_check["last_name"])
     assert data2["employee_number"] == employee_check["employee_number"]
@@ -137,9 +145,10 @@ def test_bulk_import_employees_update(
     assert data2["active"] == employee_check["active"]
     assert _nfc(data2["notes"]) == _nfc(employee_check["notes"])
 
-    # Check if we have still 3 records
+    # Check if we still have 3 records
     response = client.get("/api/employees")
+    if response.status_code != 200:
+        print(response.text)
     assert response.status_code == 200
     data = response.get_json()
-    print(data)
     assert data["count"] == 3

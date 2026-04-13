@@ -22,6 +22,19 @@ class BaseModel(db.Model):
     )
 
 
+class Company(BaseModel):
+    """Companies which offer jobs in the Spielstadt"""
+
+    __tablename__ = "companies"
+    company_name = db.Column(db.String(255), unique=True, nullable=False)
+    jobs_max = db.Column(db.Integer, nullable=False)
+    pay_per_hour = db.Column(db.Integer, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    notes = db.Column(db.Text, nullable=True)
+
+    job_assignments = db.relationship("JobAssignment", back_populates="companies")
+
+
 class Employee(BaseModel):
     """Employees (kids) attending the Spielstadt, with soft-delete support via active flag."""
 
@@ -34,13 +47,16 @@ class Employee(BaseModel):
     active = db.Column(db.Boolean, default=True, nullable=False)
     notes = db.Column(db.Text, nullable=True)
 
+    job_assignments = db.relationship("JobAssignment", back_populates="employees")
 
-class Company(BaseModel):
-    """Companies which offer jobs in the Spielstadt"""
 
-    __tablename__ = "companies"
-    company_name = db.Column(db.String(255), unique=True, nullable=False)
-    number_of_jobs = db.Column(db.Integer, nullable=False)
-    pay_per_hour = db.Column(db.Integer, nullable=False)
-    active = db.Column(db.Boolean, default=True, nullable=False)
+class JobAssignment(BaseModel):
+    """Job assignments of employees in the Spielstadt"""
+
+    __tablename__ = "job_assignments"
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False) # fmt: skip
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="RESTRICT"), nullable=False)   # fmt: skip
     notes = db.Column(db.Text, nullable=True)
+
+    companies = db.relationship("Company", back_populates="job_assignments")
+    employees = db.relationship("Employee", back_populates="job_assignments")

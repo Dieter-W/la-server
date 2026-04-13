@@ -1,19 +1,26 @@
 """Company CRUD endpoints for job center management."""
 
 from flask import Blueprint, jsonify, request, g
+from sqlalchemy import func
 
 from app.errors import APIError
-from app.models import Company
+from app.models import Company, JobAssignment
 
 companies_bp = Blueprint("companies", __name__)
 
 
-def _company_to_dict(comp: Company) -> dict:
+# ---------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------
+def _company_to_dict(comp: Company, assigned_jobs) -> dict:
     """Serialize Company to JSON-serializable dict."""
     return {
         "id": comp.id,
         "company_name": comp.company_name,
-        "number_of_jobs": comp.number_of_jobs,
+        "jobs": {
+            "assigned": assigned_jobs,
+            "max": comp.jobs_max,
+        },
         "pay_per_hour": comp.pay_per_hour,
         "active": comp.active,
         "notes": comp.notes,
@@ -25,38 +32,56 @@ def _company_to_dict(comp: Company) -> dict:
 def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
     """Validate POST payload. Returns (valid, error_message)."""
     if not data or not isinstance(data, dict):
-        return False, "Request body must be a JSON object"
-    required = ("company_name", "number_of_jobs", "pay_per_hour")
+        return False, "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
+
+    required = ("company_name", "jobs_max", "pay_per_hour")
     for field in required:
         val = data.get(field)
         if val is None or (isinstance(val, str) and not val.strip()):
-            return False, f"Missing or empty required field: {field}"
+            return False, "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
     return True, None
 
 
 def _validate_update_payload(data: dict) -> tuple[bool, str | None]:
     """Validate PUT payload. Returns (valid, error_message)."""
     if not data or not isinstance(data, dict):
-        return False, "Request body must be a JSON object"
+        return False, "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
+
     return True, None
 
 
+# ---------------------------------------------------------------------
+# Companies Get-all API
+# ---------------------------------------------------------------------
 @companies_bp.route("/companies", methods=["GET"])
 def list_companies():
     """List companies, optionally filtered by active status."""
     active_param = request.args.get("active")
+
     with g.db.begin():
-        query = g.db.query(Company)
+        comp = (
+            g.db.query(Company, func.count(JobAssignment.id).label("assigned_jobs"))
+            .outerjoin(JobAssignment)
+            .group_by(Company.id)
+            .order_by(Company.company_name)
+        )
+
         if active_param is not None:
             if active_param.lower() in ("true", "1", "yes"):
-                query = query.filter(Company.active.is_(True))
+                comp = comp.filter(Company.active.is_(True))
             elif active_param.lower() in ("false", "0", "no"):
-                query = query.filter(Company.active.is_(False))
-        companies = query.order_by(Company.company_name).all()
+                comp = comp.filter(Company.active.is_(False))
+
+        comp.all
+        comp_entries = comp.count()
+
         return jsonify(
             {
-                "companies": [_company_to_dict(e) for e in companies],
-                "count": len(companies),
+                "companies": [
+                    _company_to_dict(e, assigned_jobs) for e, assigned_jobs in (comp)
+                ],
+                "count": comp_entries,
             }
         )
 
@@ -67,8 +92,15 @@ def get_company(company_name: str):
     with g.db.begin():
         comp = g.db.query(Company).filter(Company.company_name == company_name).first()
         if comp is None:
-            raise APIError("Company not found", 404)
-        return jsonify(_company_to_dict(comp))
+            raise APIError("COMPANY_NOT_FOUND", 404)
+
+        jobs_assigned = (
+            g.db.query(JobAssignment)
+            .filter(JobAssignment.company_id == comp.id)
+            .count()
+        )
+
+        return jsonify(_company_to_dict(comp, jobs_assigned))
 
 
 @companies_bp.route("/companies", methods=["POST"])
@@ -78,17 +110,21 @@ def create_company():
     valid, err = _validate_create_payload(data)
     if not valid:
         raise APIError(err, 400)
+
     with g.db.begin():
         comp = Company(
             company_name=data["company_name"].strip(),
-            number_of_jobs=data["number_of_jobs"],
+            jobs_max=data["jobs_max"],
             pay_per_hour=data["pay_per_hour"],
             active=data.get("active", True),
             notes=data.get("notes") or None,
         )
+
+        jobs_assigned = 0
+
         g.db.add(comp)
         g.db.flush()
-        return jsonify(_company_to_dict(comp)), 201
+        return jsonify(_company_to_dict(comp, jobs_assigned)), 201
 
 
 @companies_bp.route("/companies/<string:company_name>", methods=["PUT"])
@@ -102,14 +138,15 @@ def update_company(company_name: str):
     with g.db.begin():
         comp = g.db.query(Company).filter(Company.company_name == company_name).first()
         if comp is None:
-            raise APIError("Company not found", 404)
+            raise APIError("COMPANY_NOT_FOUND", 404)
         updatable = (
             "company_name",
-            "number_of_jobs",
+            "jobs_max",
             "pay_per_hour",
             "active",
             "notes",
         )
+
         for field in updatable:
             if field in data:
                 val = data[field]
@@ -117,12 +154,18 @@ def update_company(company_name: str):
                     comp.active = bool(val)
                 elif field in ("company_name"):
                     comp.__setattr__(field, (val or "").strip())
-                elif field in ("number_of_jobs", "pay_per_hour"):
+                elif field in ("jobs_max", "pay_per_hour"):
                     comp.__setattr__(field, int(val) if val is not None else None)
                 else:
                     comp.__setattr__(field, val if val is not None else None)
 
-        return jsonify(_company_to_dict(comp))
+        jobs_assigned = (
+            g.db.query(JobAssignment)
+            .filter(JobAssignment.company_id == comp.id)
+            .count()
+        )
+
+        return jsonify(_company_to_dict(comp, jobs_assigned))
 
 
 @companies_bp.route("/companies/<string:company_name>", methods=["DELETE"])
@@ -131,6 +174,7 @@ def delete_company(company_name: str):
     with g.db.begin():
         comp = g.db.query(Company).filter(Company.company_name == company_name).first()
         if comp is None:
-            raise APIError("Company not found", 404)
+            raise APIError("COMPANY_NOT_FOUND", 404)
+
         g.db.delete(comp)
-        return jsonify({"message": "Company deleted permanently"}), 200
+        return jsonify({"message": "company deleted permanently"}), 200

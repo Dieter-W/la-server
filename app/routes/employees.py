@@ -6,14 +6,17 @@ from flask import Blueprint, jsonify, request, g
 from stdnum.iso7064 import mod_97_10
 
 from app.errors import APIError
-from app.models import Employee
+from app.models import Company, Employee, JobAssignment
 
 employees_bp = Blueprint("employees", __name__)
 
 VALIDATE_CHECK_SUM = os.getenv("VALIDATE_CHECK_SUM", "true").lower() == "true"
 
 
-def _employee_to_dict(emp: Employee) -> dict:
+# ---------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------
+def _employee_to_dict(emp: Employee, comp_name) -> dict:
     """Serialize Employee to JSON-serializable dict."""
     return {
         "id": emp.id,
@@ -21,6 +24,7 @@ def _employee_to_dict(emp: Employee) -> dict:
         "last_name": emp.last_name,
         "employee_number": emp.employee_number,
         "role": emp.role,
+        "company": comp_name or "",
         "active": emp.active,
         "notes": emp.notes,
         "created_at": emp.created_at.isoformat() if emp.created_at else None,
@@ -28,73 +32,112 @@ def _employee_to_dict(emp: Employee) -> dict:
     }
 
 
+def _validate_checksum(emp_num: str) -> tuple[bool, str | None]:
+    """Validate the employee number. Returns (valid, error_message)."""
+    if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(emp_num):
+        return False, "EMPLOYEE_NUMBER_WRONG"
+
+    return True, None
+
+
 def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
     """Validate POST payload. Returns (valid, error_message)."""
     if not data or not isinstance(data, dict):
-        return False, "Request body must be a JSON object"
+        return False, "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
+
     required = ("first_name", "last_name", "employee_number", "role")
     for field in required:
         val = data.get(field)
         if val is None or (isinstance(val, str) and not val.strip()):
-            return False, f"Missing or empty required field: {field}"
-    if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(data.get("employee_number")):
-        return False, "Employee Number is wrong"
+            return False, "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+    valid, err = _validate_checksum(data.get("employee_number"))
+    if not valid:
+        return False, (f"{err}_IN_JSON")
+
     return True, None
 
 
 def _validate_update_payload(data: dict) -> tuple[bool, str | None]:
     """Validate PUT payload. Returns (valid, error_message)."""
     if not data or not isinstance(data, dict):
-        return False, "Request body must be a JSON object"
-    employee_number = data.get("employee_number")
-    if (
-        employee_number is not None
-        and VALIDATE_CHECK_SUM
-        and not mod_97_10.is_valid(employee_number)
-    ):
-        return False, "Employee Number is wrong"
+        return False, "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
+
+    if data.get("employee_number") is not None:
+        valid, err = _validate_checksum(data.get("employee_number"))
+        if not valid:
+            return False, (f"{err}_IN_JSON")
+
     return True, None
 
 
+# ---------------------------------------------------------------------
+# Employees  Get-all API
+# ---------------------------------------------------------------------
 @employees_bp.route("/employees", methods=["GET"])
 def list_employees():
     """List employees, optionally filtered by active status."""
     active_param = request.args.get("active")
+
     with g.db.begin():
-        query_data = g.db.query(Employee)
+        emp = (
+            g.db.query(Employee, Company.company_name.label("company_name"))
+            .outerjoin(Employee.job_assignments)
+            .outerjoin(JobAssignment.companies)
+            .order_by(Employee.employee_number)
+        )
+
         if active_param is not None:
             if active_param.lower() in ("true", "1", "yes"):
-                query_data = query_data.filter(Employee.active.is_(True))
+                emp = emp.filter(Employee.active.is_(True))
             elif active_param.lower() in ("false", "0", "no"):
-                query_data = query_data.filter(Employee.active.is_(False))
-        employees = query_data.order_by(Employee.last_name, Employee.first_name).all()
+                emp = emp.filter(Employee.active.is_(False))
+
+        emp.all
+        emp_entries = emp.count()
+
         return (
             jsonify(
                 {
-                    "employees": [_employee_to_dict(e) for e in employees],
-                    "count": len(employees),
+                    "employees": [
+                        _employee_to_dict(e, company_name) for e, company_name in emp
+                    ],
+                    "count": emp_entries,
                 }
             ),
             200,
         )
 
 
+# ---------------------------------------------------------------------
+# Employees Get API
+# ---------------------------------------------------------------------
 @employees_bp.route("/employees/<string:employee_number>", methods=["GET"])
 def get_employee(employee_number: str):
     """Fetch a single employee by employee number."""
-    if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(employee_number):
-        raise APIError("Employee Number is wrong", 400)
+    valid, err = _validate_checksum(employee_number)
+    if not valid:
+        raise APIError(err, 400)
+
     with g.db.begin():
-        emp = (
-            g.db.query(Employee)
+        emp_comp = (
+            g.db.query(Employee, Company.company_name.label("company_name"))
+            .outerjoin(Employee.job_assignments)
+            .outerjoin(JobAssignment.companies)
             .filter(Employee.employee_number == employee_number)
             .first()
         )
-        if emp is None:
-            raise APIError("Employee not found", 404)
-        return jsonify(_employee_to_dict(emp)), 200
+        if emp_comp is None:
+            raise APIError("EMPLOYEE_NOT_FOUND", 404)
+
+        emp, company_name = emp_comp
+
+        return jsonify(_employee_to_dict(emp, company_name)), 200
 
 
+# ---------------------------------------------------------------------
+# Employees Create API
+# ---------------------------------------------------------------------
 @employees_bp.route("/employees", methods=["POST"])
 def create_employee():
     """Create a new employee from JSON payload."""
@@ -102,6 +145,7 @@ def create_employee():
     valid, err = _validate_create_payload(data)
     if not valid:
         raise APIError(err, 400)
+
     with g.db.begin():
         emp = Employee(
             first_name=data["first_name"].strip(),
@@ -111,28 +155,40 @@ def create_employee():
             active=data.get("active", True),
             notes=data.get("notes") or None,
         )
+
         g.db.add(emp)
         g.db.flush()
-        return jsonify(_employee_to_dict(emp)), 201
+        return jsonify(_employee_to_dict(emp, "")), 201
 
 
+# ---------------------------------------------------------------------
+# Employees Update API
+# ---------------------------------------------------------------------
 @employees_bp.route("/employees/<string:employee_number>", methods=["PUT"])
 def update_employee(employee_number: str):
     """Update fields of an employee."""
-    if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(employee_number):
-        raise APIError("Employee Number is wrong", 400)
+    valid, err = _validate_checksum(employee_number)
+    if not valid:
+        raise APIError(err, 400)
+
     data = request.get_json(silent=True)
     valid, err = _validate_update_payload(data)
     if not valid:
         raise APIError(err, 400)
+
     with g.db.begin():
-        emp = (
-            g.db.query(Employee)
+        emp_comp = (
+            g.db.query(Employee, Company.company_name.label("company_name"))
+            .outerjoin(Employee.job_assignments)
+            .outerjoin(JobAssignment.companies)
             .filter(Employee.employee_number == employee_number)
             .first()
         )
-        if emp is None:
-            raise APIError("Employee not found", 404)
+        if emp_comp is None:
+            raise APIError("EMPLOYEE_NOT_FOUND", 404)
+
+        emp, company_name = emp_comp
+
         updatable = (
             "first_name",
             "last_name",
@@ -141,6 +197,7 @@ def update_employee(employee_number: str):
             "active",
             "notes",
         )
+
         for field in updatable:
             if field in data:
                 val = data[field]
@@ -150,26 +207,37 @@ def update_employee(employee_number: str):
                     emp.__setattr__(field, (val or "").strip())
                 else:
                     emp.__setattr__(field, val if val is not None else None)
-        return jsonify(_employee_to_dict(emp)), 200
+
+        return jsonify(_employee_to_dict(emp, company_name)), 200
 
 
+# ---------------------------------------------------------------------
+# Employees Delete API
+# ---------------------------------------------------------------------
 @employees_bp.route("/employees/<string:employee_number>", methods=["DELETE"])
 def delete_employee(employee_number: str):
     """Soft delete (set active=false) or hard delete if ?hard=true."""
-    if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(employee_number):
-        raise APIError("Employee Number is wrong", 400)
+    valid, err = _validate_checksum(employee_number)
+    if not valid:
+        raise APIError(err, 400)
+
     with g.db.begin():
-        emp = (
-            g.db.query(Employee)
+        emp_comp = (
+            g.db.query(Employee, Company.company_name.label("company_name"))
+            .outerjoin(Employee.job_assignments)
+            .outerjoin(JobAssignment.companies)
             .filter(Employee.employee_number == employee_number)
             .first()
         )
-        if emp is None:
-            raise APIError("Employee not found", 404)
+        if emp_comp is None:
+            raise APIError("EMPLOYEE_NOT_FOUND", 404)
+
+        emp, company_name = emp_comp
+
         hard = request.args.get("hard", "").lower() in ("true", "1", "yes")
         if not hard:
             emp.active = False
-            return jsonify(_employee_to_dict(emp)), 200
+            return jsonify(_employee_to_dict(emp, company_name)), 200
         else:
             g.db.delete(emp)
-            return jsonify({"message": "Employee deleted permanently"}), 200
+            return jsonify({"message": "employee deleted permanently"}), 200

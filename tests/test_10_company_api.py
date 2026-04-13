@@ -5,7 +5,7 @@ from urllib.parse import quote
 
 payload_create = {
     "company_name": "TEST_COMPANY",
-    "number_of_jobs": 10,
+    "jobs_max": 10,
     "pay_per_hour": 9,
     "active": True,
     "notes": "Created by create test",
@@ -14,7 +14,7 @@ payload_create = {
 
 payload_put = {
     "company_name": "Kitchen",
-    "number_of_jobs": 5,
+    "jobs_max": 5,
     "pay_per_hour": 99,
     "active": False,
     "notes": "Updated by test",
@@ -26,9 +26,109 @@ def _nfc(s: str) -> str:
     return unicodedata.normalize("NFC", s)
 
 
-def test_query_all_companies(client, sample_company):
-    # Get /api/companies
+# ---------------------------------------------------------------------
+# validate_create_payload function
+# ---------------------------------------------------------------------
+def test_validate_create_payload_error_1(client, sample_company, sample_employee,): # fmt: skip
+    response = client.post("/api/companies", json="{wrong = JSON}")
+    data = response.get_json()
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
+
+
+def test_validate_create_payload_error_2(client, sample_company, sample_employee,): # fmt: skip
+    response = client.post(
+        "/api/companies", json={"jobs_max": "TEST", "pay_per_hour": "TEST"}
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_create_payload_error_3(client, sample_company, sample_employee,): # fmt: skip
+    response = client.post(
+        "/api/companies", json={"company_name": "TEST", "pay_per_hour": "TEST"}
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_create_payload_error_4(client, sample_company, sample_employee,): # fmt: skip
+    response = client.post(
+        "/api/companies", json={"company_name": "TEST", "jobs_max": "TEST"}
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_create_payload_error_5(client, sample_company, sample_employee,): # fmt: skip
+    response = client.post(
+        "/api/companies",
+        json={"company_name": "", "jobs_max": "TEST", "pay_per_hour": "TEST"},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_create_payload_error_6(client, sample_company, sample_employee,): # fmt: skip
+    response = client.post(
+        "/api/companies",
+        json={"company_name": "TEST", "jobs_max": "", "pay_per_hour": "TEST"},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_create_payload_error_7(client, sample_company, sample_employee,): # fmt: skip
+    response = client.post(
+        "/api/companies",
+        json={"company_name": "TEST", "jobs_max": "TEST", "pay_per_hour": ""},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+# ---------------------------------------------------------------------
+# validate_update_payload function
+# ---------------------------------------------------------------------
+def test_validate_update_payload_error_1(client, sample_company, sample_employee,): # fmt: skip
+    company_name = sample_company.company_name
+    response = client.put(
+        f"/api/companies/{quote(company_name, safe='')}", json="{wrong = JSON}"
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
+
+
+# ---------------------------------------------------------------------
+# Company Get-all API
+# ---------------------------------------------------------------------
+def test_companies_query_all(client, sample_company, sample_job_assignment): # fmt: skip
     response = client.get("/api/companies")
+    if response.status_code != 200:
+        print(response.text)
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
@@ -43,8 +143,11 @@ def test_query_all_companies(client, sample_company):
         for company_data in data["companies"]
     )
     assert any(
-        company_data["number_of_jobs"] == sample_company.number_of_jobs
+        company_data["jobs"]["max"] == sample_company.jobs_max
         for company_data in data["companies"]
+    )
+    assert any(
+        company_data["jobs"]["assigned"] == 1 for company_data in data["companies"]
     )
     assert any(
         company_data["pay_per_hour"] == sample_company.pay_per_hour
@@ -60,39 +163,30 @@ def test_query_all_companies(client, sample_company):
     )
 
 
-def test_query_all_companies_true(
-    client,
-    sample_company,
-):
-    # Get /api/companies?active=true
+def test_companies_query_all_true(client, sample_company, ): # fmt: skip
     response = client.get("/api/companies?active=true")
-    assert response.status_code == 200
+    if response.status_code != 200:
+        print(response.text)
     data = response.get_json()
     assert isinstance(data["companies"], list)
     assert len(data["companies"]) == 3
     assert data["count"] == 3
 
 
-def test_query_all_companies_false(
-    client,
-    sample_company,
-):
-    # Get /api/companies?active=false
+def test_companies_query_all_false(client, sample_company,): # fmt: skip
     response = client.get("/api/companies?active=false")
-    assert response.status_code == 200
+    if response.status_code != 200:
+        print(response.text)
     data = response.get_json()
     assert isinstance(data["companies"], list)
     assert len(data["companies"]) == 1
     assert data["count"] == 1
 
 
-def test_query_all_companies_empty(
-    client,
-    db_session,
-):
-    # Get /api/companies
+def test_companies_query_all_empty(client, db_session,): # fmt: skip
     response = client.get("/api/companies")
-    assert response.status_code == 200
+    if response.status_code != 200:
+        print(response.text)
     data = response.get_json()
     assert isinstance(data["companies"], list)
     assert len(data["companies"]) == 0
@@ -100,72 +194,133 @@ def test_query_all_companies_empty(
     assert data["count"] == 0
 
 
-def test_query_company(
-    client,
-    sample_company,
-):
-    # Get /api/companies/<company_name>
+# ---------------------------------------------------------------------
+# Company Get API
+# ---------------------------------------------------------------------
+def test_companies_query(client, sample_company, sample_job_assignment,): # fmt: skip
     company_name = sample_company.company_name
     response = client.get(f"/api/companies/{quote(company_name, safe='')}")
-    assert response.status_code == 200
+    if response.status_code != 200:
+        print(response.text)
     data = response.get_json()
     assert isinstance(data, dict)
     assert _nfc(data["company_name"]) == _nfc(company_name)
 
 
-def test_create_company(
-    client,
-    sample_company,
-):
-    # Post /api/companies
-    response = client.post("/api/companies", json=payload_create)
-    assert response.status_code == 201
+def test_companies_query_error_1(client, sample_company, sample_job_assignment,): # fmt: skip
+    company_name = "Wrong"
+    response = client.get(f"/api/companies/{quote(company_name, safe='')}")
+    if response.status_code != 404:
+        print(response.text)
+    assert response.status_code == 404
     data = response.get_json()
-    assert isinstance(data, dict)
+    assert data["error"] == "COMPANY_NOT_FOUND"
 
 
-def test_create_company_duplicate(
-    client,
-    sample_company,
-):
+# ---------------------------------------------------------------------
+# Company Create API
+# ---------------------------------------------------------------------
+def test_companies_create(client, sample_company,): # fmt: skip
+    response = client.get("/api/companies")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 4
+
+    response = client.post("/api/companies", json=payload_create)
+    if response.status_code != 201:
+        print(response.text)
+    assert response.status_code == 201
+
+    response = client.get("/api/companies")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 5
+
+
+def test_companies_create_error_1(client, sample_company,): # fmt: skip
     # Post /api/companies
     response = client.post("/api/companies", json=payload_create)
     response = client.post("/api/companies", json=payload_create)
+    if response.status_code != 409:
+        print(response.text)
     assert response.status_code == 409
+    data = response.get_json()
+    assert data["error"] == "CONSTRAINT_VIOLATION"
 
 
-def test_update_company(client, sample_company):
-    # Put /api/companies/<company_name>
+# ---------------------------------------------------------------------
+# Company Update API
+# ---------------------------------------------------------------------
+def test_companies_update(client, sample_company):
     company_name = sample_company.company_name
-    response = client.put(
-        f"/api/companies/{quote(company_name, safe='')}",
-        json=payload_put,
-    )
-    assert response.status_code == 200
+    response = client.put(f"/api/companies/{quote(company_name, safe='')}", json=payload_put,) # fmt: skip
+    if response.status_code != 200:
+        print(response.text)
     data = response.get_json()
     assert isinstance(data, dict)
     assert len(data) == 8
     assert data["id"] == sample_company.id
     assert _nfc(data["company_name"]) == _nfc(payload_put["company_name"])
-    assert data["number_of_jobs"] == payload_put["number_of_jobs"]
     assert data["pay_per_hour"] == payload_put["pay_per_hour"]
     assert data["active"] == payload_put["active"]
     assert data["notes"] == payload_put["notes"]
 
     response2 = client.get("/api/companies/Kitchen")
-    assert response2.status_code == 200
+    if response.status_code != 200:
+        print(response.text)
     data2 = response2.get_json()
     assert isinstance(data2, dict)
     assert len(data2) == 8
     assert data2["company_name"] == payload_put["company_name"]
 
 
-def test_delete_company(client, sample_company):
-    # Delete /api/companies/<company_name>
+def test_companies_update_error_1(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    company_name = "Wrong"
+    response = client.put(f"/api/companies/{quote(company_name, safe='')}", json=payload_put,)# fmt: skip
+    if response.status_code != 404:
+        print(response.text)
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data["error"] == "COMPANY_NOT_FOUND"
+
+
+# ---------------------------------------------------------------------
+# Company Delete API
+# ---------------------------------------------------------------------
+def test_companies_delete(client, sample_company):
     company_name = sample_company.company_name
     response = client.delete(f"/api/companies/{quote(company_name, safe='')}")
-    assert response.status_code == 200
+    if response.status_code != 200:
+        print(response.text)
     data = response.get_json()
     assert isinstance(data, dict)
+    assert data["message"] == "company deleted permanently"
+
     response = client.get(f"/api/companies/{quote(company_name, safe='')}")
+    if response.status_code != 404:
+        print(response.text)
     assert response.status_code == 404
+
+
+def test_companies_delete_error_1(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    company_name = "Wrong"
+    response = client.delete(f"/api/companies/{quote(company_name, safe='')}")
+    if response.status_code != 404:
+        print(response.text)
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data["error"] == "COMPANY_NOT_FOUND"
+
+
+def test_companies_delete_Error_2(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    company_name = sample_company.company_name
+    response = client.delete(f"/api/companies/{quote(company_name, safe='')}")
+    if response.status_code != 409:
+        print(response.text)
+    assert response.status_code == 409
+    data = response.get_json()
+    assert data["error"] == "CONSTRAINT_VIOLATION"

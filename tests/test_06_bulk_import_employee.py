@@ -6,6 +6,9 @@ import subprocess
 from app.models import Employee
 
 
+# ---------------------------------------------------------------------
+# Employees bulk import
+# ---------------------------------------------------------------------
 def test_bulk_import_companies_create(app, db_session):
     result = subprocess.run(
         [
@@ -22,6 +25,9 @@ def test_bulk_import_companies_create(app, db_session):
     assert len(data) == 3
 
 
+# ---------------------------------------------------------------------
+# Employees bulk update
+# ---------------------------------------------------------------------
 def test_bulk_import_companies_update(app, db_session):
     result = subprocess.run(
         [

@@ -1,4 +1,4 @@
-company_name,number_of_jobs,pay_per_hour,active,notes
+company_name,jobs_max,pay_per_hour,active,notes
 Bank,8,10,true,,
 Arbeitsamt,7,10,true,
 Bauhof,8,10,true,
