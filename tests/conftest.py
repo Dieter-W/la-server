@@ -42,9 +42,8 @@ def db_create(env_patch):
 
         yield
 
-        with engine.connect() as conn:
-            mariadb_db = os.getenv("MARIADB_DATABASE")
-            conn.execute(text(f"DROP DATABASE IF EXISTS `{mariadb_db}`"))
+        mariadb_db = os.getenv("MARIADB_DATABASE")
+        conn.execute(text(f"DROP DATABASE IF EXISTS `{mariadb_db}`"))
 
 
 # ---------------------------------------------------------

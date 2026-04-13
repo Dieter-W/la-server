@@ -250,6 +250,7 @@ def test_companies_create_error_1(client, sample_company,): # fmt: skip
     assert response.status_code == 409
     data = response.get_json()
     assert data["error"] == "CONSTRAINT_VIOLATION"
+    assert data["message"] == "Create failed, because entry is already in database"
 
 
 # ---------------------------------------------------------------------
@@ -324,3 +325,7 @@ def test_companies_delete_Error_2(client, sample_company, sample_employee, sampl
     assert response.status_code == 409
     data = response.get_json()
     assert data["error"] == "CONSTRAINT_VIOLATION"
+    assert (
+        data["message"]
+        == "Delete failed, because related entries in JobAssignment table"
+    )

@@ -18,8 +18,16 @@ def register_error_handlers(app):
 
     @app.errorhandler(IntegrityError)
     def handle_integrity_error(e):
+        msg = str(e)
         g.db.rollback()
-        return jsonify({"error": "CONSTRAINT_VIOLATION", "message": f"{e}"}), 409
+
+        if "Duplicate entry" in msg:
+            msg = "Create failed, because entry is already in database"
+
+        elif "UPDATE job_assignments" in msg:
+            msg = "Delete failed, because related entries in JobAssignment table"
+
+        return jsonify({"error": "CONSTRAINT_VIOLATION", "message": f"{msg}"}), 409
 
     @app.errorhandler(SQLAlchemyError)
     def handle_sqlalchemy_error(e):
