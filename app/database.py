@@ -3,7 +3,10 @@
 import logging
 
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+
+from app.peak_tracking import PeakCounter
 
 
 class Base(DeclarativeBase):
@@ -15,6 +18,16 @@ class Base(DeclarativeBase):
 db = SQLAlchemy(model_class=Base)
 
 logger = logging.getLogger(__name__)
+
+
+def _register_pool_peak_listeners(engine, counter: PeakCounter) -> None:
+    @event.listens_for(engine.pool, "checkout")
+    def _on_pool_checkout(dbapi_conn, connection_record, connection_proxy):
+        counter.enter()
+
+    @event.listens_for(engine.pool, "checkin")
+    def _on_pool_checkin(dbapi_conn, connection_record):
+        counter.leave()
 
 
 def init_db(app) -> None:
@@ -35,6 +48,9 @@ def init_db(app) -> None:
         )
         app.db_engine = engine
         app.SessionLocal = SessionLocal
+
+        app.peak_pool_checkouts = PeakCounter()
+        _register_pool_peak_listeners(engine, app.peak_pool_checkouts)
 
         import app.models  # noqa: F401 - register models before create_all
 

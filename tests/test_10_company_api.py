@@ -289,6 +289,20 @@ def test_companies_update_error_1(client, sample_company, sample_employee, sampl
     assert data["error"] == "COMPANY_NOT_FOUND"
 
 
+def test_companies_update_error_2_duplicate_name(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    """PUT rename collides with another company's unique company_name -> 409."""
+    response = client.put(
+        f"/api/companies/{quote('Bank', safe='')}",
+        json={"company_name": "Küche"},
+    )
+    if response.status_code != 409:
+        print(response.text)
+    assert response.status_code == 409
+    data = response.get_json()
+    assert data["error"] == "CONSTRAINT_VIOLATION"
+    assert data["message"] == "Create failed, because entry is already in database"
+
+
 # ---------------------------------------------------------------------
 # Company Delete API
 # ---------------------------------------------------------------------

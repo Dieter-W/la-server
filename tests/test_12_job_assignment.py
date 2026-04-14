@@ -85,7 +85,7 @@ def test_validate_create_payload_error_6(client, sample_company, sample_employee
         print(response.text)
     assert response.status_code == 400
     data = response.get_json()
-    assert data["error"] == "EMPLOYEE_NUMBER_WRONG"
+    assert data["error"] == "EMPLOYEE_NUMBER_WRONG_IN_JSON"
 
 
 # ---------------------------------------------------------------------

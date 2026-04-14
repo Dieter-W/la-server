@@ -216,6 +216,7 @@ The script creates or updates employees (by `employee_number`) and logs successe
 | ----------------------------------------------- | ------------------------------------------------------------------------- |
 | `GET /api/health`                               | Basic health check                                                        |
 | `GET /api/health/db`                            | Database connectivity                                                     |
+| `GET /api/health/runtime`                       | Operational diagnostics (pool, concurrency peaks, redacted DB URL; no customer data) |
 | `GET /api/employees`                            | List all employees (optional `?active=true` or `?active=false`)           |
 | `GET /api/employees/<employee_number>`          | Fetch a single employee                                                   |
 | `POST /api/employees`                           | Create a new employee                                                     |

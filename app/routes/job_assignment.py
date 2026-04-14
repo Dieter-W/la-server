@@ -52,7 +52,7 @@ def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
 
     valid, err = _validate_checksum(data.get("employee_number"))
     if not valid:
-        return valid, err
+        return valid, (f"{err}_IN_JSON")
 
     return True, None
 

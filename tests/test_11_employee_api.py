@@ -337,7 +337,7 @@ def test_employees_create_error_1(client, sample_employee):
     assert response.status_code == 409
     data = response.get_json()
     assert data["error"] == "CONSTRAINT_VIOLATION"
-    assert (data["message"] == "Create failed, because entry is already in database")  # fmt: skip
+    assert data["message"] == "Create failed, because entry is already in database"  # fmt: skip
 
 
 # ---------------------------------------------------------------------
@@ -386,6 +386,20 @@ def test_employees_update_error_2(client, sample_employee):
     assert response.status_code == 404
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
+
+
+def test_employees_update_error_3(client, sample_employee): # fmt: skip
+    """PUT changes employee_number to one that already exists -> 409."""
+    response = client.put(
+        "/api/employees/M00155",
+        json={"employee_number": "A00265"},
+    )
+    if response.status_code != 409:
+        print(response.text)
+    assert response.status_code == 409
+    data = response.get_json()
+    assert data["error"] == "CONSTRAINT_VIOLATION"
+    assert data["message"] == "Create failed, because entry is already in database"
 
 
 # ---------------------------------------------------------------------
