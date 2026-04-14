@@ -4,6 +4,7 @@ from flask import Flask, g
 
 from app.database import init_db
 from app.errors import register_error_handlers
+from app.logging_config import configure_logging
 
 
 def create_app(config_object=None) -> Flask:
@@ -20,26 +21,7 @@ def create_app(config_object=None) -> Flask:
         else:
             app.config.from_object(config_object)
 
-    # #region agent log
-    import json
-
-    _uri = app.config.get("SQLALCHEMY_DATABASE_URI")
-    open("debug-9015c9.log", "a").write(
-        json.dumps(
-            {
-                "sessionId": "9015c9",
-                "runId": "post-fix",
-                "hypothesisId": "verify",
-                "location": "app/__init__.py:create_app",
-                "message": "SQLALCHEMY_DATABASE_URI type",
-                "data": {"type": type(_uri).__name__, "is_str": isinstance(_uri, str)},
-                "timestamp": __import__("time").time_ns() // 1_000_000,
-            }
-        )
-        + "\n"
-    )
-    # #endregion
-
+    configure_logging(app)
     init_db(app)
 
     # Session per request

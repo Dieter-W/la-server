@@ -24,11 +24,11 @@ if __name__ == "__main__":
         hostname = socket.gethostname()
         ip_addr = socket.gethostbyname(hostname)
 
-        print("Running LA-Server in Production Mode")
-        print(f" * Running on all addresses {host}")
-        print(f" * Running on http://127.0.0.1:{port}")
-        print(f" * Running on http://{ip_addr}:{port}")
-        print("Press CTRL+C to quit")
+        app.logger.info("Running LA-Server in Production Mode")
+        app.logger.info(" * Running on all addresses %s", host)
+        app.logger.info(" * Running on http://127.0.0.1:%s", port)
+        app.logger.info(" * Running on http://%s:%s", ip_addr, port)
+        app.logger.info("Press CTRL+C to quit")
 
         import waitress
 

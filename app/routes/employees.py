@@ -1,5 +1,6 @@
 """Employee CRUD endpoints for job center management."""
 
+import logging
 import os
 
 from flask import Blueprint, jsonify, request, g
@@ -9,6 +10,8 @@ from app.errors import APIError
 from app.models import Company, Employee, JobAssignment
 
 employees_bp = Blueprint("employees", __name__)
+
+logger = logging.getLogger(__name__)
 
 VALIDATE_CHECK_SUM = os.getenv("VALIDATE_CHECK_SUM", "true").lower() == "true"
 
@@ -158,6 +161,9 @@ def create_employee():
 
         g.db.add(emp)
         g.db.flush()
+        logger.info(
+            "Employee created id=%s employee_number=%s", emp.id, emp.employee_number
+        )
         return jsonify(_employee_to_dict(emp, "")), 201
 
 
@@ -208,6 +214,9 @@ def update_employee(employee_number: str):
                 else:
                     emp.__setattr__(field, val if val is not None else None)
 
+        logger.info(
+            "Employee updated id=%s employee_number=%s", emp.id, emp.employee_number
+        )
         return jsonify(_employee_to_dict(emp, company_name)), 200
 
 
@@ -237,7 +246,17 @@ def delete_employee(employee_number: str):
         hard = request.args.get("hard", "").lower() in ("true", "1", "yes")
         if not hard:
             emp.active = False
+            logger.info(
+                "Employee deactivated id=%s employee_number=%s",
+                emp.id,
+                emp.employee_number,
+            )
             return jsonify(_employee_to_dict(emp, company_name)), 200
         else:
             g.db.delete(emp)
+            logger.info(
+                "Employee deleted hard id=%s employee_number=%s",
+                emp.id,
+                employee_number,
+            )
             return jsonify({"message": "employee deleted permanently"}), 200

@@ -1,7 +1,11 @@
 """Errorhandler for the REST Endpoints"""
 
+import logging
+
 from flask import jsonify, g
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+
+logger = logging.getLogger(__name__)
 
 
 class APIError(Exception):
@@ -27,14 +31,17 @@ def register_error_handlers(app):
         elif "UPDATE job_assignments" in msg:
             msg = "Delete failed, because related entries in JobAssignment table"
 
+        logger.warning("Integrity constraint: %s", msg)
         return jsonify({"error": "CONSTRAINT_VIOLATION", "message": f"{msg}"}), 409
 
     @app.errorhandler(SQLAlchemyError)
     def handle_sqlalchemy_error(e):
         g.db.rollback()
+        logger.exception("Database error")
         return jsonify({"error": "DATABASE_ERROR", "message": f"{e}"}), 500
 
     @app.errorhandler(Exception)
     def handle_unknown_error(e):
         g.db.rollback()
+        logger.exception("Unhandled error")
         return jsonify({"error": "INTERNAL_SERVER_ERROR", "message": f"{e}"}), 500

@@ -59,6 +59,15 @@ class Config:
         )
 
     @classmethod
+    def log_level(cls) -> str:
+        return os.getenv("LOG_LEVEL", "INFO")
+
+    @classmethod
+    def log_file(cls) -> str | None:
+        path = os.getenv("LOG_FILE", "").strip()
+        return path or None
+
+    @classmethod
     def get_config(cls) -> dict:
         """Return Flask config mapping computed from current environment."""
 
@@ -81,4 +90,6 @@ class Config:
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
             "ADMIN_DB_URI": cls.admin_db_uri(),
             "TESTING": cls._env_bool("TESTING", default=False),
+            "LOG_LEVEL": cls.log_level(),
+            "LOG_FILE": cls.log_file(),
         }

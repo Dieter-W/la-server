@@ -20,14 +20,21 @@ from app.models import Company, Employee, JobAssignment
 from app.config import Config
 
 
+def _mariadb_test_database_name(worker_id: str) -> str:
+    """Unique DB name per pytest-xdist worker; valid MariaDB identifier (<=64 chars)."""
+    safe = "".join(c if c.isalnum() or c == "_" else "_" for c in worker_id)
+    name = f"la_test_{safe}"
+    return name[:64]
+
+
 # ---------------------------------------------------------
 # 1. Create Test Database
 # ---------------------------------------------------------
 @pytest.fixture()
-def env_patch(monkeypatch):
-    """Set needed environment variables"""
+def env_patch(monkeypatch, worker_id):
+    """Set needed environment variables (isolated DB per xdist worker)."""
     monkeypatch.setenv("TESTING", "true")
-    monkeypatch.setenv("MARIADB_DATABASE", "$$test-database$$")
+    monkeypatch.setenv("MARIADB_DATABASE", _mariadb_test_database_name(worker_id))
 
     yield
 
@@ -87,7 +94,7 @@ def db_session(app):
 
     yield db.session
 
-    transaction.rollback
+    transaction.rollback()
     db.session.remove()
     connection.close()
 

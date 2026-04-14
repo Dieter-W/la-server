@@ -1,5 +1,7 @@
 """Company CRUD endpoints for job center management."""
 
+import logging
+
 from flask import Blueprint, jsonify, request, g
 from sqlalchemy import func
 
@@ -7,6 +9,8 @@ from app.errors import APIError
 from app.models import Company, JobAssignment
 
 companies_bp = Blueprint("companies", __name__)
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------
@@ -124,6 +128,7 @@ def create_company():
 
         g.db.add(comp)
         g.db.flush()
+        logger.info("Company created id=%s company_name=%s", comp.id, comp.company_name)
         return jsonify(_company_to_dict(comp, jobs_assigned)), 201
 
 
@@ -165,6 +170,7 @@ def update_company(company_name: str):
             .count()
         )
 
+        logger.info("Company updated id=%s company_name=%s", comp.id, comp.company_name)
         return jsonify(_company_to_dict(comp, jobs_assigned))
 
 
@@ -177,4 +183,5 @@ def delete_company(company_name: str):
             raise APIError("COMPANY_NOT_FOUND", 404)
 
         g.db.delete(comp)
+        logger.info("Company deleted id=%s company_name=%s", comp.id, comp.company_name)
         return jsonify({"message": "company deleted permanently"}), 200

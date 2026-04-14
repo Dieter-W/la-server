@@ -1,5 +1,6 @@
 """Job assignment CRUD endpoints for employees to take jobs."""
 
+import logging
 import os
 
 from flask import Blueprint, jsonify, request, g
@@ -9,6 +10,8 @@ from app.errors import APIError
 from app.models import Company, Employee, JobAssignment
 
 job_assignment_bp = Blueprint("job_assignments", __name__)
+
+logger = logging.getLogger(__name__)
 
 VALIDATE_CHECK_SUM = os.getenv("VALIDATE_CHECK_SUM", "true").lower() == "true"
 
@@ -142,6 +145,13 @@ def create_job_assignment():
 
         g.db.add(job_assignment)
         g.db.flush()
+        # High-churn: DEBUG so default INFO production logs stay readable.
+        logger.debug(
+            "Job assignment created id=%s company_id=%s employee_id=%s",
+            job_assignment.id,
+            job_assignment.company_id,
+            job_assignment.employee_id,
+        )
         return jsonify(_job_assignment_to_dict(job_assignment)), 201
 
 
@@ -173,6 +183,12 @@ def delete_job_assignment(employee_number: str):
             raise APIError("NO_JOB_ASSIGNED", 400)
 
         g.db.delete(job)
+        logger.debug(
+            "Job assignment deleted id=%s employee_id=%s employee_number=%s",
+            job.id,
+            emp.id,
+            employee_number,
+        )
         return jsonify({"message": "job deleted"}), 200
 
 
@@ -206,9 +222,18 @@ def reset_job_assignment():
                 jobs = jobs.filter(JobAssignment.company_id == comp.id)
                 count = jobs.count()
 
+        reset_scope = "*"
+        if data and data.get("company_name") and data["company_name"].strip():
+            reset_scope = data["company_name"].strip()
+
         if count > 0:
             jobs.delete(synchronize_session=False)
 
+        logger.warning(
+            "Job assignments reset count=%s company_name=%s",
+            count,
+            reset_scope,
+        )
         return (
             jsonify(
                 {
