@@ -36,7 +36,7 @@ class Company(BaseModel):
 
 
 class Employee(BaseModel):
-    """Employees (kids) attending the Spielstadt, with soft-delete support via active flag."""
+    """Camp participants (children and staff) at the Spielstadt, stored as Employee rows; soft-delete via `active`."""
 
     __tablename__ = "employees"
 
@@ -51,7 +51,7 @@ class Employee(BaseModel):
 
 
 class JobAssignment(BaseModel):
-    """Job assignments of employees in the Spielstadt"""
+    """Links camp participants (`Employee`) to companies for a placement in the Spielstadt."""
 
     __tablename__ = "job_assignments"
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False) # fmt: skip

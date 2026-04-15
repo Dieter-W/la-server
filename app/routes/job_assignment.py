@@ -1,4 +1,4 @@
-"""Job assignment CRUD endpoints for employees to take jobs."""
+"""Job assignment endpoints: camp participants (children and staff) take jobs at companies (*employee* names match the API)."""
 
 import logging
 import os

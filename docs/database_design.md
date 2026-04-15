@@ -16,8 +16,8 @@ All concrete tables inherit from `BaseModel` (`__abstract__ = True`):
 
 | Table              | Model            | Purpose |
 |--------------------|------------------|---------|
-| `companies`        | `Company`        | Employers / stations that offer jobs              |
-| `employees`        | `Employee`       | Camp participants in the Spielstadt               |
+| `companies`        | `Company`        | Employers / stations that offer jobs |
+| `employees`        | `Employee`       | Camp participants in the Spielstadt (children and staff; each has an `employee_number`) |
 | `job_assignments`  | `JobAssignment`  | Links one employee to one company for a placement |
 
 ---
@@ -53,7 +53,7 @@ All concrete tables inherit from `BaseModel` (`__abstract__ = True`):
 
 **Indexes:** primary key on `id`; unique index on `employee_number`.
 
-Checksum validation for `employee_number` (ISO 7064 Mod 97,10) is **not** enforced in the database; it is applied in the HTTP API and bulk import when `VALIDATE_CHECK_SUM` is enabled. See [Employee numbers and checksums](./developer-guide.md#employee-numbers-and-checksums).
+Checksum validation for `employee_number` (ISO 7064 Mod 97,10) is **not** enforced in the database; it is applied in the HTTP API and bulk import when `VALIDATE_CHECK_SUM` is enabled. See [Employee numbers and check digits](./employee-numbers.md).
 
 ---
 
@@ -119,12 +119,12 @@ erDiagram
 - Represents an employers in the Spielstadt that offer jobs.
 - `company_name` must be unique.
 - `jobs_max` caps concurrent assignments for that company (enforced with the API).
-- `pay_per_hour` is amount of money the camp participants get for one hour work.
+- `pay_per_hour` is amount of money the employees (children and staff in their Spielstadt roles) get for one hour of work.
 - `active` marks whether the company is offering jobs. `notes` is optional free text.
 
 ### Employee (`employees`)
 
-- Typically represents each camp participant (children at the summer camp); the same model may also be used for staff accounts in edge cases.
+- Each row is a **camp participant** at the Spielstadt: **children** and **staff** use the same `employees` table and `employee_number`; `role` and `notes` record the distinction in practice.
 - **Soft delete:** `active` defaults to `true`. Deleting an employee via the API normally sets `active` to `false` to preserve history; hard delete is a separate API path.
 
 ### Job assignment (`job_assignments`)

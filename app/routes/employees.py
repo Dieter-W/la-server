@@ -1,4 +1,4 @@
-"""Employee CRUD endpoints for job center management."""
+"""CRUD for camp participants (children and staff); URLs and JSON use *employee* / employee_number as stable API names."""
 
 import logging
 import os

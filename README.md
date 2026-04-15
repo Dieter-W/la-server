@@ -1,16 +1,13 @@
 # Kinderspielstadt Los Ämmerles - LA-Server
 
-This project supports the [Kinderspielstadt](https://de.wikipedia.org/wiki/Kinderstadt) in Ammerbuch ([Los Ämmerles](https://los-aemmerles.de/)) to digitalize the summer camp.
-Together with the connected clients (la-job-center, la-job-center-kiosk-mode, ...) the children apply for jobs during the camp.
+This project supports the [Kinderspielstadt](https://de.wikipedia.org/wiki/Kinderstadt) in Ammerbuch ([Los Ämmerles](https://los-aemmerles.de/)) to digitalize the summer camp.  Together with the connected clients (la-job-center, la-job-center-kiosk-mode, …), **children and staff** (camp participants in the Spielstadt) use the system during the camp.
 
-The server is a Python Flask server with MariaDB database backend.
-The production implementation with [waitress](https://github.com/Pylons/waitress) runs with 4 threads.
+The server is a Python Flask server with MariaDB database backend.  The production implementation with [waitress](https://github.com/Pylons/waitress) runs with 4 threads.
 
 
 ## Prerequisites
 
-The **"Kinderspielstadt Los Ämmerles - LA-Server"** requires Python, installed on your local computer.
-MariaDB can be installed locally or you can connect to a database installed on the internet.
+The **"Kinderspielstadt Los Ämmerles - LA-Server"** requires Python, installed on your local computer.  MariaDB can be installed locally or you can connect to a database installed on the internet.
 
 The following versions are required to run the LA-Server:
 
@@ -23,8 +20,7 @@ The following versions are required to run the LA-Server:
 
    The public repository URL is not published yet; use your team’s clone URL or a downloaded archive when available.
 
-   Usually the copy is done with the git command: `git clone https://github.com/Dieter-W/la-server.git`
-   You can also download a zip or tarball from [GitHub](https://github.com/Dieter-W/la-Server) to create the LA-Server directory.
+   Usually the copy is done with the git command: `git clone https://github.com/Dieter-W/la-server.git`.  You can also download a zip or tarball from [GitHub](https://github.com/Dieter-W/la-Server) to create the LA-Server directory.
 
 2. **Initialize `.env`**
 
@@ -188,8 +184,7 @@ python ./scripts/bulk_import_employees.py employees.csv --nochecksum-check
 ```
 
 **Note:**
-It's useful to use employee numbers with checksums, otherwise a typo can refer to a different child.
-A full explanation of how to create employee numbers with checksums in Excel is in `[./docs/employee-numbers.md](./docs/employee-numbers.md)`.
+It's useful to use employee numbers with checksums, otherwise a typo can refer to a different camp participant.  A full explanation of how to create employee numbers with checksums in Excel is in `[./docs/employee-numbers.md](./docs/employee-numbers.md)`.
 
 **CSV format:** Comma-separated with a header row. Required columns: `first_name`, `last_name`, `employee_number`, `role`, `active`, `notes`.
 
@@ -207,7 +202,7 @@ The script creates or updates employees (by `employee_number`) and logs successe
 ## Development
 
 - For developer information see: `[./docs/developer-guide.md](./docs/developer-guide.md)` — tools, API usage for client developers and backend notes for contributors.
-- For information about the database layout see:   `[./docs/README_Database_Design.md](./docs/README_Database_Design.md)` — database schema and design.
+- For information about the database layout see:   `[./docs/database_design.md](./docs/database_design.md)` — database schema and design.
 
 ## API Endpoints
 
