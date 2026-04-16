@@ -64,6 +64,12 @@ $PythonVersion = [version]$PythonVersionString
 function Resolve-RequirementsFile {
     param([string]$CandidatePath, [string]$FallbackPath)
 
+    $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+    if ($CandidatePath -and -not [System.IO.Path]::IsPathRooted($CandidatePath)) {
+        $rel = ($CandidatePath -replace '^\.[/\\]', "").Replace("/", [char][System.IO.Path]::DirectorySeparatorChar)
+        $CandidatePath = Join-Path $projectRoot $rel
+    }
+
     if (Test-Path $CandidatePath) {
         return (Resolve-Path $CandidatePath)
     }
@@ -72,7 +78,8 @@ function Resolve-RequirementsFile {
         return (Resolve-Path $FallbackPath)
     }
 
-    Write-Host "" "Requirements file not found. Checked '$CandidatePath' and '$FallbackPath'."
+    Write-Host "Requirements file not found. Checked '$CandidatePath' and '$FallbackPath'." -ForegroundColor Red
+    exit 1
 }
 
 function Test-EnvCustomized {
@@ -144,12 +151,24 @@ elseif ($Mode -eq "provision") {
     Write-Host ""
     Write-Host "== LA-Server production setup ($Mode) =="
 
+    if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
+        Write-Host "Python is not installed" -ForegroundColor Red
+        exit 1
+    }
+
+    if ($PythonVersion -lt [version]"3.14.0") {
+        Write-Host "Python 3.14 or higher is required. Found Python version: $PythonVersion" -ForegroundColor Red
+        exit 1
+    }
+
     if (-not (Test-Path $EnvPath)) {
         Write-Host "'.env' does not exist. Run './scripts/$Setup.ps1 -Mode init-env' first." -ForegroundColor Red
+        exit 1
     }
 
     if (-not (Test-EnvCustomized -EnvFilePath $EnvPath -EnvExampleFilePath $EnvExamplePath)) {
         Write-Host "'.env' appears unchanged or still contains placeholder values. Please update it before running provision mode." -ForegroundColor Red
+        exit 1
     }
 
     # 1. Create virtual environment
@@ -167,6 +186,7 @@ elseif ($Mode -eq "provision") {
     $ActivatePath = Join-Path $VenvPath "Scripts/Activate.ps1"
     if (-not (Test-Path $ActivatePath)) {
         Write-Host "Could not find venv activation script at '$ActivatePath'." -ForegroundColor Red
+        exit 1
     }
 
     . $ActivatePath
@@ -190,7 +210,7 @@ elseif ($Mode -eq "provision") {
     Write-Host ""
     Write-Host "Setup complete." -ForegroundColor Green
     Write-Host ""
-    Write-Host "Run: './Start.ps1' to start the LA-Server" -ForegroundColor Green
+    Write-Host "Run: '.\start.ps1' to start the LA-Server" -ForegroundColor Green
     Write-Host ""
 
     exit 0

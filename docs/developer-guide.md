@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **LA-Server** (Kinderspielstadt Los Ämmerles) is a Flask application backed by **MariaDB**. It exposes a JSON REST API for companies, camp participants (“employees” in paths and JSON), and job assignments during the summer camp. Clients (e.g. job center apps) call these endpoints over HTTP.
+The **LA-Server** (Kinderspielstadt Los Ämmerles) is a Flask application backed by **MariaDB**. It exposes a JSON REST API for companies, **camp participants** (children and staff; “employees” in paths and JSON), and job assignments during the summer camp. Clients (e.g. job center apps) call these endpoints over HTTP.
 
 For installation, environment variables, production setup (`$setup.ps1` / `$setup.sh`), and CSV bulk import, see the main [README.md](../README.md).
 
@@ -274,7 +274,7 @@ None.
       "notes": null,
       "created_at": "2026-01-15T10:00:00+00:00",
       "updated_at": "2026-01-15T10:00:00+00:00"
-    }
+    },
     {
       "id": 2,
       "company_name": "Bauhof",
@@ -537,6 +537,8 @@ None.
 
 ## Employees
 
+In domain language, each row is a **camp participant** (child or staff). The API keeps the historical names *employee* / `employee_number`.
+
 ### `GET /api/employees`
 
 **Explanation**
@@ -558,7 +560,7 @@ Host: localhost:5000
 ```
 
 ```bash
-curl -s "http://localhost:5000/api/employees
+curl -s "http://localhost:5000/api/employees"
 curl -s "http://localhost:5000/api/employees?active=true"
 curl -s "http://localhost:5000/api/employees?active=false"
 ```
@@ -582,9 +584,9 @@ None.
       "notes": null,
       "created_at": "2026-01-15T10:00:00+00:00",
       "updated_at": "2026-01-15T10:00:00+00:00"
-    }
+    },
     {
-      "id": 1,
+      "id": 2,
       "first_name": "Anna",
       "last_name": "Schmidt",
       "employee_number": "A0265",
@@ -613,7 +615,7 @@ None.
 ### `GET /api/employees/<employee_number>`
 
 **Explanation**
-Returns one employee by `employee_number`. Checksum validated when `VALIDATE_CHECK_SUM` is enabled.
+Returns one camp participant by `employee_number` (one employee record). Checksum validated when `VALIDATE_CHECK_SUM` is enabled.
 
 **Parameters** (path)
 
@@ -669,7 +671,7 @@ None.
 ### `POST /api/employees`
 
 **Explanation**
-Creates an employee. Validates checksum on `employee_number` when enabled.
+Creates a camp participant (employee record). Validates checksum on `employee_number` when enabled.
 
 **Parameters**
 None.
@@ -746,7 +748,7 @@ Example:
 ### `PUT /api/employees/<employee_number>`
 
 **Explanation**
-Updates fields present in the body for the employee identified by the path `employee_number`.
+Updates fields present in the body for the camp participant identified by the path `employee_number`.
 
 **Parameters** (path)
 
@@ -818,7 +820,7 @@ By default performs a **soft delete** (`active=false`). With `?hard=true`, remov
 
 | Name              | Required | Description     |
 | ----------------- | -------- | --------------- |
-| `employee_number` | Yes      | Target employee |
+| `employee_number` | Yes      | Target camp participant (`employee_number` in path) |
 
 
 **Parameters** (query)
@@ -887,7 +889,7 @@ None.
 ### `GET /api/job-assignments`
 
 **Explanation**
-Lists all job assignment rows (ids reference `companies.id` and `employees.id`).
+Lists all job assignment rows (ids reference `companies.id` and `employees.id`; each assignment is one camp participant at one company).
 
 **Parameters**
 None.
@@ -945,7 +947,7 @@ None.
 ### `POST /api/job-assignments`
 
 **Explanation**
-Assigns an active employee to an active company, if capacity allows and the employee has no job yet.
+Assigns an active camp participant to an active company, if capacity allows and they have no job yet (`employee_number` in JSON).
 
 **Parameters**
 None.
@@ -1000,14 +1002,14 @@ curl -s -X POST http://localhost:5000/api/job-assignments \
 ### `DELETE /api/job-assignments/<employee_number>`
 
 **Explanation**
-Removes the job assignment for the given employee number (at most one row per employee in normal operation).
+Removes the job assignment for the given camp participant’s `employee_number` (at most one row per participant in normal operation).
 
 **Parameters** (path)
 
 
 | Name              | Required | Description                         |
 | ----------------- | -------- | ----------------------------------- |
-| `employee_number` | Yes      | Employee whose assignment to remove |
+| `employee_number` | Yes      | Camp participant whose assignment to remove |
 
 
 **Endpoint sample**

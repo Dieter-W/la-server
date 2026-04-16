@@ -196,7 +196,7 @@ Max,Mustermann,M00155,Betreuer,true,Works weekends
 Anna,Schmidt,A00265,Helferin,true,
 ```
 
-The script creates or updates employees (by `employee_number`) and logs successes and errors to stdout. It exits with a non-zero code if any row fails to import.
+The script creates or updates camp participants one row per `employee_number`—and logs successes and errors to stdout. It exits with a non-zero code if any row fails to import.
 
 
 ## Development

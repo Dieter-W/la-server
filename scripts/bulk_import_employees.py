@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bulk import employees from CSV. Run with: python ./scripts/bulk_import_employees.py <path_to_csv> <--nochecksum-check>"""
+"""Bulk import camp participants (employee rows) from CSV. Run with: python ./scripts/bulk_import_employees.py <path_to_csv> <--nochecksum-check>"""
 
 import csv
 import sys

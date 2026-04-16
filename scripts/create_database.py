@@ -22,17 +22,17 @@ load_dotenv(project_root / ".env")
 
 
 def create_database() -> None:
-    """Create the database if it does not exist."""
+    """Create the database if it does not already exist."""
 
-    # def db_create(env_patch):
     engine = create_engine(Config.admin_db_uri())
     with engine.connect() as conn:
         mariadb_db = os.getenv("MARIADB_DATABASE")
-        conn.execute(text(f"CREATE DATABASE `{mariadb_db}`"))
+        conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{mariadb_db}`"))
+        conn.commit()
 
 
 def create_tables() -> None:
-    """Create all tables (e.g. employees) via SQLAlchemy."""
+    """Create all tables (e.g. employees) via SQLAlchemy ``create_all()`` (no-op for existing tables)."""
 
     create_app(Config)  # init_db() inside create_app runs db.create_all()
     print("Tables created (employees and any other models).")

@@ -18,7 +18,7 @@ All concrete tables inherit from `BaseModel` (`__abstract__ = True`):
 |--------------------|------------------|---------|
 | `companies`        | `Company`        | Employers / stations that offer jobs |
 | `employees`        | `Employee`       | Camp participants in the Spielstadt (children and staff; each has an `employee_number`) |
-| `job_assignments`  | `JobAssignment`  | Links one employee to one company for a placement |
+| `job_assignments`  | `JobAssignment`  | Links one camp participant (`employees` row) to one company for a placement |
 
 ---
 
@@ -116,22 +116,22 @@ erDiagram
 
 ### Company (`companies`)
 
-- Represents an employers in the Spielstadt that offer jobs.
+- Each row represents an **employer** in the Spielstadt that offers jobs.
 - `company_name` must be unique.
 - `jobs_max` caps concurrent assignments for that company (enforced with the API).
-- `pay_per_hour` is amount of money the employees (children and staff in their Spielstadt roles) get for one hour of work.
+- `pay_per_hour` is amount of money **camp participants** (children and staff in their Spielstadt roles) get for one hour of work.
 - `active` marks whether the company is offering jobs. `notes` is optional free text.
 
 ### Employee (`employees`)
 
 - Each row is a **camp participant** at the Spielstadt: **children** and **staff** use the same `employees` table and `employee_number`; `role` and `notes` record the distinction in practice.
-- **Soft delete:** `active` defaults to `true`. Deleting an employee via the API normally sets `active` to `false` to preserve history; hard delete is a separate API path.
+- **Soft delete:** `active` defaults to `true`. Deleting a camp participant via the API (paths still say `employee`) normally sets `active` to `false` to preserve history; hard delete is a separate API path.
 
 ### Job assignment (`job_assignments`)
 
-- Links one employee row to one company row.
-- Foreign keys use **`ON DELETE RESTRICT`**: remove or reassign assignments before deleting a company or employee row at the database level.
-- Multiple `job_assignments` rows per employee are allowed over time; the **API** enforces at most one current assignment per employee when creating assignments.
+- Links one camp participant (`employees` row) to one company row.
+- Foreign keys use **`ON DELETE RESTRICT`**: remove or reassign assignments before deleting a company or camp-participant row at the database level.
+- Multiple `job_assignments` rows per camp participant are allowed over time; the **API** enforces at most one current assignment per camp participant when creating assignments.
 
 ### Soft-delete strategy
 
