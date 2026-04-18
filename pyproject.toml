@@ -1,7 +1,8 @@
 [project]
 name = "Kinderspielstadt-Los-Ämmerles--LA-Server"
 version = "0.5.0"
-description = "Flask/MariaDB REST API server for Kinderspielstadt Los Ämmerles: companies, participants, and job assignments during the summer camp."
+description = "The la-server manages and stores all data required to digitalize the Kinderspielstadt.
+It provides a cental backend that allows camp participants to connect clients and digitally perform and manage their jobs within the simulation."
 authors = [
     {name = "Dieter Wellerdiek",email  = "dieter@los-aemmerles.org"}
 ]
