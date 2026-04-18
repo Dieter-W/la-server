@@ -61,12 +61,3 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-
-      # ------------------------
-      # Commit message checks
-      # ------------------------
-      - id: check-signoff
-        name: Check Signed-off-by
-        entry: "python scripts/$check_signed_off_by.py"
-        language: system
-        stages: [commit-msg]

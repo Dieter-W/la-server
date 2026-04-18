@@ -39,3 +39,10 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Other
+*.todo
+.cursor/
+.ruff_cache/
+.benchmarks/
+.pytest_cache/
