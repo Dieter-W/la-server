@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# LA-Server production setup (no Poetry). Same behavior as scripts/$setup.ps1.
+# LA-Server production setup (no Poetry). Same behavior as scripts/setup.ps1.
 #
 # Usage:
-#   ./scripts/\$setup.sh [--mode init-env|provision] [--requirements-path PATH]
+#   ./scripts/setup.sh [--mode init-env|provision] [--requirements-path PATH]
 #                        [--skip-create-database] [--force-recreate-venv]
-#   ./scripts/\$setup.sh -h|--help
+#   ./scripts/setup.sh -h|--help
 #
 # Defaults: --mode init-env, --requirements-path ./data/requirements.txt (relative to project root)
 
@@ -24,7 +24,7 @@ FORCE_RECREATE_VENV=0
 
 usage() {
   cat <<EOF
-LA-Server production setup (same as scripts/\$setup.ps1).
+LA-Server production setup (same as scripts/setup.ps1).
 
 Options:
   --mode <init-env|provision>   init-env: create .env from .env.example (default). provision: full setup.
@@ -34,10 +34,10 @@ Options:
   -h, --help                    Show this help.
 
 Examples:
-  ./scripts/\$setup.sh --mode init-env
-  ./scripts/\$setup.sh --mode provision
-  ./scripts/\$setup.sh --mode provision --skip-create-database
-  ./scripts/\$setup.sh --mode provision --force-recreate-venv --requirements-path ./data/requirements.txt
+  ./scripts/setup.sh --mode init-env
+  ./scripts/setup.sh --mode provision
+  ./scripts/setup.sh --mode provision --skip-create-database
+  ./scripts/setup.sh --mode provision --force-recreate-venv --requirements-path ./data/requirements.txt
 EOF
 }
 
@@ -78,7 +78,7 @@ resolve_requirements_file() {
 }
 
 # Returns 0 (true) if .env is considered customized for provision; 1 (false) otherwise.
-# Mirrors scripts/\$setup.ps1 Test-EnvCustomized.
+# Mirrors scripts/setup.ps1 Test-EnvCustomized.
 env_is_customized() {
   local env_file="$1"
   local example_file="$2"
@@ -168,7 +168,7 @@ if [[ "$MODE" == "init-env" ]]; then
 
   echo ""
   echo "Update '.env' now with production values (DEBUG=false, SECRET_KEY, MariaDB settings)."
-  echo "Then run: ./scripts/\$setup.sh --mode provision"
+  echo "Then run: ./scripts/setup.sh --mode provision"
   echo ""
   exit 0
 fi
@@ -179,7 +179,7 @@ echo "== LA-Server production setup ($MODE) =="
 require_python_314 "$PYTHON_CMD"
 
 if [[ ! -f "$ENV_PATH" ]]; then
-  echo ".env does not exist. Run './scripts/\$setup.sh --mode init-env' first." >&2
+  echo ".env does not exist. Run './scripts/setup.sh --mode init-env' first." >&2
   exit 1
 fi
 

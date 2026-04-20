@@ -27,13 +27,13 @@ The following versions are required to run the LA-Server:
    Windows (PowerShell):
 
    ```powershell
-   .\scripts\$setup.ps1 -Mode init-env
+   .\scripts\setup.ps1 -Mode init-env
    ```
 
-   Linux / macOS / Git Bash (make the script executable once: `chmod +x './scripts/$setup.sh'`):
+   Linux / macOS / Git Bash (make the script executable once: `chmod +x './scripts/setup.sh'`):
 
    ```bash
-   './scripts/$setup.sh' --mode init-env
+   './scripts/setup.sh' --mode init-env
    ```
 
    This creates `.env` from `.env.example` (if missing) and stops.
@@ -47,13 +47,13 @@ The following versions are required to run the LA-Server:
    Windows (PowerShell):
 
    ```powershell
-   .\scripts\$setup.ps1 -Mode provision
+   .\scripts\setup.ps1 -Mode provision
    ```
 
    Linux / macOS / Git Bash:
 
    ```bash
-   './scripts/$setup.sh' --mode provision
+   './scripts/setup.sh' --mode provision
    ```
 
    This checks that `.env` was customized, then creates or reuses `.venv`, installs dependencies from `data/requirements.txt`, and runs `scripts/create_database.py` unless you skip that step (see parameters below).
@@ -67,7 +67,7 @@ pip install -r data/requirements.txt
 python ./scripts/create_database.py
 ```
 
-### `$setup.ps1` parameters (Windows)
+### `setup.ps1` parameters (Windows)
 
 - `-Mode <init-env|provision>`: `init-env` creates `.env` and exits; `provision` runs full setup.
 - `-RequirementsPath <string>`: Path to the production `requirements.txt`. Default: `.\data\requirements.txt`.
@@ -75,13 +75,13 @@ python ./scripts/create_database.py
 - `-ForceRecreateVenv`: Delete `.\.venv` if it exists and recreate it before installing dependencies.
 
 ```powershell
-.\scripts\$setup.ps1 -Mode init-env
-.\scripts\$setup.ps1 -Mode provision
-.\scripts\$setup.ps1 -Mode provision -SkipCreateDatabase
-.\scripts\$setup.ps1 -Mode provision -ForceRecreateVenv -RequirementsPath ".\data\requirements.txt"
+.\scripts\setup.ps1 -Mode init-env
+.\scripts\setup.ps1 -Mode provision
+.\scripts\setup.ps1 -Mode provision -SkipCreateDatabase
+.\scripts\setup.ps1 -Mode provision -ForceRecreateVenv -RequirementsPath ".\data\requirements.txt"
 ```
 
-### `$setup.sh` parameters (Linux / macOS / Git Bash)
+### `setup.sh` parameters (Linux / macOS / Git Bash)
 
 - `--mode <init-env|provision>`: Same as PowerShell `-Mode`.
 - `--requirements-path <path>`: Path to the production `requirements.txt`. Default: `./data/requirements.txt` (relative to the project root).
@@ -90,10 +90,10 @@ python ./scripts/create_database.py
 - `-h` / `--help`: Show usage.
 
 ```bash
-'./scripts/$setup.sh' --mode init-env
-'./scripts/$setup.sh' --mode provision
-'./scripts/$setup.sh' --mode provision --skip-create-database
-'./scripts/$setup.sh' --mode provision --force-recreate-venv --requirements-path ./data/requirements.txt
+'./scripts/setup.sh' --mode init-env
+'./scripts/setup.sh' --mode provision
+'./scripts/setup.sh' --mode provision --skip-create-database
+'./scripts/setup.sh' --mode provision --force-recreate-venv --requirements-path ./data/requirements.txt
 ```
 
 ## Run LA-Server

@@ -27,13 +27,13 @@ If set, skips running `scripts/create_database.py`.
 If set, deletes `./.venv` and recreates it.
 
 .EXAMPLE
-./scripts/$Setup.ps1 -Mode init-env
+./scripts/setup.ps1 -Mode init-env
 
 .EXAMPLE
-./scripts/$Setup.ps1 -Mode provision
+./scripts/setup.ps1 -Mode provision
 
 .EXAMPLE
-./scripts/$Setup.ps1 -Mode provision -ForceRecreateVenv -RequirementsPath "/data/requirements.txt"
+./scripts/setup.ps1 -Mode provision -ForceRecreateVenv -RequirementsPath "/data/requirements.txt"
 #>
 
 
@@ -139,7 +139,7 @@ if ($Mode -eq "init-env") {
 
     Write-Host ""
     Write-Host "Update '.env' now with production values (DEBUG=false, SECRET_KEY, MariaDB settings)." -ForegroundColor Green
-    Write-Host "'Then run: ./scripts/$Setup.ps1 -Mode provision'" -ForegroundColor Green
+    Write-Host "'Then run: ./scripts/setup.ps1 -Mode provision'" -ForegroundColor Green
     Write-Host ""
     exit 0
 }
@@ -162,7 +162,7 @@ elseif ($Mode -eq "provision") {
     }
 
     if (-not (Test-Path $EnvPath)) {
-        Write-Host "'.env' does not exist. Run './scripts/$Setup.ps1 -Mode init-env' first." -ForegroundColor Red
+        Write-Host "'.env' does not exist. Run './scripts/setup.ps1 -Mode init-env' first." -ForegroundColor Red
         exit 1
     }
 

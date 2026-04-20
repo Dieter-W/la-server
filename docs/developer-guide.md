@@ -4,7 +4,7 @@
 
 The **LA-Server** (Kinderspielstadt Los Ämmerles) is a Flask application backed by **MariaDB**. It exposes a JSON REST API for companies, **camp participants** (children and staff; “employees” in paths and JSON), and job assignments during the summer camp. Clients (e.g. job center apps) call these endpoints over HTTP.
 
-For installation, environment variables, production setup (`$setup.ps1` / `$setup.sh`), and CSV bulk import, see the main [README.md](../README.md).
+For installation, environment variables, production setup (`setup.ps1` / `setup.sh`), and CSV bulk import, see the main [README.md](../README.md).
 
 ---
 
