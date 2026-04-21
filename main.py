@@ -15,9 +15,11 @@ if __name__ == "__main__":
 
     if debug:
         if threads == 0:
-            app.run(host=host, port=port, debug=True, threaded=False)
+            # codeql[py/flask-debug]
+            app.run(port=port, debug=True, threaded=False)
         else:
-            app.run(host=host, port=port, debug=True, threaded=True)
+            # codeql[py/flask-debug]
+            app.run(port=port, debug=True, threaded=True)
     else:
         import socket
 

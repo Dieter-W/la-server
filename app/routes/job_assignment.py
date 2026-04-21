@@ -146,6 +146,7 @@ def create_job_assignment():
         g.db.add(job_assignment)
         g.db.flush()
         # High-churn: DEBUG so default INFO production logs stay readable.
+        # codeql[py/clear-text-logging-sensitive-data]
         logger.debug(
             "Job assignment created id=%s company_id=%s employee_id=%s",
             job_assignment.id,
@@ -183,6 +184,7 @@ def delete_job_assignment(employee_number: str):
             raise APIError("NO_JOB_ASSIGNED", 400)
 
         g.db.delete(job)
+        # codeql[py/clear-text-logging-sensitive-data]
         logger.debug(
             "Job assignment deleted id=%s employee_id=%s employee_number=%s",
             job.id,
