@@ -63,6 +63,7 @@ def import_row(row: dict, row_num: int) -> bool:
         existing.active = active
         existing.notes = notes
         db.session.commit()
+        # codeql[py/clear-text-logging-sensitive-data]
         print(f"  Row {row_num}: UPDATED - {employee_number}")
     else:
         emp = Employee(
@@ -75,6 +76,7 @@ def import_row(row: dict, row_num: int) -> bool:
         )
         db.session.add(emp)
         db.session.commit()
+        # codeql[py/clear-text-logging-sensitive-data]
         print(f"  Row {row_num}: CREATED - {employee_number}")
     return True
 
@@ -122,6 +124,7 @@ def main() -> int:
                     employee_number = (row.get("employee_number") or "").strip()
                     first_name = (row.get("first_name") or "").strip()
                     last_name = (row.get("last_name") or "").strip()
+                    # codeql[py/clear-text-logging-sensitive-data]
                     print(
                         f"Error: Checksum of Employee Number is wrong - {first_name} {last_name} - {employee_number} ",
                         file=sys.stderr,

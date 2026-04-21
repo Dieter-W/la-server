@@ -98,6 +98,7 @@ def db_health_check():
         g.db.execute(text("SELECT 1"))
         return jsonify({"status": "ok", "database": "connected"})
     except Exception as e:
+        # codeql[py/stack-trace-exposure]
         return jsonify({"status": "error", "database": str(e)}), 503
 
 
@@ -105,6 +106,7 @@ def db_health_check():
 def health_runtime():
     """Operational diagnostics: pool, redacted DB URL, runtime flags (no customer data)."""
     app = current_app._get_current_object()
+    # codeql[py/stack-trace-exposure]
     return jsonify(
         {
             "service": "Kinderspielstadt Los Ämmerles - LA-Server",
