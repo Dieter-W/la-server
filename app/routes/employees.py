@@ -161,6 +161,7 @@ def create_employee():
 
         g.db.add(emp)
         g.db.flush()
+        # codeql[py/clear-text-logging-sensitive-data]
         logger.info(
             "Employee created id=%s employee_number=%s", emp.id, emp.employee_number
         )
@@ -214,6 +215,7 @@ def update_employee(employee_number: str):
                 else:
                     emp.__setattr__(field, val if val is not None else None)
 
+        # codeql[py/clear-text-logging-sensitive-data]
         logger.info(
             "Employee updated id=%s employee_number=%s", emp.id, emp.employee_number
         )
@@ -246,6 +248,7 @@ def delete_employee(employee_number: str):
         hard = request.args.get("hard", "").lower() in ("true", "1", "yes")
         if not hard:
             emp.active = False
+            # codeql[py/clear-text-logging-sensitive-data]
             logger.info(
                 "Employee deactivated id=%s employee_number=%s",
                 emp.id,
@@ -254,6 +257,7 @@ def delete_employee(employee_number: str):
             return jsonify(_employee_to_dict(emp, company_name)), 200
         else:
             g.db.delete(emp)
+            # codeql[py/clear-text-logging-sensitive-data]
             logger.info(
                 "Employee deleted hard id=%s employee_number=%s",
                 emp.id,
