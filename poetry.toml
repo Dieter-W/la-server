@@ -1,0 +1,3 @@
+[virtualenvs]
+# Development uses Poetry: keep the environment at ./.venv (see docs/developer-guide.md).
+in-project = true

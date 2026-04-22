@@ -1,30 +1,34 @@
 <#
 .SYNOPSIS
-Sets up the production LA-Server for the Kinderspielstadt Los Ämmerles in two steps.
-
-This production installation is intended for environments where Poetry is NOT used.
-Dependencies are installed from `/data/requirements.txt`.
+Sets up the LA-Server for the Kinderspielstadt Los Ämmerles: production (venv + requirements) or
+development (Poetry, dev tools, pre-commit, test checks).
 
 .DESCRIPTION
-Two invocation modes:
-1) `init-env`: Create `.env` from `.env.example` (if missing) and stop.
-2) `provision`: Verify `.env` exists and was updated by the user, then create
-   `.venv`, install dependencies from requirements, and create the database.
+Production (no Poetry): `pip install -r` uses `data/requirements.txt` (a `poetry export` of `pyproject.toml` / `poetry.lock` — not where you add deps; edit `pyproject.toml` first, then re-export).
+- `init-env`: Create `.env` from `.env.example` (if missing) and stop.
+- `provision`: Verify `.env` was customized, create `.venv`, `pip install -r`, create database.
+
+Development (use Poetry only: `poetry` + `pyproject.toml` / lockfile, same as CI `poetry install --with dev`):
+- `development`: `poetry self add poetry-plugin-export` (enables `poetry export` for `data/requirements.txt`), `poetry install --with dev`, `pre-commit install`, optional test/MariaDB validation.
 
 .PARAMETER Mode
-Invocation mode. Allowed values:
-- `init-env` (default): only prepare `.env` and stop.
-- `provision`: run full setup after `.env` has been customized.
+Invocation mode: `init-env` (default), `provision`, `development`, or `help` (same as `-Help`).
 
 .PARAMETER RequirementsPath
 Where to find the production `requirements.txt`.
-Default: `/data/requirements.txt`.
+Default: `./data/requirements.txt`.
 
 .PARAMETER SkipCreateDatabase
-If set, skips running `scripts/create_database.py`.
+If set, skips running `scripts/create_database.py` (production `provision` only).
 
 .PARAMETER ForceRecreateVenv
-If set, deletes `./.venv` and recreates it.
+If set, deletes `./.venv` and recreates it (production `provision` only).
+
+.PARAMETER SkipTestEnvCheck
+If set, skips `pytest --collect-only` and MariaDB connectivity (`-Mode development` only).
+
+.PARAMETER ForceRecreatePoetryVenv
+If set, removes `./.venv` and all Poetry virtualenvs for this project, then installs again (`-Mode development` only). Use when switching from `provision` (pip) to Poetry, or if Poetry reports a broken venv and imports fail (e.g. `No module named 'sqlalchemy'`).
 
 .EXAMPLE
 ./scripts/setup.ps1 -Mode init-env
@@ -33,7 +37,16 @@ If set, deletes `./.venv` and recreates it.
 ./scripts/setup.ps1 -Mode provision
 
 .EXAMPLE
-./scripts/setup.ps1 -Mode provision -ForceRecreateVenv -RequirementsPath "/data/requirements.txt"
+./scripts/setup.ps1 -Mode development
+
+.EXAMPLE
+./scripts/setup.ps1 -Mode development -SkipTestEnvCheck
+
+.EXAMPLE
+./scripts/setup.ps1 -Mode development -ForceRecreatePoetryVenv
+
+.EXAMPLE
+./scripts/setup.ps1 -Mode provision -ForceRecreateVenv -RequirementsPath "./data/requirements.txt"
 #>
 
 
@@ -42,14 +55,23 @@ param(
     [Alias("h")]
     [switch]$Help,
 
-    [ValidateSet("init-env", "provision")]
+    [ValidateSet("init-env", "provision", "development", "help")]
     [string]$Mode = "init-env",
     [string]$RequirementsPath = "./data/requirements.txt",
     [switch]$SkipCreateDatabase,
-    [switch]$ForceRecreateVenv
+    [switch]$ForceRecreateVenv,
+    [switch]$SkipTestEnvCheck,
+    [switch]$ForceRecreatePoetryVenv
 )
 
 $ErrorActionPreference = "Stop"
+
+$ScriptPath = Join-Path $PSScriptRoot "setup.ps1"
+if ($Help -or $Mode -eq "help") {
+    # Use positional script path (not -Path); -Path targets a different help feature in some hosts.
+    Get-Help $ScriptPath -Full
+    exit 0
+}
 
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $VenvPath = Join-Path $ProjectRoot ".venv"
@@ -57,9 +79,16 @@ $EnvExamplePath = Join-Path $ProjectRoot ".env.example"
 $EnvPath = Join-Path $ProjectRoot ".env"
 $RepoRequirementsPath = Join-Path $ProjectRoot "data/requirements.txt"
 
-$PythonRawVersion = python --version 2>&1
-$PythonVersionString = $PythonRawVersion -replace "Python", ""
-$PythonVersion = [version]$PythonVersionString
+$PythonVersion = $null
+if (Get-Command python -ErrorAction SilentlyContinue) {
+    try {
+        $PythonRawVersion = (python --version 2>&1 | Out-String).Trim()
+        $PythonVersionString = $PythonRawVersion -replace "Python\s*", ""
+        $PythonVersion = [version]($PythonVersionString.Trim())
+    } catch {
+        $PythonVersion = $null
+    }
+}
 
 function Resolve-RequirementsFile {
     param([string]$CandidatePath, [string]$FallbackPath)
@@ -121,7 +150,7 @@ if ($Mode -eq "init-env") {
         exit 1
     }
 
-    if ($PythonVersion -lt [version]"3.14.0") {
+    if ($null -eq $PythonVersion -or $PythonVersion -lt [version]"3.14.0") {
         Write-Host "Python 3.14 or higher is required. Found Python version: $PythonVersion" -ForegroundColor Red
         exit 1
     }
@@ -156,7 +185,7 @@ elseif ($Mode -eq "provision") {
         exit 1
     }
 
-    if ($PythonVersion -lt [version]"3.14.0") {
+    if ($null -eq $PythonVersion -or $PythonVersion -lt [version]"3.14.0") {
         Write-Host "Python 3.14 or higher is required. Found Python version: $PythonVersion" -ForegroundColor Red
         exit 1
     }
@@ -218,13 +247,104 @@ elseif ($Mode -eq "provision") {
 
 
 # ------------------------------------------------------------------------
-# Help-Logik: When -h or -Help is used
+# Mode - development
 # ------------------------------------------------------------------------
-elseif ($Help) {
-    Get-Help $PSCommandPath -Full
+elseif ($Mode -eq "development") {
+    Write-Host ""
+    Write-Host "== LA-Server development setup ($Mode) =="
+    Write-Host ""
+
+    if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
+        Write-Host "Python is not installed" -ForegroundColor Red
+        exit 1
+    }
+
+    if ($null -eq $PythonVersion -or $PythonVersion -lt [version]"3.14.0") {
+        Write-Host "Python 3.14 or higher is required. Found Python version: $PythonVersion" -ForegroundColor Red
+        exit 1
+    }
+
+    if (-not (Get-Command poetry -ErrorAction SilentlyContinue)) {
+        Write-Host "Poetry is not on PATH. Install: https://python-poetry.org/docs/#installation" -ForegroundColor Red
+        exit 1
+    }
+
+    $rootPath = $ProjectRoot.Path
+    Push-Location -LiteralPath $rootPath
+    try {
+        if ($ForceRecreatePoetryVenv) {
+            Write-Host "Removing in-project .venv and Poetry virtualenvs for this project (ForceRecreatePoetryVenv)..." -ForegroundColor Yellow
+            if (Test-Path -LiteralPath $VenvPath) {
+                Remove-Item -Recurse -Force -LiteralPath $VenvPath
+            }
+            & poetry env remove --all 2>$null
+            Write-Host ""
+        }
+
+        # Poetry in-project venv: ./.venv (see poetry.toml) — the development environment, not pip/provision.
+        & poetry config virtualenvs.in-project true --local
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        Write-Host 'Installing Poetry export plugin (poetry-plugin-export) so poetry export works for data/requirements.txt...' -ForegroundColor Green
+        $env:POETRY_NO_INTERACTION = "1"
+        & poetry self add poetry-plugin-export
+        Remove-Item Env:POETRY_NO_INTERACTION -ErrorAction SilentlyContinue
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        Write-Host ""
+
+        if (-not (Test-Path -LiteralPath $EnvPath)) {
+            if (-not (Test-Path -LiteralPath $EnvExamplePath)) {
+                Write-Host "Missing '$EnvExamplePath' (cannot create .env)." -ForegroundColor Red
+                exit 1
+            }
+            Copy-Item -LiteralPath $EnvExamplePath -Destination $EnvPath
+            Write-Host "Created '$EnvPath' from '.env.example'." -ForegroundColor Green
+            Write-Host "Set SECRET_KEY and MariaDB values in '.env' before running the app or tests (see README, .env.example)." -ForegroundColor Yellow
+            Write-Host ""
+        } else {
+            Write-Host "Using existing .env at: $EnvPath"
+            Write-Host ""
+        }
+
+        Write-Host "Installing dependencies (poetry install --with dev)..." -ForegroundColor Green
+        & poetry install --with dev
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        Write-Host ""
+        Write-Host "Installing Git pre-commit hooks (poetry run pre-commit install)..." -ForegroundColor Green
+        & poetry run pre-commit install
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        if ($SkipTestEnvCheck) {
+            Write-Host ""
+            Write-Host "Skipped test environment checks (-SkipTestEnvCheck)." -ForegroundColor Yellow
+        } else {
+            Write-Host ""
+            Write-Host "Validating test discovery (pytest --collect-only)..." -ForegroundColor Green
+            & poetry run pytest --collect-only -q
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            Write-Host ""
+            Write-Host "Validating MariaDB (admin connection from .env)..." -ForegroundColor Green
+            $mariadbOneLiner = 'import os, sys; sys.path.insert(0, os.getcwd()); from sqlalchemy import create_engine, text; from sqlalchemy.pool import NullPool; from app.config import Config; e = create_engine(Config.admin_db_uri(), poolclass=NullPool, connect_args={''connect_timeout'': 10}); c = e.connect(); c.execute(text(''SELECT 1'')); c.close(); print(''MariaDB: connection OK'')'
+            & poetry run python -c $mariadbOneLiner
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "Ensure MariaDB is running and .env has correct MARIADB_HOST, MARIADB_PORT, MARIADB_USER, MARIADB_PASSWORD (see README)." -ForegroundColor Yellow
+                exit 1
+            }
+        }
+    } finally {
+        Pop-Location
+    }
+
+    Write-Host ""
+    Write-Host "Development setup complete." -ForegroundColor Green
+    Write-Host "Use: poetry run pytest | poetry run pre-commit run --all-files | .\\start.ps1" -ForegroundColor Green
+    Write-Host ""
     exit 0
 }
+
 else {
-    Get-Help $PSCommandPath -Full
-    exit 0
+    Write-Host "Unknown mode: $Mode" -ForegroundColor Red
+    exit 1
 }

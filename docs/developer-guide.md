@@ -4,7 +4,7 @@
 
 The **LA-Server** (Kinderspielstadt Los Ämmerles) is a Flask application backed by **MariaDB**. It exposes a JSON REST API for companies, **camp participants** (children and staff; “employees” in paths and JSON), and job assignments during the summer camp. Clients (e.g. job center apps) call these endpoints over HTTP.
 
-For installation, environment variables, production setup (`setup.ps1` / `setup.sh`), and CSV bulk import, see the main [README.md](../README.md).
+For environment variables, production setup (`setup.ps1` / `setup.sh` with `init-env` or `provision`), and CSV bulk import, see the main [README.md](../README.md). A short pointer to this development guide is under *Server development* in the [README](../README.md).
 
 ---
 
@@ -1099,4 +1099,83 @@ curl -s -X POST http://localhost:5000/api/job-assignments/reset \
 
 # Backend development (server contributors)
 
-This part isn't done and will come soon.
+**Local development is Poetry-based:** install and run everything through **`poetry install --with dev`** and **`poetry run …`**. **`pyproject.toml`** and **`poetry.lock`** are the only definitions you edit for dependencies. **`data/requirements.txt`** is **not** hand-maintained as primary: it is produced with **`poetry export`** (see the top of [`pyproject.toml`](../pyproject.toml) and the [README](../README.md)) for **production** `pip` installs. You do not use `pip install -r` or **`setup.ps1` / `setup.sh` in `provision` mode** for a dev machine (those are for **production** without Poetry on the host).
+
+## Prerequisites
+
+- **Python 3.14+** (see `requires-python` in [pyproject.toml](../pyproject.toml))
+- **MariaDB** reachable from your machine (tests create temporary databases; the app needs a configured schema). You can install MariaDB locally or use a remote instance.
+- **Git** (repository clone) and **Poetry** on your `PATH`. You may install Poetry via `pipx`, the official installer, or another method you prefer. **`poetry export`** (used to refresh `data/requirements.txt` and in pre-commit) needs the **export plugin**; **`setup.ps1 -Mode development`** or **`setup.sh --mode development`** runs **`poetry self add poetry-plugin-export`** for you, or install it manually: `poetry self add poetry-plugin-export`.
+
+## One-shot development setup
+
+From the repository root, **create and prepare `.env` first** (same as production step 1 in the [README](../README.md)).
+
+**Windows (PowerShell):**
+
+```powershell
+.\scripts\setup.ps1 -Mode init-env
+```
+
+**Linux / macOS / Git Bash** (`chmod +x ./scripts/setup.sh` once):
+
+```bash
+./scripts/setup.sh --mode init-env
+```
+
+Edit **`.env`** with at least **`SECRET_KEY`** and your **MariaDB** settings (see [`.env.example`](../.env.example) and the **Environment file** section below).
+
+Then install the development toolchain:
+
+**Windows:**
+
+```powershell
+.\scripts\setup.ps1 -Mode development
+```
+
+**Linux / macOS / Git Bash:**
+
+```bash
+./scripts/setup.sh --mode development
+```
+
+The **development** script:
+
+1. Ensures **`.env`** exists (copies from **`.env.example`** only if it is still missing—use **`init-env`** above so you control creation explicitly).
+2. Runs **`poetry install --with dev`** so runtime and **development** dependencies are installed (same as [`.github/workflows/pre-commit.yml`](../.github/workflows/pre-commit.yml)).
+3. Runs **`poetry run pre-commit install`** so **pre-commit** runs on **commit** (see [`.pre-commit-config.yaml`](../.pre-commit-config.yaml)).
+4. Validates the **test environment**: `pytest --collect-only`, then a short **MariaDB** connection using `Config.admin_db_uri()` and your `.env` credentials.
+
+If MariaDB is not available yet (e.g. offline), use `--skip-test-env-check` / `-SkipTestEnvCheck`:
+
+```powershell
+.\scripts\setup.ps1 -Mode development -SkipTestEnvCheck
+```
+
+```bash
+./scripts/setup.sh --mode development --skip-test-env-check
+```
+
+For full help: **PowerShell** `Get-Help .\scripts\setup.ps1 -Full`; **bash** `./scripts/setup.sh --help`
+
+## Environment file (`.env`)
+
+Create **`.env`** with **`.\scripts\setup.ps1 -Mode init-env`** or **`./scripts/setup.sh --mode init-env`**, then edit it before running the server or tests against a real database: at minimum **`SECRET_KEY`** and **MariaDB** settings (`MARIADB_HOST`, `MARIADB_PORT`, `MARIADB_USER`, `MARIADB_PASSWORD`, `MARIADB_DATABASE`). Comments in [`.env.example`](../.env.example) describe each variable. If you run **development** without a `.env` file, the setup script will copy **`.env.example`** to **`.env`**, but the intended workflow is **`init-env` first** so the step is obvious. Production database creation and the **non-Poetry** venv path (`provision`) are in the [README](../README.md)—**do not** mix **`provision`** with Poetry on the same dev tree; use **Poetry** for development.
+
+## Day-to-day commands
+
+| Task | Command |
+| ---- | ------- |
+| Run tests | `poetry run pytest` |
+| Run all pre-commit hooks on the tree (same idea as CI) | `poetry run pre-commit run --all-files` |
+| Start the server (after configuring `.env`) | `.\start.ps1` / `./start.sh` or `poetry run python main.py` |
+
+CI runs **`poetry install --with dev`** then **`poetry run pre-commit run --all-files`** on push and pull requests; keeping your local hook install and dependencies aligned avoids surprises.
+
+## Editor / IDE
+
+The repo includes [`poetry.toml`](../poetry.toml) with **`in-project = true`**, so Poetry’s environment is **`.venv`** in the project root (not only under `%LOCALAPPDATA%` when in-project was off). In VS Code, choose **Python: Select Interpreter** and pick **`.venv\Scripts\python.exe`** (Windows) or **`.venv/bin/python`** (Linux/macOS) so the same environment is used as in the terminal.
+
+## If you already ran `provision` on this clone (optional recovery)
+
+`provision` creates **`.venv`** with **pip** and `data/requirements.txt`. That is **not** a Poetry environment. If you use **`poetry run …`** after that, Poetry can report a **broken** **`.venv`** or missing imports. For **development, use Poetry only**: run **`.\scripts\setup.ps1 -Mode development -ForceRecreatePoetryVenv`** or **`./scripts/setup.sh --mode development --force-recreate-poetry-venv`**, or delete **`.venv`** and run **`poetry install --with dev`**, then always **`poetry run pytest`**, **`poetry run python`**, and point your IDE at the venv’s Python (e.g. **`.venv/Scripts/python.exe`** on Windows, **`.venv/bin/python`** on Linux/macOS). Prefer a **separate folder or clone** for production-style `provision` tests if you need both workflows.
