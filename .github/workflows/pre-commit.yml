@@ -43,6 +43,9 @@ jobs:
       - name: Install Poetry
         run: python -m pip install --upgrade pip poetry
 
+      - name: Install Poetry export plugin
+        run: poetry self add poetry-plugin-export
+
       - name: Install dependencies
         run: poetry install --with dev
 

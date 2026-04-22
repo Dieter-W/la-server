@@ -1,0 +1,2 @@
+# Bash/shell entrypoints (Git on Windows may otherwise use CRLF and break #!/bin/bash)
+*.sh text eol=lf

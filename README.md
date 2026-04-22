@@ -69,10 +69,12 @@ python ./scripts/create_database.py
 
 ### `setup.ps1` parameters (Windows)
 
-- `-Mode <init-env|provision>`: `init-env` creates `.env` and exits; `provision` runs full setup.
-- `-RequirementsPath <string>`: Path to the production `requirements.txt`. Default: `.\data\requirements.txt`.
-- `-SkipCreateDatabase`: Skip running `python .\scripts\create_database.py`.
-- `-ForceRecreateVenv`: Delete `.\.venv` if it exists and recreate it before installing dependencies.
+The options below are for **production** setup only (`-Mode init-env` or `provision`). For other script modes, see [docs/developer-guide.md](docs/developer-guide.md).
+
+- `-Mode <init-env|provision>`: `init-env` creates `.env` and exits; `provision` runs full production setup (venv, `pip install -r`, database creation).
+- `-RequirementsPath <string>`: Path to the production `requirements.txt` (`provision` only). Default: `.\data\requirements.txt`.
+- `-SkipCreateDatabase`: Skip running `python .\scripts\create_database.py` (`provision` only).
+- `-ForceRecreateVenv`: Delete `.\.venv` if it exists and recreate it before installing dependencies (`provision` only).
 
 ```powershell
 .\scripts\setup.ps1 -Mode init-env
@@ -83,11 +85,13 @@ python ./scripts/create_database.py
 
 ### `setup.sh` parameters (Linux / macOS / Git Bash)
 
-- `--mode <init-env|provision>`: Same as PowerShell `-Mode`.
-- `--requirements-path <path>`: Path to the production `requirements.txt`. Default: `./data/requirements.txt` (relative to the project root).
-- `--skip-create-database`: Skip `python ./scripts/create_database.py`.
-- `--force-recreate-venv`: Remove `./.venv` and recreate it before installing dependencies.
-- `-h` / `--help`: Show usage.
+The options below are for **production** setup only (`--mode init-env` or `provision`). For other script modes, see [docs/developer-guide.md](docs/developer-guide.md).
+
+- `--mode <init-env|provision>`: `init-env` or `provision` (same as PowerShell `-Mode`).
+- `--requirements-path <path>`: Path to the production `requirements.txt` (`provision` only). Default: `./data/requirements.txt` (relative to the project root).
+- `--skip-create-database`: Skip `python ./scripts/create_database.py` (`provision` only).
+- `--force-recreate-venv`: Remove `./.venv` and recreate it before installing dependencies (`provision` only).
+- `-h` / `--help`: Show script usage and all supported modes.
 
 ```bash
 './scripts/setup.sh' --mode init-env
