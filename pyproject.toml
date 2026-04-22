@@ -1,3 +1,12 @@
+# Source of truth for dependencies (use Poetry: pyproject.toml + poetry.lock).
+# data/requirements.txt is generated for production pip installs, e.g.:
+#   poetry export -f requirements.txt --without-hashes -o data/requirements.txt
+# `poetry export` needs the install-time plugin: `poetry self add poetry-plugin-export`
+# (development setup and CI add this; see scripts/setup.ps1 and .github/workflows).
+# When you change deps, update the lockfile and re-export. The pre-commit hook
+# scripts/$check_poetry_to_requirements.py runs export when pyproject.toml and
+# poetry.lock are committed together (see .pre-commit-config.yaml).
+
 [project]
 name = "Kinderspielstadt-Los-Ämmerles--LA-Server"
 version = "0.5.0"

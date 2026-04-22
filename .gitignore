@@ -41,8 +41,9 @@ logs/
 Thumbs.db
 
 # Other
-*.todo
 .cursor/
 .ruff_cache/
 .benchmarks/
 .pytest_cache/
+*.todo
+todo/
