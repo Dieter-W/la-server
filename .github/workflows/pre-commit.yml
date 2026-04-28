@@ -33,6 +33,21 @@ jobs:
       - name: Create .env file
         run: cp .env.example .env
 
+      - name: Create village_data directory
+        run: mkdir -p village_data
+
+      - name: Create village_data/images directory
+        run: mkdir -p village_data/images
+
+      - name: Copy village.ini to village_data
+        run: cp data/village.ini village_data/village.ini
+
+      - name: Copy logo.png to village_data/images
+        run: cp data/images/logo.png village_data/images/logo.png
+
+      - name: Copy favicon.png to village_data/images
+        run: cp data/images/favicon.png village_data/images/favicon.png
+
       - name: Set environment values
         run: sed -i 's/MARIADB_PASSWORD=.*/MARIADB_PASSWORD=ci-secret/' .env
 
