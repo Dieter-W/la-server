@@ -1,27 +1,22 @@
-# Web framework
-flask>=3.1.0
-
-# Database
-flask-sqlalchemy>=3.1.0
-sqlalchemy>=2.0.0
-pymysql>=1.1.0
-cryptography>=42.0.0
-
-# Environment & config
-python-dotenv>=1.0.0
-
-# Modulo97 10 Check Digit
-python-stdnum>=2.2.0
-
-# Production WSGI server (multithreaded, Windows-friendly)
-waitress>=3.0.0
-
-# Development
-flask-cors>=4.0.0
-
-# Development, Test and Commit
-black
-pytest>=7.0
-pytest-xdist>=3.8.0
-requests>=2.32.5
-ruff
+blinker==1.9.0 ; python_version >= "3.14" and python_version < "4.0"
+cffi==2.0.0 ; python_version >= "3.14" and python_version < "4.0" and platform_python_implementation != "PyPy"
+click==8.3.3 ; python_version >= "3.14" and python_version < "4.0"
+colorama==0.4.6 ; python_version >= "3.14" and python_version < "4.0" and platform_system == "Windows"
+cryptography==47.0.0 ; python_version >= "3.14" and python_version < "4.0"
+flask-cors==6.0.2 ; python_version >= "3.14" and python_version < "4.0"
+flask-jwt-extended==4.7.1 ; python_version >= "3.14" and python_version < "4.0"
+flask-sqlalchemy==3.1.1 ; python_version >= "3.14" and python_version < "4.0"
+flask==3.1.3 ; python_version >= "3.14" and python_version < "4.0"
+greenlet==3.5.0 ; python_version >= "3.14" and python_version < "4.0" and (platform_machine == "aarch64" or platform_machine == "ppc64le" or platform_machine == "x86_64" or platform_machine == "amd64" or platform_machine == "AMD64" or platform_machine == "win32" or platform_machine == "WIN32")
+itsdangerous==2.2.0 ; python_version >= "3.14" and python_version < "4.0"
+jinja2==3.1.6 ; python_version >= "3.14" and python_version < "4.0"
+markupsafe==3.0.3 ; python_version >= "3.14" and python_version < "4.0"
+pycparser==3.0 ; python_version >= "3.14" and python_version < "4.0" and platform_python_implementation != "PyPy" and implementation_name != "PyPy"
+pyjwt==2.12.1 ; python_version >= "3.14" and python_version < "4.0"
+pymysql==1.1.2 ; python_version >= "3.14" and python_version < "4.0"
+python-dotenv==1.2.2 ; python_version >= "3.14" and python_version < "4.0"
+python-stdnum==2.2 ; python_version >= "3.14" and python_version < "4.0"
+sqlalchemy==2.0.49 ; python_version >= "3.14" and python_version < "4.0"
+typing-extensions==4.15.0 ; python_version >= "3.14" and python_version < "4.0"
+waitress==3.0.2 ; python_version >= "3.14" and python_version < "4.0"
+werkzeug==3.1.8 ; python_version >= "3.14" and python_version < "4.0"

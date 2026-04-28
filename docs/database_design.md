@@ -1,5 +1,7 @@
 # Database Design
 
+# TODO: Update the database design with the information about the AUTH service
+
 This document describes the MariaDB schema for the LA-Server. Models live in [`app/models.py`](../app/models.py) (Flask-SQLAlchemy). On startup, [`init_db()`](../app/database.py) imports models and runs `db.create_all()` so the schema matches the code. You can also bootstrap an empty database with [`scripts/create_database.py`](../scripts/create_database.py) (creates the DB if needed and relies on the same `create_all()` path).
 
 ## Shared base (`BaseModel`)

@@ -47,6 +47,7 @@ class Employee(BaseModel):
     active = db.Column(db.Boolean, default=True, nullable=False)
     notes = db.Column(db.Text, nullable=True)
 
+    authentications = db.relationship("Authentication", back_populates="employees")
     job_assignments = db.relationship("JobAssignment", back_populates="employees")
 
 
@@ -60,3 +61,16 @@ class JobAssignment(BaseModel):
 
     companies = db.relationship("Company", back_populates="job_assignments")
     employees = db.relationship("Employee", back_populates="job_assignments")
+
+
+class Authentication(BaseModel):
+    """Links camp participants (`Employee`) to a password for authentication."""
+
+    __tablename__ = "authentications"
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="RESTRICT"), nullable=False)   # fmt: skip
+    password_hash = db.Column(db.String(255), nullable=False)
+    password_must_change = db.Column(db.Boolean, default=True, nullable=False)
+    auth_group = db.Column(db.String(20), nullable=False)
+    notes = db.Column(db.Text, nullable=True)
+
+    employees = db.relationship("Employee", back_populates="authentications")

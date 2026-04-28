@@ -16,7 +16,28 @@ By default the server listens on **`http://localhost:5000`**. In deployment, use
 
 ## Authentication
 
-**Coming soon.** The API does not yet implement authentication or API keys; treat deployments accordingly (e.g. private network or proxy auth).
+As a **client developer**, you are responsible for the sign-in experience, for **keeping tokens safe**, and for **attaching the right credential on every API call** that requires it. The camp issues accounts (linked to a participant and a company in the server’s data model; see [`app/models.py`](../app/models.py)); your app collects the user name and password only during sign-in and password flows, not on ordinary data requests.
+
+**What the JWT is (short):** after a successful sign-in, the server can return a **JSON Web Token (JWT)**—a signed string that encodes who the user is, which **company** the session belongs to, the **app permission role** (one of three fixed levels, not the same as the descriptive camp “role” on the participant record), and an **expiry** time. You store that string and send it back when you call the API; you do not parse or change the payload yourself.
+
+**What you do on a normal API call**
+
+1. **Use HTTPS** in real deployments so the token is not exposed on the network.
+2. **Send the access JWT on each request** that requires authentication: add an HTTP header
+   `Authorization: Bearer <your_access_token>`
+   (replace `<your_access_token>` with the stored JWT string, no quotes). Omit this header only for calls that the server documents as public (for example some health checks).
+3. **Do not** send the user’s password on regular CRUD calls—only where the server explicitly expects it (sign-in, password set/change, etc., when those flows are documented).
+4. If the server responds with an **authentication error** (for example missing/invalid/expired token), **obtain a new access token** the way your integration supports (refresh flow if provided, otherwise send the user through sign-in again), update storage, and **retry the request** with the new `Authorization` header.
+
+**Sign-in and token storage:** when sign-in succeeds, persist the access token (and a refresh token, if the server returns one) in **secure storage** for your platform (not plain logs, not easy-to-read app bundles). Keep using the access token until it expires or the server rejects it.
+
+**Expiry:** access tokens are usually short-lived. Your app should treat expiration as normal: refresh or re-login, then continue calling the API with a fresh `Authorization: Bearer …` header.
+
+**Sign-out:** clear all stored tokens from the device and return the user to the sign-in screen. Unless the server documents a separate revoke step, assume the main effect is on the client side.
+
+**Password changes:** the camp may reset an account or ask the user to set a password the first time; changing an existing password should still require the old password when the account is already active. After a successful password flow, the server may issue new tokens—replace your stored JWTs accordingly.
+
+**Deployment note:** some environments may still rely on a private network or proxy in addition to JWTs. Your integration should still follow the header rule above whenever the server expects a bearer token.
 
 ## Errors and status codes
 
@@ -231,6 +252,10 @@ None.
 | ---- | ------- |
 | 200  | OK      |
 
+
+---
+
+## Authentication
 
 ---
 
