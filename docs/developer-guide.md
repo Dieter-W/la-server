@@ -1102,13 +1102,15 @@ curl -s -X POST http://localhost:5000/api/job-assignments/reset \
 
 ---
 
-## Village (Spielstadt configuration)
+## Village data (Spielstadt configuration)
 
 Camp-specific **name**, **currency** labels, optional extra INI sections, and **image paths** live on the server under **`village_data/`** at the repository root (not under `data/`). The server resolves this directory from the project root, not from the process working directory. Deployments edit **`village_data/village.ini`** and files under **`village_data/images/`** (or rely on samples created by **`init-env`** from `data/`—see the [README](../README.md)). Implementations: [`app/routes/village_data.py`](../app/routes/village_data.py).
 
 **INI → JSON:** The file is parsed with Python’s `configparser`. Each **`[section]`** becomes a top-level key in the JSON object; each option becomes a string value inside that object. Optional double quotes around values in the INI are stripped in the API output. Option names are normalized to **lower case** by the parser.
 
 **Caching:** The parsed JSON is cached in memory until **`village_data/village.ini`** changes (file modification time). The **`ETag`** response header on `GET /api/village-data` is an MD5 hex digest of the **raw** INI bytes; send **`If-None-Match`** (quoted, comma-separated, or weak `W/"..."` forms are accepted) to receive **`304 Not Modified`** with an **empty body** when nothing changed.
+
+**Logo and favicon files:** `GET /api/village-data/logo` and `GET /api/village-data/favicon` also return **`ETag`** and honor **`If-None-Match`** the same way. Their **`ETag`** is an MD5 hex digest of the resolved file’s **nanosecond mtime and size** (not the file contents). On **`200`**, responses include **`Cache-Control: public, max-age=3600, must-revalidate`**. On **`304`**, the body is **empty** (no image bytes).
 
 ---
 
@@ -1176,7 +1178,7 @@ None.
 Streams the **logo** file. The path comes from **`images.logo`** in the parsed config (typically under section **`[images]`** in `village.ini`). The path is **relative to `village_data/`** (e.g. `images/logo.png` → file `village_data/images/logo.png`).
 
 **Parameters**
-None. Optional request header **`If-None-Match`**: previous **`ETag`** to skip body when unchanged.
+None. Optional request header **`If-None-Match`**: the **`ETag`** from a previous **`200`** response for this endpoint (same rules as `GET /api/village-data`: quoted tokens, comma-separated lists, and weak **`W/"..."`** are accepted).
 
 **Endpoint sample**
 
@@ -1192,14 +1194,17 @@ curl -s -o logo.png http://localhost:5000/api/village-data/logo
 **JSON request**
 None.
 
-**JSON response**
-None; **binary** image body. `Content-Type` is set from the file extension (e.g. `image/png`, `image/jpeg`).
+**Response body**
+On **`200`**: **binary** image bytes. `Content-Type` is set from the file extension (e.g. `image/png`, `image/jpeg`). Response headers include **`ETag`** and **`Cache-Control`** (see **Caching** above).
+
+On **`304`**: **empty** body; **`ETag`** repeats the current validator.
 
 **HTTP status codes**
 
 | Code | Meaning |
 | ---- | ------- |
-| 200  | Image bytes |
+| 200  | Image bytes; **`ETag`** and **`Cache-Control`** included |
+| 304  | Not modified (**`If-None-Match`** matches **`ETag`**); **no image body** |
 | 400  | Error: `{"error": "INVALID_FILE_PATH"}` |
 | 404  | Error: `{"error": "VILLAGE_DATA_NOT_FOUND"}`, `{"error": "VILLAGE_LOGO_NOT_CONFIGURED"}`, or `{"error": "FILE_NOT_FOUND"}` |
 
@@ -1211,7 +1216,7 @@ None; **binary** image body. `Content-Type` is set from the file extension (e.g.
 Same as the logo endpoint, but uses **`images.favicon`** from the config.
 
 **Parameters**
-None. Optional request header **`If-None-Match`**: previous **`ETag`** to skip body when unchanged.
+None. Optional request header **`If-None-Match`**: the **`ETag`** from a previous **`200`** response for this endpoint (same rules as `GET /api/village-data`).
 
 **Endpoint sample**
 
@@ -1227,14 +1232,15 @@ curl -s -o favicon.png http://localhost:5000/api/village-data/favicon
 **JSON request**
 None.
 
-**JSON response**
-None; **binary** image body.
+**Response body**
+Same as **`GET /api/village-data/logo`**: **`200`** returns **binary** image bytes with **`ETag`** and **`Cache-Control`**; **`304`** returns an **empty** body.
 
 **HTTP status codes**
 
 | Code | Meaning |
 | ---- | ------- |
-| 200  | Image bytes |
+| 200  | Image bytes; **`ETag`** and **`Cache-Control`** included |
+| 304  | Not modified (**`If-None-Match`** matches **`ETag`**); **no image body** |
 | 400  | Error: `{"error": "INVALID_FILE_PATH"}` |
 | 404  | Error: `{"error": "VILLAGE_DATA_NOT_FOUND"}`, `{"error": "VILLAGE_FAVICON_NOT_CONFIGURED"}`, or `{"error": "FILE_NOT_FOUND"}` |
 
