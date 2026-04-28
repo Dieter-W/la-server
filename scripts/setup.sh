@@ -17,6 +17,7 @@ VENV_PATH="$PROJECT_ROOT/.venv"
 ENV_EXAMPLE_PATH="$PROJECT_ROOT/.env.example"
 ENV_PATH="$PROJECT_ROOT/.env"
 REPO_REQUIREMENTS_PATH="$PROJECT_ROOT/data/requirements.txt"
+VILLAGE_DATA_PATH="$PROJECT_ROOT/village_data"
 
 MODE="init-env"
 REQUIREMENTS_PATH="./data/requirements.txt"
@@ -30,7 +31,7 @@ usage() {
 LA-Server setup (same behavior as scripts/setup.ps1).
 
 Production (no Poetry): data/requirements.txt is a poetry export; edit pyproject.toml first, then re-export.
-- init-env: create .env from .env.example (if missing) and stop.
+- init-env: create .env from .env.example (if missing). If village_data/ is absent, create it and seed from data/village.ini and data/images/* when those paths exist (see README). Then stop.
 - provision: verify .env was customized, create .venv, pip install -r, create database.
 
 Development (Poetry: poetry install --with dev, pre-commit, optional checks):
@@ -204,8 +205,33 @@ if [[ "$MODE" == "init-env" ]]; then
     echo ".env already exists at: $ENV_PATH"
   fi
 
+  if [[ ! -d "$VILLAGE_DATA_PATH" ]]; then
+    echo "Creating 'village_data/' directory..."
+    mkdir -p "$VILLAGE_DATA_PATH/images"
+    SRC_INI="$PROJECT_ROOT/data/village.ini"
+    SRC_LOGO="$PROJECT_ROOT/data/images/logo.jpg"
+    SRC_FAVICON="$PROJECT_ROOT/data/images/favicon.png"
+    if [[ ! -f "$SRC_INI" ]]; then
+      echo "Cannot seed village_data: missing '$SRC_INI'. Add village_data/ manually (see README)." >&2
+      exit 1
+    fi
+    cp "$SRC_INI" "$VILLAGE_DATA_PATH/village.ini"
+    if [[ ! -f "$SRC_LOGO" ]]; then
+      echo "Warning: missing '$SRC_LOGO'; add village_data/images/logo.jpg before serving the logo API." >&2
+    else
+      cp "$SRC_LOGO" "$VILLAGE_DATA_PATH/images/logo.jpg"
+    fi
+    if [[ -f "$SRC_FAVICON" ]]; then
+      cp "$SRC_FAVICON" "$VILLAGE_DATA_PATH/images/favicon.png"
+    else
+      echo "Note: no sample favicon at '$SRC_FAVICON'; add village_data/images/favicon.png if clients need it." >&2
+    fi
+    echo "Created 'village_data/' with sample content."
+  fi
+
   echo ""
   echo "Update '.env' now with production values (DEBUG=false, SECRET_KEY, MariaDB settings)."
+  echo "Update 'village_data/' content to your needs."
   echo "Then run: ./scripts/setup.sh --mode provision   (or --mode development for Poetry)"
   echo ""
   exit 0

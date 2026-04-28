@@ -40,6 +40,9 @@ logs/
 .DS_Store
 Thumbs.db
 
+# Village data
+village_data/
+
 # Other
 .cursor/
 .ruff_cache/
