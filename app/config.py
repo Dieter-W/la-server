@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-
+from datetime import timedelta
 from dotenv import load_dotenv
 
 # Load .env from project root
@@ -77,9 +77,7 @@ class Config:
             "MARIADB_USER": cls.mariadb_user(),
             "MARIADB_PASSWORD": cls.mariadb_password(),
             "MARIADB_DATABASE": cls.mariadb_database(),
-            "SECRET_KEY": os.getenv(
-                "SECRET_KEY", "dev-secret-key-change-in-production"
-            ),
+            "SECRET_KEY": os.getenv("SECRET_KEY", "-your-secret-key-here-is-32-char-"),
             "DEBUG": cls._env_bool("DEBUG", default=False),
             "VALIDATE_CHECK_SUM": cls._env_bool("VALIDATE_CHECK_SUM", default=True),
             "SQLALCHEMY_DATABASE_URI": cls.sqlalchemy_database_uri(),
@@ -92,4 +90,9 @@ class Config:
             "TESTING": cls._env_bool("TESTING", default=False),
             "LOG_LEVEL": cls.log_level(),
             "LOG_FILE": cls.log_file(),
+            "JWT_SECRET_KEY": os.getenv(
+                "SECRET_KEY", "-your-secret-key-here-is-32-char-"
+            ),
+            "JWT_ACCESS_TOKEN_EXPIRES": timedelta(minutes=15),
+            "JWT_REFRESH_TOKEN_EXPIRES": timedelta(hours=3),
         }

@@ -28,6 +28,10 @@ def create_app(config_object=None) -> Flask:
     configure_logging(app)
     init_db(app)
 
+    from flask_jwt_extended import JWTManager
+
+    JWTManager(app)
+
     app.peak_request_sessions = PeakCounter()
 
     # Session per request
