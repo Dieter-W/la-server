@@ -2,9 +2,9 @@
 
 ## Overview
 
-The **LA-Server** (Kinderspielstadt Los Ämmerles) is a Flask application backed by **MariaDB**. It exposes a JSON REST API for companies, **camp participants** (children and staff; “employees” in paths and JSON), and job assignments during the summer camp. Clients (e.g. job center apps) call these endpoints over HTTP.
+The **LA-Server** (Kinderspielstadt Los Ämmerles) is a Flask application backed by **MariaDB**. It exposes a JSON REST API for companies, **camp participants** (children and staff; “employees” in paths and JSON), job assignments during the summer camp, and **Spielstadt branding / configuration** (read from `village_data/` on the server: `village.ini` plus static images). Clients (e.g. job center apps) call these endpoints over HTTP.
 
-For environment variables, production setup (`setup.ps1` / `setup.sh` with `init-env` or `provision`), and CSV bulk import, see the main [README.md](../README.md). A short pointer to this development guide is under *Server development* in the [README](../README.md).
+For environment variables, production setup (`setup.ps1` / `setup.sh` with `init-env` or `provision`), **`village_data/`** layout, and CSV bulk import, see the main [README.md](../README.md). A short pointer to this development guide is under *Development* in the [README](../README.md).
 
 ---
 
@@ -25,6 +25,8 @@ By default the server listens on **`http://localhost:5000`**. In deployment, use
 - Uncaught DB errors: `**500**` with `DATABASE_ERROR`.
 
 Common `error` codes include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, and variants with `_IN_JSON` where applicable.
+
+For **village / Spielstadt config** endpoints: `VILLAGE_DATA_NOT_FOUND` (missing `village_data/village.ini`), `VILLAGE_LOGO_NOT_CONFIGURED` / `VILLAGE_FAVICON_NOT_CONFIGURED` (INI lacks the key under `[images]`), `FILE_NOT_FOUND` (path in INI points to a file that does not exist on disk), `INVALID_FILE_PATH` (unsafe or absolute path in INI), `VILLAGE_DATA_INVALID` (INI parse failure on the server).
 
 ## Employee numbers and checksums
 
@@ -54,6 +56,9 @@ When `VALIDATE_CHECK_SUM=true` in `.env` (default), employee numbers must satisf
 | POST   | `/api/job-assignments`                   | Create job assignment               |
 | DELETE | `/api/job-assignments/<employee_number>` | Remove assignment for employee      |
 | POST   | `/api/job-assignments/reset`             | Reset assignments (optional filter) |
+| GET    | `/api/village-data`                      | Spielstadt config JSON (`village.ini`) |
+| GET    | `/api/village-data/logo`                 | Logo image (path from INI)         |
+| GET    | `/api/village-data/favicon`             | Favicon image (path from INI)      |
 
 
 Each operation below uses the same blocks: **Explanation**, **Parameters**, **Endpoint sample**, **JSON request** (if any), **JSON response** (if any), **HTTP status codes**.
@@ -1097,6 +1102,144 @@ curl -s -X POST http://localhost:5000/api/job-assignments/reset \
 
 ---
 
+## Village (Spielstadt configuration)
+
+Camp-specific **name**, **currency** labels, optional extra INI sections, and **image paths** live on the server under **`village_data/`** at the repository root (not under `data/`). The server resolves this directory from the project root, not from the process working directory. Deployments edit **`village_data/village.ini`** and files under **`village_data/images/`** (or rely on samples created by **`init-env`** from `data/`—see the [README](../README.md)). Implementations: [`app/routes/village_data.py`](../app/routes/village_data.py).
+
+**INI → JSON:** The file is parsed with Python’s `configparser`. Each **`[section]`** becomes a top-level key in the JSON object; each option becomes a string value inside that object. Optional double quotes around values in the INI are stripped in the API output. Option names are normalized to **lower case** by the parser.
+
+**Caching:** The parsed JSON is cached in memory until **`village_data/village.ini`** changes (file modification time). The **`ETag`** response header on `GET /api/village-data` is an MD5 hex digest of the **raw** INI bytes; send **`If-None-Match`** (quoted, comma-separated, or weak `W/"..."` forms are accepted) to receive **`304 Not Modified`** with an **empty body** when nothing changed.
+
+---
+
+### `GET /api/village-data`
+
+**Explanation**
+Returns the Spielstadt configuration as JSON for clients (titles, currency strings, image path keys, and any other sections present in `village.ini`).
+
+**Parameters**
+None. Optional request header **`If-None-Match`**: previous **`ETag`** to skip body when unchanged.
+
+**Endpoint sample**
+
+```http
+GET /api/village-data HTTP/1.1
+Host: localhost:5000
+```
+
+```bash
+curl -s -D - http://localhost:5000/api/village-data
+```
+
+**JSON request**
+None.
+
+**JSON response** (shape depends on your `village.ini`; example)
+
+```json
+{
+  "general": {
+    "name": "Kinderspielstadt Los Ämmerles",
+    "location": "Ammerbuch",
+    "language": "de",
+    "year": "2026"
+  },
+  "currency": {
+    "name": "Ammertaler",
+    "name_short": "AT"
+  },
+  "salary": {
+    "increase": ="0",
+    "tax" = "3"
+  },
+  "images": {
+    "logo": "images/logo.png",
+    "favicon": "images/favicon.png"
+  }
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | JSON body; response includes **`ETag`** |
+| 304  | Not modified (send **`If-None-Match`** matching **`ETag`**); **no JSON body** |
+| 404  | Error: `{"error": "VILLAGE_DATA_NOT_FOUND"}` |
+| 500  | Error: `{"error": "VILLAGE_DATA_INVALID"}` (malformed INI) |
+
+---
+
+### `GET /api/village-data/logo`
+
+**Explanation**
+Streams the **logo** file. The path comes from **`images.logo`** in the parsed config (typically under section **`[images]`** in `village.ini`). The path is **relative to `village_data/`** (e.g. `images/logo.png` → file `village_data/images/logo.png`).
+
+**Parameters**
+None. Optional request header **`If-None-Match`**: previous **`ETag`** to skip body when unchanged.
+
+**Endpoint sample**
+
+```http
+GET /api/village-data/logo HTTP/1.1
+Host: localhost:5000
+```
+
+```bash
+curl -s -o logo.png http://localhost:5000/api/village-data/logo
+```
+
+**JSON request**
+None.
+
+**JSON response**
+None; **binary** image body. `Content-Type` is set from the file extension (e.g. `image/png`, `image/jpeg`).
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | Image bytes |
+| 400  | Error: `{"error": "INVALID_FILE_PATH"}` |
+| 404  | Error: `{"error": "VILLAGE_DATA_NOT_FOUND"}`, `{"error": "VILLAGE_LOGO_NOT_CONFIGURED"}`, or `{"error": "FILE_NOT_FOUND"}` |
+
+---
+
+### `GET /api/village-data/favicon`
+
+**Explanation**
+Same as the logo endpoint, but uses **`images.favicon`** from the config.
+
+**Parameters**
+None. Optional request header **`If-None-Match`**: previous **`ETag`** to skip body when unchanged.
+
+**Endpoint sample**
+
+```http
+GET /api/village-data/favicon HTTP/1.1
+Host: localhost:5000
+```
+
+```bash
+curl -s -o favicon.png http://localhost:5000/api/village-data/favicon
+```
+
+**JSON request**
+None.
+
+**JSON response**
+None; **binary** image body.
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | Image bytes |
+| 400  | Error: `{"error": "INVALID_FILE_PATH"}` |
+| 404  | Error: `{"error": "VILLAGE_DATA_NOT_FOUND"}`, `{"error": "VILLAGE_FAVICON_NOT_CONFIGURED"}`, or `{"error": "FILE_NOT_FOUND"}` |
+
+---
+
 # Backend development (server contributors)
 
 **Local development is Poetry-based:** install and run everything through **`poetry install --with dev`** and **`poetry run …`**. **`pyproject.toml`** and **`poetry.lock`** are the only definitions you edit for dependencies. **`data/requirements.txt`** is **not** hand-maintained as primary: it is produced with **`poetry export`** (see the top of [`pyproject.toml`](../pyproject.toml) and the [README](../README.md)) for **production** `pip` installs. You do not use `pip install -r` or **`setup.ps1` / `setup.sh` in `provision` mode** for a dev machine (those are for **production** without Poetry on the host).
@@ -1109,7 +1252,7 @@ curl -s -X POST http://localhost:5000/api/job-assignments/reset \
 
 ## One-shot development setup
 
-From the repository root, **create and prepare `.env` first** (same as production step 1 in the [README](../README.md)).
+From the repository root, **create and prepare `.env` and `village_data/` first** with **`init-env`** (same as production step 2 in the [README](../README.md)): that copies **`.env.example`** when needed and, if **`village_data/`** is missing, seeds it from **`data/`**.
 
 **Windows (PowerShell):**
 
@@ -1161,6 +1304,10 @@ For full help: **PowerShell** `Get-Help .\scripts\setup.ps1 -Full`; **bash** `./
 ## Environment file (`.env`)
 
 Create **`.env`** with **`.\scripts\setup.ps1 -Mode init-env`** or **`./scripts/setup.sh --mode init-env`**, then edit it before running the server or tests against a real database: at minimum **`SECRET_KEY`** and **MariaDB** settings (`MARIADB_HOST`, `MARIADB_PORT`, `MARIADB_USER`, `MARIADB_PASSWORD`, `MARIADB_DATABASE`). Comments in [`.env.example`](../.env.example) describe each variable. If you run **development** without a `.env` file, the setup script will copy **`.env.example`** to **`.env`**, but the intended workflow is **`init-env` first** so the step is obvious. Production database creation and the **non-Poetry** venv path (`provision`) are in the [README](../README.md)—**do not** mix **`provision`** with Poetry on the same dev tree; use **Poetry** for development.
+
+## Spielstadt assets (`village_data/`)
+
+Client-visible **branding and config** are not stored in MariaDB; they come from **`village_data/village.ini`** and static files under **`village_data/`** (see **Village data** in the [README](../README.md)). After **`init-env`**, adjust **`village.ini`** and images for your environment; the running server reloads from disk when **`village.ini`**’s modification time changes (in-process cache).
 
 ## Day-to-day commands
 

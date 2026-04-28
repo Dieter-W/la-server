@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Project root (la-server/), not process cwd — same idea as app/config.py for .env.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-_DATA_DIR = _PROJECT_ROOT / "data"
+_DATA_DIR = _PROJECT_ROOT / "village_data"
 
 
 # ---------------------------------------------------------------------
@@ -47,6 +47,12 @@ def _ini_raw_to_dict(raw: str) -> dict:
         section: {k: _strip_optional_ini_quotes(v) for k, v in cp.items(section)}
         for section in cp.sections()
     }
+
+
+def _file_etag(path: Path) -> str:
+    """Stable ETag from file identity (mtime + size); matches hex style used for village.ini."""
+    st = path.stat()
+    return hashlib.md5(f"{st.st_mtime_ns}:{st.st_size}".encode()).hexdigest()
 
 
 def _if_none_match_includes_etag(header_value: str | None, etag: str | None) -> bool:
@@ -102,7 +108,15 @@ def _send_from_directory(directory: Path, relative_path: str):
     if not path.is_file():
         logger.error("File not found: %s", path)
         raise APIError("FILE_NOT_FOUND", 404)
-    return send_file(path)
+
+    etag = _file_etag(path)
+    if _if_none_match_includes_etag(request.headers.get("If-None-Match"), etag):
+        return Response(status=304, headers={"ETag": etag})
+
+    response = send_file(path, etag=False)
+    response.headers["ETag"] = etag
+    response.headers["Cache-Control"] = "public, max-age=3600, must-revalidate"
+    return response
 
 
 # ---------------------------------------------------------------------
@@ -139,3 +153,22 @@ def get_village_data_logo():
         raise APIError("VILLAGE_LOGO_NOT_CONFIGURED", 404)
 
     return _send_from_directory(_DATA_DIR, logo_rel)
+
+
+# ---------------------------------------------------------------------
+# Village Data Get image file API
+# ---------------------------------------------------------------------
+@village_data_bp.route("/village-data/favicon", methods=["GET"])
+def get_village_data_favicon():
+    """Get the favicon image file from the village data."""
+    village_data = _load_village_data()
+    if village_data is None:
+        raise APIError("VILLAGE_DATA_NOT_FOUND", 404)
+
+    try:
+        favicon_rel = village_data["images"]["favicon"]
+    except KeyError:
+        logger.error("Village favicon not configured")
+        raise APIError("VILLAGE_FAVICON_NOT_CONFIGURED", 404)
+
+    return _send_from_directory(_DATA_DIR, favicon_rel)
