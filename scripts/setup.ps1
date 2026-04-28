@@ -5,7 +5,7 @@ development (Poetry, dev tools, pre-commit, test checks).
 
 .DESCRIPTION
 Production (no Poetry): `pip install -r` uses `data/requirements.txt` (a `poetry export` of `pyproject.toml` / `poetry.lock` — not where you add deps; edit `pyproject.toml` first, then re-export).
-- `init-env`: Create `.env` from `.env.example` (if missing) and stop.
+- `init-env`: Create `.env` from `.env.example` (if missing). If `village_data/` is absent, create it and seed from `data/village.ini` and `data/images/*` when those paths exist (see README, `village_data/`). Then stop.
 - `provision`: Verify `.env` was customized, create `.venv`, `pip install -r`, create database.
 
 Development (use Poetry only: `poetry` + `pyproject.toml` / lockfile, same as CI `poetry install --with dev`):
@@ -51,7 +51,7 @@ If set, removes `./.venv` and all Poetry virtualenvs for this project, then inst
 
 
 param(
-    # Help-Switch mit Alias -h
+    # Show full help (alias -h)
     [Alias("h")]
     [switch]$Help,
 
@@ -78,6 +78,7 @@ $VenvPath = Join-Path $ProjectRoot ".venv"
 $EnvExamplePath = Join-Path $ProjectRoot ".env.example"
 $EnvPath = Join-Path $ProjectRoot ".env"
 $RepoRequirementsPath = Join-Path $ProjectRoot "data/requirements.txt"
+$VillageDataPath = Join-Path $ProjectRoot "village_data"
 
 $PythonVersion = $null
 if (Get-Command python -ErrorAction SilentlyContinue) {
@@ -166,9 +167,41 @@ if ($Mode -eq "init-env") {
         Write-Host "'.env' already exists at: '$EnvPath'"
     }
 
+    if (-not (Test-Path $VillageDataPath)) {
+        Write-Host "Creating 'village_data/' directory..." -ForegroundColor Green
+        New-Item -ItemType Directory -Path $VillageDataPath | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $VillageDataPath "images") | Out-Null
+
+        $srcIni = Join-Path $ProjectRoot "data/village.ini"
+        $srcLogo = Join-Path $ProjectRoot "data/images/logo.jpg"
+        $srcFavicon = Join-Path $ProjectRoot "data/images/favicon.png"
+        $destIni = Join-Path $VillageDataPath "village.ini"
+
+        if (-not (Test-Path $srcIni)) {
+            Write-Host "Cannot seed village_data: missing '$srcIni'. Add village_data/ manually (see README)." -ForegroundColor Red
+            exit 1
+        }
+        Copy-Item -LiteralPath $srcIni -Destination $destIni
+
+        if (-not (Test-Path $srcLogo)) {
+            Write-Host "Warning: missing '$srcLogo'; add village_data/images/logo.jpg before serving the logo API." -ForegroundColor Yellow
+        } else {
+            Copy-Item -LiteralPath $srcLogo -Destination (Join-Path $VillageDataPath "images/logo.jpg")
+        }
+
+        if (Test-Path $srcFavicon) {
+            Copy-Item -LiteralPath $srcFavicon -Destination (Join-Path $VillageDataPath "images/favicon.png")
+        } else {
+            Write-Host "Note: no sample favicon at '$srcFavicon'; add village_data/images/favicon.png if clients need it." -ForegroundColor Yellow
+        }
+
+        Write-Host "Created 'village_data/' with sample content." -ForegroundColor Green
+    }
+
     Write-Host ""
     Write-Host "Update '.env' now with production values (DEBUG=false, SECRET_KEY, MariaDB settings)." -ForegroundColor Green
-    Write-Host "'Then run: ./scripts/setup.ps1 -Mode provision'" -ForegroundColor Green
+    Write-Host "Update 'village_data/' content to your needs." -ForegroundColor Green
+    Write-Host "Then run: ./scripts/setup.ps1 -Mode provision" -ForegroundColor Green
     Write-Host ""
     exit 0
 }

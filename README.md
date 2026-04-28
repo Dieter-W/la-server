@@ -22,7 +22,9 @@ The following versions are required to run the LA-Server:
 
    Usually the copy is done with the git command: `git clone https://github.com/Dieter-W/la-server.git`.  You can also download a zip or tarball from [GitHub](https://github.com/Dieter-W/la-Server) to create the LA-Server directory.
 
-2. **Initialize `.env`**
+2. **Initialize `.env` and `village_data/`**
+
+   **`init-env`** (both scripts) creates `.env` from `.env.example` when it is missing. If `village_data/` is also missing, the script creates it and seeds it from the repo’s `data/` tree: it **requires** `data/village.ini`; it copies `data/images/logo.jpg` when present (and warns if not); it copies `data/images/favicon.png` only when that file exists (otherwise add `village_data/images/favicon.png` yourself). See the **Village data** section below.
 
    Windows (PowerShell):
 
@@ -35,8 +37,6 @@ The following versions are required to run the LA-Server:
    ```bash
    './scripts/setup.sh' --mode init-env
    ```
-
-   This creates `.env` from `.env.example` (if missing) and stops.
 
 3. **Update `.env`**
 
@@ -71,7 +71,7 @@ python ./scripts/create_database.py
 
 The options below are for **production** setup only (`-Mode init-env` or `provision`). For other script modes, see [docs/developer-guide.md](docs/developer-guide.md).
 
-- `-Mode <init-env|provision>`: `init-env` creates `.env` and exits; `provision` runs full production setup (venv, `pip install -r`, database creation).
+- `-Mode <init-env|provision>`: `init-env` creates `.env` (if missing), bootstraps `village_data/` from `data/` when that folder is absent (see step 2 above), then exits; `provision` runs full production setup (venv, `pip install -r`, database creation).
 - `-RequirementsPath <string>`: Path to the production `requirements.txt` (`provision` only). Default: `.\data\requirements.txt`.
 - `-SkipCreateDatabase`: Skip running `python .\scripts\create_database.py` (`provision` only).
 - `-ForceRecreateVenv`: Delete `.\.venv` if it exists and recreate it before installing dependencies (`provision` only).
@@ -87,7 +87,7 @@ The options below are for **production** setup only (`-Mode init-env` or `provis
 
 The options below are for **production** setup only (`--mode init-env` or `provision`). For other script modes, see [docs/developer-guide.md](docs/developer-guide.md).
 
-- `--mode <init-env|provision>`: `init-env` or `provision` (same as PowerShell `-Mode`).
+- `--mode <init-env|provision>`: `init-env` creates `.env` (if missing), bootstraps `village_data/` from `data/` when that folder is absent (see step 2), then exits; `provision` runs full production setup (same as PowerShell).
 - `--requirements-path <path>`: Path to the production `requirements.txt` (`provision` only). Default: `./data/requirements.txt` (relative to the project root).
 - `--skip-create-database`: Skip `python ./scripts/create_database.py` (`provision` only).
 - `--force-recreate-venv`: Remove `./.venv` and recreate it before installing dependencies (`provision` only).
@@ -99,6 +99,23 @@ The options below are for **production** setup only (`--mode init-env` or `provi
 './scripts/setup.sh' --mode provision --skip-create-database
 './scripts/setup.sh' --mode provision --force-recreate-venv --requirements-path ./data/requirements.txt
 ```
+
+## Village data (`village_data/`)
+
+Before you **run LA-Server**, the camp-specific configuration and branding files must be present in the `village_data/` directory at the **project root** (alongside `main.py`). The repository includes a sample `village_data/` tree you can edit per deployment. If you start from a layout **without** `village_data/`, run **`init-env`** once (`.\scripts\setup.ps1 -Mode init-env` or `./scripts/setup.sh --mode init-env`): it recreates that folder from `data/` as described in setup step 2. The API exposes this material to clients (e.g. job center apps) so each Spielstadt can show the correct name, currency, and imagery without changing code.
+
+| Path | Role |
+| ---- | ---- |
+| `village_data/village.ini` | INI file with sections below; read on each request (with caching by file modification time). |
+| `village_data/images/` | Binary assets referenced from `village.ini` (paths are **relative to `village_data/`**). |
+
+### `village.ini` sections
+
+- **`[general]`** — Display context for the Spielstadt: e.g. `name`, `location`, `language`, `year`.
+- **`[currency]`** — In-game money label: e.g. `name`, `name_short` (values may be quoted in the INI; the server strips optional double quotes).
+- **`[images]`** — Filenames relative to `village_data/`, for example `logo = images/logo.jpg` and `favicon = images/favicon.png`. Missing files or bad paths result in HTTP 404 from the image endpoints.
+
+Further API detail: [docs/developer-guide.md](./docs/developer-guide.md).
 
 ## Run LA-Server
 
@@ -230,6 +247,9 @@ The script creates or updates camp participants one row per `employee_number`—
 | `POST /api/job-assignments`                     | Create a job assignment (JSON: `company_name`, `employee_number`)         |
 | `DELETE /api/job-assignments/<employee_number>` | Remove the job assignment for that employee                               |
 | `POST /api/job-assignments/reset`               | Reset assignments (optional JSON `company_name` to limit scope)           |
+| `GET /api/village-data`                         | Spielstadt config from `village_data/village.ini` (JSON; `ETag` caching)  |
+| `GET /api/village-data/logo`                    | Logo file from `village_data/` (path from INI)                            |
+| `GET /api/village-data/favicon`                 | Favicon file from `village_data/` (path from INI)                         |
 
 
 ### API examples
