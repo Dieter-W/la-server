@@ -147,7 +147,7 @@ def test_companies_query_all(client, sample_company, sample_job_assignment): # f
         for company_data in data["companies"]
     )
     assert any(
-        company_data["jobs"]["assigned"] == 1 for company_data in data["companies"]
+        company_data["jobs"]["available"] == 0 for company_data in data["companies"]
     )
     assert any(
         company_data["pay_per_hour"] == sample_company.pay_per_hour
@@ -204,7 +204,13 @@ def test_companies_query(client, sample_company, sample_job_assignment,): # fmt:
         print(response.text)
     data = response.get_json()
     assert isinstance(data, dict)
-    assert _nfc(data["company_name"]) == _nfc(company_name)
+    assert len(data) == 8
+    assert data["company_name"] == sample_company.company_name
+    assert data["jobs"]["available"] == 0
+    assert data["jobs"]["max"] == sample_company.jobs_max
+    assert data["pay_per_hour"] == sample_company.pay_per_hour
+    assert data["active"] is sample_company.active
+    assert data["notes"] == sample_company.notes
 
 
 def test_companies_query_error_1(client, sample_company, sample_job_assignment,): # fmt: skip
@@ -232,6 +238,15 @@ def test_companies_create(client, sample_company,): # fmt: skip
     if response.status_code != 201:
         print(response.text)
     assert response.status_code == 201
+    data = response.get_json()
+    assert isinstance(data, dict)
+    assert len(data) == 8
+    assert data["company_name"] == payload_create["company_name"]
+    assert data["jobs"]["available"] == payload_create["jobs_max"]
+    assert data["jobs"]["max"] == payload_create["jobs_max"]
+    assert data["pay_per_hour"] == payload_create["pay_per_hour"]
+    assert data["active"] == payload_create["active"]
+    assert data["notes"] == payload_create["notes"]
 
     response = client.get("/api/companies")
     if response.status_code != 200:

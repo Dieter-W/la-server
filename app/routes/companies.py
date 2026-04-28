@@ -22,7 +22,7 @@ def _company_to_dict(comp: Company, assigned_jobs) -> dict:
         "id": comp.id,
         "company_name": comp.company_name,
         "jobs": {
-            "assigned": assigned_jobs,
+            "available": comp.jobs_max - assigned_jobs,
             "max": comp.jobs_max,
         },
         "pay_per_hour": comp.pay_per_hour,
