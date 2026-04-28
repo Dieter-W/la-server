@@ -268,7 +268,7 @@ None.
     {
       "id": 1,
       "company_name": "Bank",
-      "jobs": { "assigned": 2, "max": 8 },
+      "jobs": { "available": 6, "max": 8 },
       "pay_per_hour": 10,
       "active": true,
       "notes": null,
@@ -278,7 +278,7 @@ None.
     {
       "id": 2,
       "company_name": "Bauhof",
-      "jobs": { "assigned": 0, "max": 4 },
+      "jobs": { "available": 4, "max": 4 },
       "pay_per_hour": 10,
       "active": false,
       "notes": null,
@@ -333,7 +333,7 @@ None.
 {
   "id": 1,
   "company_name": "Bank",
-  "jobs": { "assigned": 2, "max": 8 },
+  "jobs": { "available": 6, "max": 8 },
   "pay_per_hour": 10,
   "active": true,
   "notes": null,
@@ -404,7 +404,7 @@ Example:
 {
   "id": 1,
   "company_name": "Bank",
-  "jobs": { "assigned": 0, "max": 8 },
+  "jobs": { "available": 8, "max": 8 },
   "pay_per_hour": 10,
   "active": true,
   "notes": null,
