@@ -5,7 +5,7 @@ import hashlib
 import logging
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, Response, jsonify, request, send_file
 
 
 from app.errors import APIError
@@ -38,11 +38,29 @@ def _strip_optional_ini_quotes(value: str) -> str:
 
 def _ini_raw_to_dict(raw: str) -> dict:
     cp = configparser.ConfigParser()
-    cp.read_string(raw)
+    try:
+        cp.read_string(raw)
+    except configparser.Error as e:
+        logger.exception("Invalid village.ini")
+        raise APIError("VILLAGE_DATA_INVALID", 500) from e
     return {
         section: {k: _strip_optional_ini_quotes(v) for k, v in cp.items(section)}
         for section in cp.sections()
     }
+
+
+def _if_none_match_includes_etag(header_value: str | None, etag: str | None) -> bool:
+    if not header_value or not etag:
+        return False
+    for part in header_value.split(","):
+        part = part.strip()
+        if part.startswith("W/"):
+            part = part[2:].strip()
+        if len(part) >= 2 and part[0] == '"' and part[-1] == '"':
+            part = part[1:-1]
+        if part == etag:
+            return True
+    return False
 
 
 def _load_village_data():
@@ -53,7 +71,7 @@ def _load_village_data():
     try:
         mtime = village_ini.stat().st_mtime
     except FileNotFoundError:
-        logger.error("village.ini not found at %s", village_ini)
+        logger.error("Village.ini not found at %s", village_ini)
         _cache["data"] = None
         return None
 
@@ -71,12 +89,18 @@ def _load_village_data():
 def _send_from_directory(directory: Path, relative_path: str):
     """Send a file under directory; relative_path must stay within that root."""
     base = directory.resolve()
-    path = (base / relative_path).resolve()
+    rel_path = Path(relative_path)
+    if rel_path.is_absolute():
+        logger.error("Invalid file path: %s", rel_path)
+        raise APIError("INVALID_FILE_PATH", 400)
+    path = (base / rel_path).resolve()
     try:
         path.relative_to(base)
     except ValueError:
+        logger.error("Invalid file path: %s", path)
         raise APIError("INVALID_FILE_PATH", 400)
     if not path.is_file():
+        logger.error("File not found: %s", path)
         raise APIError("FILE_NOT_FOUND", 404)
     return send_file(path)
 
@@ -92,9 +116,8 @@ def get_village_data():
     if village_data is None:
         raise APIError("VILLAGE_DATA_NOT_FOUND", 404)
 
-    if_none_match = request.headers.get("If-None-Match")
-    if if_none_match == etag:
-        raise APIError("NOT_MODIFIED", 304)
+    if _if_none_match_includes_etag(request.headers.get("If-None-Match"), etag):
+        return Response(status=304, headers={"ETag": etag})
 
     return jsonify(village_data), 200, {"ETag": etag}
 
@@ -109,5 +132,10 @@ def get_village_data_logo():
     if village_data is None:
         raise APIError("VILLAGE_DATA_NOT_FOUND", 404)
 
-    # Paths in village.ini are relative to data/ (e.g. images/logo.jpg).
-    return _send_from_directory(_DATA_DIR, village_data["images"]["logo"])
+    try:
+        logo_rel = village_data["images"]["logo"]
+    except KeyError:
+        logger.error("Village logo not configured")
+        raise APIError("VILLAGE_LOGO_NOT_CONFIGURED", 404)
+
+    return _send_from_directory(_DATA_DIR, logo_rel)
