@@ -15,7 +15,8 @@ from sqlalchemy.pool import NullPool
 
 from app import create_app
 from app.database import db
-from app.models import Company, Employee, JobAssignment
+from app.models import Authentication, Company, Employee, JobAssignment
+from app.auth.utils import hash_password
 
 from app.config import Config
 
@@ -103,6 +104,60 @@ def db_session(app):
 # 4. Sample data fixture
 # ---------------------------------------------------------
 @pytest.fixture()
+def sample_authentication(
+    app,
+    sample_employee,
+):
+    """Add 4 authentication employees for testing"""
+    with app.app_context():
+        session = app.SessionLocal()
+
+        authentication = Authentication(
+            employee_id=1,  # M00155
+            password_hash=hash_password("Mustermann"),
+            password_must_change=False,
+            auth_group="employee",
+            notes="Created by test script",
+        )
+        session.add(authentication)
+
+        authentication = Authentication(
+            employee_id=2,  # M00252
+            password_hash=hash_password("Mustermann"),
+            password_must_change=True,
+            auth_group="employee",
+            notes="Created by test script",
+        )
+        session.add(authentication)
+
+        authentication = Authentication(
+            employee_id=3,  # A00265
+            password_hash=hash_password("Schmidt"),
+            password_must_change=False,
+            auth_group="staff",
+            notes="Created by test script",
+        )
+        session.add(authentication)
+
+        authentication = Authentication(
+            employee_id=4,  # P00370
+            password_hash=hash_password("Krause"),
+            password_must_change=False,
+            auth_group="admin",
+            notes="Created by test script",
+        )
+        session.add(authentication)
+
+        session.commit()
+
+        yield authentication
+
+        session.close()
+
+    return authentication
+
+
+@pytest.fixture()
 def sample_company(
     app,
 ):
@@ -168,6 +223,17 @@ def sample_employee(
             notes="Created by test script",
         )
         session.add(employee)
+
+        employee = Employee(
+            first_name="Monika",
+            last_name="Mustermann",
+            employee_number="M00252",
+            role="Betreuer",
+            active=True,
+            notes="Created by test script",
+        )
+        session.add(employee)
+
         employee = Employee(
             first_name="Anna",
             last_name="Schmidt",
@@ -177,6 +243,7 @@ def sample_employee(
             notes="Created by test script",
         )
         session.add(employee)
+
         employee = Employee(
             first_name="Peter",
             last_name="Krause",
@@ -202,7 +269,7 @@ def sample_job_assignment(
     sample_employee,
     sample_company,
 ):
-    """Add 3 job assignments for testing"""
+    """Add 2 job assignments for testing"""
     with app.app_context():
         session = app.SessionLocal()
 
@@ -215,7 +282,7 @@ def sample_job_assignment(
 
         job_assignment = JobAssignment(
             company_id=4,  # Bauhof
-            employee_id=3,  # P00370
+            employee_id=4,  # P00370
             notes="Created by test script",
         )
         session.add(job_assignment)

@@ -12,7 +12,12 @@ from stdnum.iso7064 import mod_97_10
 from app.auth.decorations import staff_required, employee_required
 from app.errors import APIError
 from app.models import Authentication, Company, Employee, JobAssignment
-from app.auth.utils import create_access_token, hash_password, verify_password
+from app.auth.utils import (
+    create_access_token,
+    create_refresh_token,
+    hash_password,
+    verify_password,
+)
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api")
 
@@ -24,7 +29,7 @@ VALIDATE_CHECK_SUM = os.getenv("VALIDATE_CHECK_SUM", "true").lower() == "true"
 # ---------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------
-def _employee_to_dict(emp: Employee, comp_name) -> dict:
+def _employee_to_dict(emp: Employee, comp_name, auth_group) -> dict:
     """Serialize Employee to JSON-serializable dict."""
     return {
         "id": emp.id,
@@ -37,6 +42,7 @@ def _employee_to_dict(emp: Employee, comp_name) -> dict:
         "notes": emp.notes,
         "created_at": emp.created_at.isoformat() if emp.created_at else None,
         "updated_at": emp.updated_at.isoformat() if emp.updated_at else None,
+        "auth_group": auth_group,
     }
 
 
@@ -61,7 +67,7 @@ def _validate_authenticate_payload(data: Any) -> tuple[bool, str]:
     if data is None or not isinstance(data, dict):
         return False, "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
-    required = ("auth_group", "employee_number", "password")
+    required = ("employee_number", "password")
     for field in required:
         val = data.get(field)
         if val is None or (isinstance(val, str) and not val.strip()):
@@ -126,13 +132,8 @@ def authenticate():
     if not valid:
         raise APIError(err, 400)
 
-    auth_group = data.get("auth_group")
     employee_number = data.get("employee_number")
     password_plain = data.get("password")
-
-    valid, err = verify_access_group(auth_group)
-    if not valid:
-        raise APIError(err, 400)
 
     with g.db.begin():
         auth_employee = (
@@ -145,22 +146,22 @@ def authenticate():
         if auth_employee is None:
             raise APIError("EMPLOYEE_NOT_FOUND", 404)
 
-        if auth_employee.employees.active is False:
+        if auth_employee.employee.active is False:
             raise APIError("EMPLOYEE_NOT_ACTIVE", 400)
 
         if not verify_password(auth_employee.password_hash, password_plain):
-            raise APIError("BAD CREDENTIALS", 401)
+            raise APIError("BAD_CREDENTIALS", 401)
 
         access_token = create_access_token(
             identity=auth_employee.id,
             additional_claims={
                 "auth_group": auth_employee.auth_group,
-                "employee_number": auth_employee.employees.employee_number,
+                "employee_number": auth_employee.employee.employee_number,
             },
         )
 
     logger.info(
-        f"Authenticated user: {auth_employee.employees.employee_number}, with auth group: {auth_employee.auth_group}"
+        f"Authenticated user: {auth_employee.employee.employee_number}, with auth group: {auth_employee.auth_group}"
     )
     return (
         jsonify(
@@ -199,8 +200,11 @@ def me():
 
         emp, company_name = emp_comp
 
+        if emp.active is False:
+            raise APIError("EMPLOYEE_NOT_ACTIVE", 400)
+
         logger.debug(f"User: {employee_number}, with auth group: {auth_group}")
-        return jsonify(_employee_to_dict(emp, company_name)), 200
+        return jsonify(_employee_to_dict(emp, company_name, auth_group)), 200
 
 
 # ---------------------------------------------------------------------
@@ -228,6 +232,9 @@ def set_password():
         if auth_employee is None:
             raise APIError("EMPLOYEE_NOT_FOUND", 404)
 
+        if auth_employee.employee.active is False:
+            raise APIError("EMPLOYEE_NOT_ACTIVE", 400)
+
         if not verify_password(auth_employee.password_hash, data.get("old_password")):
             raise APIError("OLD_PASSWORD_IS_INCORRECT", 403)
 
@@ -242,7 +249,7 @@ def set_password():
 # ---------------------------------------------------------------------
 # Authentication Reset Password API
 # ---------------------------------------------------------------------
-@auth_bp.route("/auth/password/reset-password	", methods=["POST"])
+@auth_bp.route("/auth/password/reset-password", methods=["POST"])
 @staff_required
 def reset_password():
     """Reset the password for the current user."""
@@ -267,6 +274,7 @@ def reset_password():
             raise APIError("EMPLOYEE_NOT_FOUND", 404)
 
         auth_employee.password_must_change = True
+        auth_employee.password_hash = hash_password(auth_employee.employee.last_name)
         g.db.flush()
 
     logger.info(
@@ -287,14 +295,27 @@ def refresh_token():
     employee_number = claims.get("employee_number")
     auth_group = claims.get("auth_group")
 
-    identity = get_jwt_identity()
-    access_token = create_access_token(
-        identity=identity,
-        additional_claims={
-            "auth_group": auth_group,
-            "employee_number": employee_number,
-        },
-    )
+    with g.db.begin():
+        auth_employee = (
+            g.db.query(Authentication)
+            .join(Employee, Authentication.employee_id == Employee.id)
+            .filter(Employee.employee_number == employee_number)
+            .first()
+        )
+        if auth_employee is None:
+            raise APIError("EMPLOYEE_NOT_FOUND", 404)
+
+        if auth_employee.employee.active is False:
+            raise APIError("EMPLOYEE_NOT_ACTIVE", 400)
+
+        identity = get_jwt_identity()
+        access_token = create_refresh_token(
+            identity=identity,
+            additional_claims={
+                "auth_group": auth_group,
+                "employee_number": employee_number,
+            },
+        )
 
     logger.debug(
         f"Refreshed token for user: {employee_number}, with auth group: {auth_group}"
@@ -323,4 +344,4 @@ def logout():
     auth_group = claims.get("auth_group")
 
     logger.info(f"Logged out user: {employee_number}, with auth group: {auth_group}")
-    return jsonify({"message": "Logged out"}), 200
+    return jsonify({"message": "Logged out", "token": "INVALID-TOKEN"}), 200
