@@ -2,7 +2,7 @@
 
 import time
 
-from flask import Flask, g
+from flask import Flask, g, jsonify
 
 from app.database import init_db
 from app.peak_tracking import PeakCounter
@@ -30,7 +30,19 @@ def create_app(config_object=None) -> Flask:
 
     from flask_jwt_extended import JWTManager
 
-    JWTManager(app)
+    jwt = JWTManager(app)
+
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_payload):
+        return jsonify({"error": "EXPIRED_TOKEN", "message": "Missing Authorization Header"}), 401 # fmt: skip
+
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error_string):
+        return jsonify({"error": "INVALID_TOKEN", "message": error_string}), 422 # fmt: skip
+
+    @jwt.unauthorized_loader
+    def unauthorized_callback(error_string):
+        return jsonify({"error": "AUTHORIZATION_REQUIRED", "message": error_string}), 401 # fmt: skip
 
     app.peak_request_sessions = PeakCounter()
 

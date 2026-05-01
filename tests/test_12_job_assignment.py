@@ -2,6 +2,8 @@
 
 import unicodedata
 
+from tests.test_utils import _login_as_admin, _login_as_employee
+
 # from urllib.parse import quote
 
 payload_create = {
@@ -28,8 +30,14 @@ def _nfc(s: str) -> str:
 # ---------------------------------------------------------------------
 # validate_create_payload function
 # ---------------------------------------------------------------------
-def test_validate_create_payload_error_1(client, sample_company, sample_employee,): # fmt: skip
-    response = client.post("/api/job-assignments", json="{wrong = JSON}")
+def test_validate_create_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json="{wrong = JSON}",
+    )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
@@ -37,27 +45,13 @@ def test_validate_create_payload_error_1(client, sample_company, sample_employee
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
-def test_validate_create_payload_error_2(client, sample_company, sample_employee,): # fmt: skip
-    response = client.post("/api/job-assignments", json={"employee_number": "Test"})
-    if response.status_code != 400:
-        print(response.text)
-    assert response.status_code == 400
-    data = response.get_json()
-    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+def test_validate_create_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
 
-
-def test_validate_create_payload_error_3(client, sample_company, sample_employee,): # fmt: skip
-    response = client.post("/api/job-assignments", json={"company_name": "Test"})
-    if response.status_code != 400:
-        print(response.text)
-    assert response.status_code == 400
-    data = response.get_json()
-    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
-
-
-def test_validate_create_payload_error_4(client, sample_company, sample_employee,): # fmt: skip
     response = client.post(
-        "/api/job-assignments", json={"company_name": "", "employee_number": "Test"}
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"employee_number": "Test"},
     )
     if response.status_code != 400:
         print(response.text)
@@ -66,9 +60,13 @@ def test_validate_create_payload_error_4(client, sample_company, sample_employee
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_5(client, sample_company, sample_employee,): # fmt: skip
+def test_validate_create_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
     response = client.post(
-        "/api/job-assignments", json={"company_name": "Test", "employee_number": ""}
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"company_name": "Test"},
     )
     if response.status_code != 400:
         print(response.text)
@@ -77,9 +75,43 @@ def test_validate_create_payload_error_5(client, sample_company, sample_employee
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_6(client, sample_company, sample_employee,): # fmt: skip
+def test_validate_create_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
     response = client.post(
-        "/api/job-assignments", json={"company_name": "Test", "employee_number": "Wrong"}, # fmt: skip
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"company_name": "", "employee_number": "Test"},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_create_payload_error_5(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"company_name": "Test", "employee_number": ""},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_create_payload_error_6(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"company_name": "Test", "employee_number": "Wrong"}, # fmt: skip
     )
     if response.status_code != 400:
         print(response.text)
@@ -91,8 +123,14 @@ def test_validate_create_payload_error_6(client, sample_company, sample_employee
 # ---------------------------------------------------------------------
 # validate_reset_payload function
 # ---------------------------------------------------------------------
-def test_validate_reset_payload_error_1(client, sample_company, sample_employee,): # fmt: skip
-    response = client.post("/api/job-assignments/reset", json="{wrong = JSON}")
+def test_validate_reset_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/job-assignments/reset",
+        headers={"Authorization": f"Bearer {token}"},
+        json="{wrong = JSON}",
+    )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
@@ -100,8 +138,14 @@ def test_validate_reset_payload_error_1(client, sample_company, sample_employee,
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
-def test_validate_reset_payload_error_2(client, sample_company, sample_employee,): # fmt: skip
-    response = client.post("/api/job-assignments/reset", json={"test": "test"})
+def test_validate_reset_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/job-assignments/reset",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"test": "test"},
+    )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
@@ -109,8 +153,14 @@ def test_validate_reset_payload_error_2(client, sample_company, sample_employee,
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_reset_payload_error_3(client, sample_company, sample_employee,): # fmt: skip
-    response = client.post("/api/job-assignments/reset", json={"company_name": ""})
+def test_validate_reset_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/job-assignments/reset",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"company_name": ""},
+    )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
@@ -161,13 +211,19 @@ def test_job_assignments_get_ok_empty(client, sample_company, sample_employee,):
 # ---------------------------------------------------------------------
 # Create job_assignment API
 # ---------------------------------------------------------------------
-def test_job_assignments_create_ok(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_create_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
     response = client.get("/api/job-assignments")
     assert response.status_code == 200
     data = response.get_json()
     assert data["count"] == 2
 
-    response = client.post("/api/job-assignments", json=payload_create)
+    response = client.post(
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_create,
+    )
     if response.status_code != 201:
         print(response.text)
     assert response.status_code == 201
@@ -177,10 +233,16 @@ def test_job_assignments_create_ok(client, sample_company, sample_employee, samp
     data = response.get_json()
     assert data["count"] == 3
 
-def test_job_assignments_create_error_1(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_create_error_1(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
     payload_wrong = payload_create.copy()
     payload_wrong["company_name"] = "Wrong"
-    response = client.post("/api/job-assignments", json=payload_wrong)
+    response = client.post(
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_wrong,
+    )
     if response.status_code != 404:
         print(response.text)
     assert response.status_code == 404
@@ -188,10 +250,16 @@ def test_job_assignments_create_error_1(client, sample_company, sample_employee,
     assert data["error"] == "COMPANY_NOT_FOUND"
 
 
-def test_job_assignments_create_error_2(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_create_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
     payload_wrong = payload_create.copy()
     payload_wrong["company_name"] = "Bank"
-    response = client.post("/api/job-assignments", json=payload_wrong)
+    response = client.post(
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_wrong,
+    )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
@@ -199,10 +267,16 @@ def test_job_assignments_create_error_2(client, sample_company, sample_employee,
     assert data["error"] == "COMPANY_NOT_ACTIVE"
 
 
-def test_job_assignments_create_error_3(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_create_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
     payload_wrong = payload_create.copy()
     payload_wrong["employee_number"] = "TEST00753"
-    response = client.post("/api/job-assignments", json=payload_wrong)
+    response = client.post(
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_wrong,
+    )
     if response.status_code != 404:
         print(response.text)
     assert response.status_code == 404
@@ -210,10 +284,16 @@ def test_job_assignments_create_error_3(client, sample_company, sample_employee,
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
-def test_job_assignments_create_error_4(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_create_error_4(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
     payload_wrong = payload_create.copy()
     payload_wrong["employee_number"] = "M00155"
-    response = client.post("/api/job-assignments", json=payload_wrong)
+    response = client.post(
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_wrong,
+    )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
@@ -221,11 +301,21 @@ def test_job_assignments_create_error_4(client, sample_company, sample_employee,
     assert data["error"] == "EMPLOYEE_NOT_ACTIVE"
 
 
-def test_job_assignments_create_error_5(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    response = client.post("/api/job-assignments", json=payload_create)
+def test_job_assignments_create_error_5(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_create,
+    )
     assert response.status_code == 201
 
-    response = client.post("/api/job-assignments", json=payload_create)
+    response = client.post(
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_create,
+    )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
@@ -233,10 +323,16 @@ def test_job_assignments_create_error_5(client, sample_company, sample_employee,
     assert data["error"] == "JOB_ALREADY_ASSIGNED"
 
 
-def test_job_assignments_create_error_6(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_create_error_6(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
     payload_wrong = payload_create.copy()
     payload_wrong["company_name"] = "Bauhof"
-    response = client.post("/api/job-assignments", json=payload_wrong)
+    response = client.post(
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_wrong,
+    )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
@@ -247,9 +343,14 @@ def test_job_assignments_create_error_6(client, sample_company, sample_employee,
 # ---------------------------------------------------------------------
 # Deleted job_assignment API
 # ---------------------------------------------------------------------
-def test_job_assignments_delete_ok(client, sample_company,  sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_delete_ok(client, sample_authentication, sample_company,  sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
     employee_number = "M00155"
-    response = client.delete(f"/api/job-assignments/{employee_number}")
+    response = client.delete(
+        f"/api/job-assignments/{employee_number}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     if response.status_code != 200:
         print(response.text)
     assert response.status_code == 200
@@ -257,9 +358,14 @@ def test_job_assignments_delete_ok(client, sample_company,  sample_employee, sam
     assert data["message"] == "job deleted"
 
 
-def test_job_assignments_delete_error_1(client, sample_employee):
+def test_job_assignments_delete_error_1(client, sample_authentication, sample_employee):
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
     employee_number = "Wrong"
-    response = client.delete(f"/api/job-assignments/{employee_number}")
+    response = client.delete(
+        f"/api/job-assignments/{employee_number}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
@@ -267,9 +373,14 @@ def test_job_assignments_delete_error_1(client, sample_employee):
     assert data["error"] == "EMPLOYEE_NUMBER_WRONG"
 
 
-def test_job_assignments_delete_error_2(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_delete_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
     employee_number = "TEST00753"
-    response = client.delete(f"/api/job-assignments/{employee_number}")
+    response = client.delete(
+        f"/api/job-assignments/{employee_number}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     if response.status_code != 404:
         print(response.text)
     assert response.status_code == 404
@@ -277,21 +388,29 @@ def test_job_assignments_delete_error_2(client, sample_company, sample_employee,
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
 
-def test_job_assignments_delete_error_3(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_delete_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
     employee_number = "A00265"
-    response = client.delete(f"/api/job-assignments/{employee_number}")
+    response = client.delete(
+        f"/api/job-assignments/{employee_number}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
     data = response.get_json()
     assert data["error"] == "NO_JOB_ASSIGNED"
 
+    # ---------------------------------------------------------------------
+    # Reset job_assignment API
+    # ---------------------------------------------------------------------
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
 
-# ---------------------------------------------------------------------
-# Reset job_assignment API
-# ---------------------------------------------------------------------
-def test_job_assignments_reset_ok(client, sample_company,  sample_employee, sample_job_assignment,): # fmt: skip
-    response = client.post("/api/job-assignments/reset")
+    response = client.post(
+        "/api/job-assignments/reset",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     if response.status_code != 200:
         print(response.text)
     assert response.status_code == 200
@@ -299,8 +418,14 @@ def test_job_assignments_reset_ok(client, sample_company,  sample_employee, samp
     assert data["message"] == "reset successful"
     assert data["count"] == 2
 
-def test_job_assignments_reset_ok_empty(client, sample_company,  sample_employee, ): # fmt: skip
-    response = client.post("/api/job-assignments/reset", json={"company_name": "Bauhof"}) # fmt: skip
+def test_job_assignments_reset_ok_empty(client, sample_authentication, sample_company,  sample_employee, ): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/job-assignments/reset",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"company_name": "Bauhof"},
+    )
     if response.status_code != 200:
         print(response.text)
     assert response.status_code == 200
@@ -308,8 +433,14 @@ def test_job_assignments_reset_ok_empty(client, sample_company,  sample_employee
     assert data["message"] == "reset successful"
     assert data["count"] == 0
 
-def test_job_assignments_reset_ok_company(client, sample_company,  sample_employee, sample_job_assignment,): # fmt: skip
-    response = client.post("/api/job-assignments/reset", json={"company_name": "Bauhof"}) # fmt: skip
+def test_job_assignments_reset_ok_company(client, sample_authentication, sample_company,  sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/job-assignments/reset",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"company_name": "Bauhof"},
+    )
     if response.status_code != 200:
         print(response.text)
     assert response.status_code == 200
@@ -317,10 +448,16 @@ def test_job_assignments_reset_ok_company(client, sample_company,  sample_employ
     assert data["message"] == "reset successful"
     assert data["count"] == 1
 
-def test_job_assignments_reset_error_1(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_reset_error_1(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
     payload_wrong = payload_create.copy()
     payload_wrong["company_name"] = "Wrong"
-    response = client.post("/api/job-assignments/reset", json=payload_wrong)
+    response = client.post(
+        "/api/job-assignments/reset",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_wrong,
+    )
     if response.status_code != 404:
         print(response.text)
     assert response.status_code == 404

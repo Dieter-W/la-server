@@ -9,6 +9,8 @@ from sqlalchemy import text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.pool import QueuePool
 
+from app.auth.decorations import admin_required
+
 health_bp = Blueprint("health", __name__)
 
 
@@ -103,6 +105,7 @@ def db_health_check():
 
 
 @health_bp.route("/health/runtime", methods=["GET"])
+@admin_required
 def health_runtime():
     """Operational diagnostics: pool, redacted DB URL, runtime flags (no customer data)."""
     app = current_app._get_current_object()

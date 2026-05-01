@@ -6,6 +6,8 @@ import subprocess
 import unicodedata
 from urllib.parse import quote
 
+from test_utils import _login_as_admin
+
 employee_check = {
     "first_name": "Peter",
     "last_name": "Krause",
@@ -85,7 +87,9 @@ def test_bulk_import_employees_create(client,): # fmt: skip
 # ---------------------------------------------------------------------
 # Employees bulk update with API check
 # ---------------------------------------------------------------------
-def test_bulk_import_employees_update(client,): # fmt: skip
+def test_bulk_import_employees_update(client, sample_authentication, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
     # Bulk insert
     result = subprocess.run(
         [
@@ -102,6 +106,7 @@ def test_bulk_import_employees_update(client,): # fmt: skip
     employee_number = employee_check["employee_number"]
     response = client.put(
         f"/api/employees/{quote(employee_number, safe='')}",
+        headers={"Authorization": f"Bearer {token}"},
         json=payload_put,
     )
 

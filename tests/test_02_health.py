@@ -4,6 +4,8 @@ from unittest.mock import MagicMock, patch
 
 from app.routes.health import database_summary
 
+from tests.test_utils import _login_as_admin
+
 
 # ---------------------------------------------------------------------
 # General endpoint check
@@ -44,8 +46,17 @@ def test_db_connectivity_error_1(client):
 # ---------------------------------------------------------------------
 # Health runtime check
 # ---------------------------------------------------------------------
-def test_health_runtime_shape(client):
-    response = client.get("/api/health/runtime")
+def test_health_runtime_shape(client, sample_authentication, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    response = client.get(
+        "/api/health/runtime",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     if response.status_code != 200:
         print(response.text)
     assert response.status_code == 200
@@ -62,9 +73,12 @@ def test_health_runtime_shape(client):
     assert "url_redacted" in data["database"]
     assert "host" in data["database"]
     assert "database" in data["database"]
-    assert data["pool"]["pool_type"] == "QueuePool"
-    for key in ("size", "checked_in", "checked_out", "overflow", "status"):
-        assert key in data["pool"]
+    if data["config"]["TESTING"]:
+        assert data["pool"]["pool_type"] == "NullPool"
+    else:
+        assert data["pool"]["pool_type"] == "QueuePool"
+        for key in ("size", "checked_in", "checked_out", "overflow", "status"):
+            assert key in data["pool"]
     conc = data["concurrency"]
     for section in ("pool_connections", "requests_with_db_session"):
         assert section in conc
