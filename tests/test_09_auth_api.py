@@ -1,5 +1,12 @@
 """Authentication API tests"""
 
+from test_utils import (
+    _login_as_admin,
+    _login_as_employee,
+    _login_as_staff,
+    _login_as_employee_expired_token,
+)
+
 # ---------------------------------------------------------------------
 # validate_create_payload function
 # ---------------------------------------------------------------------
@@ -200,57 +207,6 @@ def test_validate_reset_password_payload_error_4(client, sample_authentication, 
 
 
 # ---------------------------------------------------------------------
-# Login as employee, staff, admin functions
-# ---------------------------------------------------------------------
-def _login_as_employee(client, sample_authentication, sample_employee,) -> str: # fmt: skip
-    response = client.post(
-        "/api/auth/login",
-        json={"employee_number": "M00252", "password": "Mustermann"},
-    )
-    if response.status_code != 200:
-        print(response.text)
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["message"] == "Authenticated"
-    assert data["token"] is not None
-    assert data["auth_group"] == "employee"
-    assert data["password_must_change"] is True
-
-    return data["token"]
-
-def _login_as_staff(client, sample_authentication, sample_employee,) -> str: # fmt: skip
-    response = client.post(
-        "/api/auth/login",
-        json={"employee_number": "A00265", "password": "Schmidt"},
-    )
-    if response.status_code != 200:
-        print(response.text)
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["message"] == "Authenticated"
-    assert data["token"] is not None
-    assert data["auth_group"] == "staff"
-    assert data["password_must_change"] is False
-
-    return data["token"]
-
-def _login_as_admin(client, sample_authentication, sample_employee,) -> str: # fmt: skip
-    response = client.post(
-        "/api/auth/login",
-        json={"employee_number": "P00370", "password": "Krause"},
-    )
-    if response.status_code != 200:
-        print(response.text)
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["message"] == "Authenticated"
-    assert data["token"] is not None
-    assert data["auth_group"] == "admin"
-    assert data["password_must_change"] is False
-
-    return data["token"]
-
-# ---------------------------------------------------------------------
 # Authentication Login API
 # ---------------------------------------------------------------------
 def test_authenticate_as_employee_ok(client, sample_authentication, sample_employee,): # fmt: skip
@@ -314,6 +270,7 @@ def test_me_as_employee_ok(client, sample_authentication, sample_company, sample
     assert data["employee_number"] == "M00252"
     assert data["auth_group"] == "employee"
 
+
 def test_me_as_staff_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
     token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
 
@@ -360,14 +317,18 @@ def test_me_error_1(client, sample_authentication, sample_company, sample_employ
     if response.status_code != 422:
         print(response.text)
     assert response.status_code == 422
+    data = response.get_json()
+    assert data["error"] == "INVALID_TOKEN"
+    assert data["message"] == "Invalid crypto padding"
 
 def test_me_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+    token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+    token_staff = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
 
     employee_number = "A00265"
     response = client.delete(
         f"/api/employees/{employee_number}?hard=true",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token_admin}"},
     )
     if response.status_code != 200:
         print(response.text)
@@ -375,7 +336,7 @@ def test_me_error_2(client, sample_authentication, sample_company, sample_employ
 
     response = client.get(
         "/api/auth/me",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token_staff}"},
     )
     if response.status_code != 404:
         print(response.text)
@@ -384,12 +345,13 @@ def test_me_error_2(client, sample_authentication, sample_company, sample_employ
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
 def test_me_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+    token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+    token_staff = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
 
     employee_number = "A00265"
     response = client.put(
         f"/api/employees/{employee_number}",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token_admin}"},
         json={"active": False},
     )
     if response.status_code != 200:
@@ -398,13 +360,29 @@ def test_me_error_3(client, sample_authentication, sample_company, sample_employ
 
     response = client.get(
         "/api/auth/me",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token_staff}"},
     )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NOT_ACTIVE"
+
+
+def test_me_error_4(client, sample_authentication, sample_employee,):  # fmt: skip
+    token = _login_as_employee_expired_token(client)
+
+    response = client.get(
+        "/api/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 401:
+        print(response.text)
+    assert response.status_code == 401
+    data = response.get_json()
+    assert data["error"] == "EXPIRED_TOKEN"
+    assert data["message"] == "Missing Authorization Header"
+
 
 # ---------------------------------------------------------------------
 # Authentication Set Password API
@@ -434,14 +412,18 @@ def test_set_password_error_1(client, sample_authentication, sample_company, sam
     if response.status_code != 422:
         print(response.text)
     assert response.status_code == 422
+    data = response.get_json()
+    assert data["error"] == "INVALID_TOKEN"
+    assert data["message"] == "Invalid crypto padding"
 
 def test_set_password_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+    token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+    token_staff = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
 
     employee_number = "A00265"
     response = client.delete(
         f"/api/employees/{employee_number}?hard=true",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token_admin}"},
     )
     if response.status_code != 200:
         print(response.text)
@@ -449,7 +431,7 @@ def test_set_password_error_2(client, sample_authentication, sample_company, sam
 
     response = client.post(
         "/api/auth/password/set-password",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token_staff}"},
         json={"new_password": "Test", "old_password": "Schmidt"},
     )
     if response.status_code != 404:
@@ -459,12 +441,13 @@ def test_set_password_error_2(client, sample_authentication, sample_company, sam
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
 def test_set_password_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+    token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+    token_staff = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
 
     employee_number = "A00265"
     response = client.put(
         f"/api/employees/{employee_number}",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token_admin}"},
         json={"active": False},
     )
     if response.status_code != 200:
@@ -473,7 +456,7 @@ def test_set_password_error_3(client, sample_authentication, sample_company, sam
 
     response = client.post(
         "/api/auth/password/set-password",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token_staff}"},
         json={"new_password": "Test", "old_password": "Schmidt"},
     )
     if response.status_code != 400:
@@ -524,6 +507,9 @@ def test_reset_password_error_1(client, sample_authentication, sample_company, s
     if response.status_code != 422:
         print(response.text)
     assert response.status_code == 422
+    data = response.get_json()
+    assert data["error"] == "INVALID_TOKEN"
+    assert data["message"] == "Invalid crypto padding"
 
 def test_reset_password_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
     token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
@@ -564,6 +550,7 @@ def test_refresh_token_ok(client, sample_authentication, sample_company, sample_
     data = response.get_json()
     assert data["message"] == "Token refreshed"
 
+
 def test_refresh_token_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
 
@@ -574,14 +561,18 @@ def test_refresh_token_error_1(client, sample_authentication, sample_company, sa
     if response.status_code != 422:
         print(response.text)
     assert response.status_code == 422
+    data = response.get_json()
+    assert data["error"] == "INVALID_TOKEN"
+    assert data["message"] == "Invalid crypto padding"
 
 def test_refresh_token_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+    token_employee = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
 
     employee_number = "M00252"
     response = client.delete(
         f"/api/employees/{employee_number}?hard=true",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token_admin}"},
     )
     if response.status_code != 200:
         print(response.text)
@@ -589,7 +580,7 @@ def test_refresh_token_error_2(client, sample_authentication, sample_company, sa
 
     response = client.post(
         "/api/auth/refresh",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token_employee}"},
     )
     if response.status_code != 404:
         print(response.text)
@@ -598,12 +589,13 @@ def test_refresh_token_error_2(client, sample_authentication, sample_company, sa
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
 def test_refresh_token_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+    token_employee = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
 
     employee_number = "M00252"
     response = client.put(
         f"/api/employees/{employee_number}",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token_admin}"},
         json={"active": False},
     )
     if response.status_code != 200:
@@ -612,13 +604,29 @@ def test_refresh_token_error_3(client, sample_authentication, sample_company, sa
 
     response = client.post(
         "/api/auth/refresh",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token_employee}"},
     )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NOT_ACTIVE"
+
+
+def test_refresh_token_error_4(client, sample_authentication, sample_employee,):  # fmt: skip
+    token = _login_as_employee_expired_token(client)
+
+    response = client.post(
+        "/api/auth/refresh",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 401:
+        print(response.text)
+    assert response.status_code == 401
+    data = response.get_json()
+    assert data["error"] == "EXPIRED_TOKEN"
+    assert data["message"] == "Missing Authorization Header"
+
 
 # ---------------------------------------------------------------------
 # Authentication Logout API
@@ -641,6 +649,18 @@ def test_logout_ok(client, sample_authentication, sample_company, sample_employe
 # Authentication level checks
 # ---------------------------------------------------------------------
 def test_auth_level_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    response = client.post(
+        "/api/auth/password/reset-password",
+        json={"employee_number": "A00265"},
+    )
+    if response.status_code != 401:
+        print(response.text)
+    assert response.status_code == 401
+    data = response.get_json()
+    assert data["error"] == "AUTHORIZATION_REQUIRED"
+    assert data["message"] == "Missing Authorization Header"
+
+def test_auth_level_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
 
     response = client.post(
@@ -652,4 +672,31 @@ def test_auth_level_error_1(client, sample_authentication, sample_company, sampl
         print(response.text)
     assert response.status_code == 403
     data = response.get_json()
-    assert data["error"] == "FORBIDDEN"
+    assert data["error"] == "FORBIDDEN_WRONG_AUTH_GROUP"
+
+def test_auth_level_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.get(
+        "/api/health/runtime",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 403:
+        print(response.text)
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["error"] == "FORBIDDEN_WRONG_AUTH_GROUP"
+
+
+def test_auth_level_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.get(
+        "/api/health/runtime",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 403:
+        print(response.text)
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["error"] == "FORBIDDEN_WRONG_AUTH_GROUP"

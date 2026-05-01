@@ -3,6 +3,8 @@
 import unicodedata
 from urllib.parse import quote
 
+from test_utils import _login_as_admin
+
 payload_create = {
     "company_name": "TEST_COMPANY",
     "jobs_max": 10,
@@ -29,8 +31,14 @@ def _nfc(s: str) -> str:
 # ---------------------------------------------------------------------
 # validate_create_payload function
 # ---------------------------------------------------------------------
-def test_validate_create_payload_error_1(client, sample_company, sample_employee,): # fmt: skip
-    response = client.post("/api/companies", json="{wrong = JSON}")
+def test_validate_create_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/companies",
+        headers={"Authorization": f"Bearer {token}"},
+        json="{wrong = JSON}",
+    )
     data = response.get_json()
     if response.status_code != 400:
         print(response.text)
@@ -38,42 +46,57 @@ def test_validate_create_payload_error_1(client, sample_company, sample_employee
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
-def test_validate_create_payload_error_2(client, sample_company, sample_employee,): # fmt: skip
-    response = client.post(
-        "/api/companies", json={"jobs_max": "TEST", "pay_per_hour": "TEST"}
-    )
-    if response.status_code != 400:
-        print(response.text)
-    assert response.status_code == 400
-    data = response.get_json()
-    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+def test_validate_create_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
 
-
-def test_validate_create_payload_error_3(client, sample_company, sample_employee,): # fmt: skip
-    response = client.post(
-        "/api/companies", json={"company_name": "TEST", "pay_per_hour": "TEST"}
-    )
-    if response.status_code != 400:
-        print(response.text)
-    assert response.status_code == 400
-    data = response.get_json()
-    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
-
-
-def test_validate_create_payload_error_4(client, sample_company, sample_employee,): # fmt: skip
-    response = client.post(
-        "/api/companies", json={"company_name": "TEST", "jobs_max": "TEST"}
-    )
-    if response.status_code != 400:
-        print(response.text)
-    assert response.status_code == 400
-    data = response.get_json()
-    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
-
-
-def test_validate_create_payload_error_5(client, sample_company, sample_employee,): # fmt: skip
     response = client.post(
         "/api/companies",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"jobs_max": "TEST", "pay_per_hour": "TEST"},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_create_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/companies",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"company_name": "TEST", "pay_per_hour": "TEST"},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_create_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/companies",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"company_name": "TEST", "jobs_max": "TEST"},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_create_payload_error_5(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/companies",
+        headers={"Authorization": f"Bearer {token}"},
         json={"company_name": "", "jobs_max": "TEST", "pay_per_hour": "TEST"},
     )
     if response.status_code != 400:
@@ -83,9 +106,12 @@ def test_validate_create_payload_error_5(client, sample_company, sample_employee
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_6(client, sample_company, sample_employee,): # fmt: skip
+def test_validate_create_payload_error_6(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
     response = client.post(
         "/api/companies",
+        headers={"Authorization": f"Bearer {token}"},
         json={"company_name": "TEST", "jobs_max": "", "pay_per_hour": "TEST"},
     )
     if response.status_code != 400:
@@ -95,9 +121,12 @@ def test_validate_create_payload_error_6(client, sample_company, sample_employee
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_7(client, sample_company, sample_employee,): # fmt: skip
+def test_validate_create_payload_error_7(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
     response = client.post(
         "/api/companies",
+        headers={"Authorization": f"Bearer {token}"},
         json={"company_name": "TEST", "jobs_max": "TEST", "pay_per_hour": ""},
     )
     if response.status_code != 400:
@@ -110,10 +139,14 @@ def test_validate_create_payload_error_7(client, sample_company, sample_employee
 # ---------------------------------------------------------------------
 # validate_update_payload function
 # ---------------------------------------------------------------------
-def test_validate_update_payload_error_1(client, sample_company, sample_employee,): # fmt: skip
+def test_validate_update_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
     company_name = sample_company.company_name
     response = client.put(
-        f"/api/companies/{quote(company_name, safe='')}", json="{wrong = JSON}"
+        f"/api/companies/{quote(company_name, safe='')}",
+        headers={"Authorization": f"Bearer {token}"},
+        json="{wrong = JSON}",
     )
     if response.status_code != 400:
         print(response.text)
@@ -226,7 +259,9 @@ def test_companies_query_error_1(client, sample_company, sample_job_assignment,)
 # ---------------------------------------------------------------------
 # Company Create API
 # ---------------------------------------------------------------------
-def test_companies_create(client, sample_company,): # fmt: skip
+def test_companies_create(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
     response = client.get("/api/companies")
     if response.status_code != 200:
         print(response.text)
@@ -234,7 +269,11 @@ def test_companies_create(client, sample_company,): # fmt: skip
     data = response.get_json()
     assert data["count"] == 4
 
-    response = client.post("/api/companies", json=payload_create)
+    response = client.post(
+        "/api/companies",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_create,
+    )
     if response.status_code != 201:
         print(response.text)
     assert response.status_code == 201
@@ -256,10 +295,20 @@ def test_companies_create(client, sample_company,): # fmt: skip
     assert data["count"] == 5
 
 
-def test_companies_create_error_1(client, sample_company,): # fmt: skip
+def test_companies_create_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
     # Post /api/companies
-    response = client.post("/api/companies", json=payload_create)
-    response = client.post("/api/companies", json=payload_create)
+    response = client.post(
+        "/api/companies",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_create,
+    )
+    response = client.post(
+        "/api/companies",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_create,
+    )
     if response.status_code != 409:
         print(response.text)
     assert response.status_code == 409
@@ -271,9 +320,15 @@ def test_companies_create_error_1(client, sample_company,): # fmt: skip
 # ---------------------------------------------------------------------
 # Company Update API
 # ---------------------------------------------------------------------
-def test_companies_update(client, sample_company):
+def test_companies_update(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
     company_name = sample_company.company_name
-    response = client.put(f"/api/companies/{quote(company_name, safe='')}", json=payload_put,) # fmt: skip
+    response = client.put(
+        f"/api/companies/{quote(company_name, safe='')}",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_put,
+    )
     if response.status_code != 200:
         print(response.text)
     data = response.get_json()
@@ -294,9 +349,15 @@ def test_companies_update(client, sample_company):
     assert data2["company_name"] == payload_put["company_name"]
 
 
-def test_companies_update_error_1(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_companies_update_error_1(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
     company_name = "Wrong"
-    response = client.put(f"/api/companies/{quote(company_name, safe='')}", json=payload_put,)# fmt: skip
+    response = client.put(
+        f"/api/companies/{quote(company_name, safe='')}",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_put,
+    )
     if response.status_code != 404:
         print(response.text)
     assert response.status_code == 404
@@ -304,10 +365,13 @@ def test_companies_update_error_1(client, sample_company, sample_employee, sampl
     assert data["error"] == "COMPANY_NOT_FOUND"
 
 
-def test_companies_update_error_2_duplicate_name(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_companies_update_error_2_duplicate_name(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
     """PUT rename collides with another company's unique company_name -> 409."""
     response = client.put(
         f"/api/companies/{quote('Bank', safe='')}",
+        headers={"Authorization": f"Bearer {token}"},
         json={"company_name": "Küche"},
     )
     if response.status_code != 409:
@@ -321,9 +385,14 @@ def test_companies_update_error_2_duplicate_name(client, sample_company, sample_
 # ---------------------------------------------------------------------
 # Company Delete API
 # ---------------------------------------------------------------------
-def test_companies_delete(client, sample_company):
+def test_companies_delete(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
     company_name = sample_company.company_name
-    response = client.delete(f"/api/companies/{quote(company_name, safe='')}")
+    response = client.delete(
+        f"/api/companies/{quote(company_name, safe='')}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     if response.status_code != 200:
         print(response.text)
     data = response.get_json()
@@ -336,9 +405,14 @@ def test_companies_delete(client, sample_company):
     assert response.status_code == 404
 
 
-def test_companies_delete_error_1(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_companies_delete_error_1(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
     company_name = "Wrong"
-    response = client.delete(f"/api/companies/{quote(company_name, safe='')}")
+    response = client.delete(
+        f"/api/companies/{quote(company_name, safe='')}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     if response.status_code != 404:
         print(response.text)
     assert response.status_code == 404
@@ -346,15 +420,17 @@ def test_companies_delete_error_1(client, sample_company, sample_employee, sampl
     assert data["error"] == "COMPANY_NOT_FOUND"
 
 
-def test_companies_delete_Error_2(client, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_companies_delete_Error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
     company_name = sample_company.company_name
-    response = client.delete(f"/api/companies/{quote(company_name, safe='')}")
+    response = client.delete(
+        f"/api/companies/{quote(company_name, safe='')}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     if response.status_code != 409:
         print(response.text)
     assert response.status_code == 409
     data = response.get_json()
     assert data["error"] == "CONSTRAINT_VIOLATION"
-    assert (
-        data["message"]
-        == "Delete failed, because related entries in JobAssignment table"
-    )
+    assert data["message"] == "Delete failed, because related entries in JobAssignment table" # fmt: skip
