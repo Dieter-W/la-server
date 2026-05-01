@@ -9,6 +9,8 @@ from stdnum.iso7064 import mod_97_10
 from app.errors import APIError
 from app.models import Company, Employee, JobAssignment
 
+from app.auth.decorations import admin_required
+
 employees_bp = Blueprint("employees", __name__)
 
 logger = logging.getLogger(__name__)
@@ -142,6 +144,7 @@ def get_employee(employee_number: str):
 # Employees Create API
 # ---------------------------------------------------------------------
 @employees_bp.route("/employees", methods=["POST"])
+@admin_required
 def create_employee():
     """Create a new employee from JSON payload."""
     data = request.get_json(silent=True)
@@ -172,6 +175,7 @@ def create_employee():
 # Employees Update API
 # ---------------------------------------------------------------------
 @employees_bp.route("/employees/<string:employee_number>", methods=["PUT"])
+@admin_required
 def update_employee(employee_number: str):
     """Update fields of an employee."""
     valid, err = _validate_checksum(employee_number)
@@ -226,6 +230,7 @@ def update_employee(employee_number: str):
 # Employees Delete API
 # ---------------------------------------------------------------------
 @employees_bp.route("/employees/<string:employee_number>", methods=["DELETE"])
+@admin_required
 def delete_employee(employee_number: str):
     """Soft delete (set active=false) or hard delete if ?hard=true."""
     valid, err = _validate_checksum(employee_number)

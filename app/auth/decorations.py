@@ -46,7 +46,7 @@ def _access_required(*, auth_groups: list[str] | None = None) -> Callable:
             auth_group = jwt.get("auth_group")
 
             if allowed is not None and auth_group not in allowed:
-                raise APIError("FORBIDDEN", 403)
+                raise APIError("FORBIDDEN_WRONG_AUTH_GROUP", 403)
 
             return func(*args, **kwargs)
 

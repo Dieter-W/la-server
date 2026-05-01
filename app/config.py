@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
+from sqlalchemy.pool import NullPool
 
 # Load .env from project root
 env_path = Path(__file__).resolve().parent.parent / ".env"
@@ -71,6 +72,17 @@ class Config:
     def get_config(cls) -> dict:
         """Return Flask config mapping computed from current environment."""
 
+        if cls._env_bool("TESTING", default=False):
+            sqlalchemy_engine_options = {
+                "poolclass": NullPool,
+                "pool_pre_ping": True,
+            }
+        else:
+            sqlalchemy_engine_options = {
+                "pool_pre_ping": True,
+                "pool_recycle": 300,
+            }
+
         return {
             "MARIADB_HOST": cls.mariadb_host(),
             "MARIADB_PORT": cls.mariadb_port(),
@@ -81,10 +93,7 @@ class Config:
             "DEBUG": cls._env_bool("DEBUG", default=False),
             "VALIDATE_CHECK_SUM": cls._env_bool("VALIDATE_CHECK_SUM", default=True),
             "SQLALCHEMY_DATABASE_URI": cls.sqlalchemy_database_uri(),
-            "SQLALCHEMY_ENGINE_OPTIONS": {
-                "pool_pre_ping": True,
-                "pool_recycle": 300,
-            },
+            "SQLALCHEMY_ENGINE_OPTIONS": sqlalchemy_engine_options,
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
             "ADMIN_DB_URI": cls.admin_db_uri(),
             "TESTING": cls._env_bool("TESTING", default=False),
@@ -95,4 +104,5 @@ class Config:
             ),
             "JWT_ACCESS_TOKEN_EXPIRES": timedelta(minutes=15),
             "JWT_REFRESH_TOKEN_EXPIRES": timedelta(hours=3),
+            "JWT_ERROR_MESSAGE_KEY": "message",
         }

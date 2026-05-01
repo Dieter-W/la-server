@@ -9,6 +9,8 @@ from stdnum.iso7064 import mod_97_10
 from app.errors import APIError
 from app.models import Company, Employee, JobAssignment
 
+from app.auth.decorations import admin_required, employee_required
+
 job_assignment_bp = Blueprint("job_assignments", __name__)
 
 logger = logging.getLogger(__name__)
@@ -99,6 +101,7 @@ def list_companies():
 # Job Assignment Create API
 # ---------------------------------------------------------------------
 @job_assignment_bp.route("/job-assignments", methods=["POST"])
+@employee_required
 def create_job_assignment():
     """Create a new job assignment from JSON payload."""
     data = request.get_json(silent=True)
@@ -160,6 +163,7 @@ def create_job_assignment():
 # Job Assignment Delete API
 # ---------------------------------------------------------------------
 @job_assignment_bp.route("/job-assignments/<string:employee_number>", methods=["DELETE"])  # fmt: skip
+@employee_required
 def delete_job_assignment(employee_number: str):
     """Delete a job assignment."""
     valid, err = _validate_checksum(employee_number)
@@ -198,6 +202,7 @@ def delete_job_assignment(employee_number: str):
 # Job Assignment Reset API
 # ---------------------------------------------------------------------
 @job_assignment_bp.route("/job-assignments/reset", methods=["POST"])
+@admin_required
 def reset_job_assignment():
     """Delete a group of job assignment or all."""
     data = request.get_json(silent=True)

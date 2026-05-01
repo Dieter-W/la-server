@@ -42,16 +42,18 @@ def env_patch(monkeypatch, worker_id):
 
 @pytest.fixture()
 def db_create(env_patch):
+    """Provision test DB via short-lived admin connections (not held across the test)."""
+    mariadb_db = os.getenv("MARIADB_DATABASE")
     engine = create_engine(Config.admin_db_uri(), poolclass=NullPool)
-    with engine.connect() as conn:
-        mariadb_db = os.getenv("MARIADB_DATABASE")
-        conn.execute(text(f"DROP DATABASE IF EXISTS `{mariadb_db}`"))
-        conn.execute(text(f"CREATE DATABASE `{mariadb_db}`"))
-
+    try:
+        with engine.connect() as conn:
+            conn.execute(text(f"DROP DATABASE IF EXISTS `{mariadb_db}`"))
+            conn.execute(text(f"CREATE DATABASE `{mariadb_db}`"))
         yield
-
-        mariadb_db = os.getenv("MARIADB_DATABASE")
-        conn.execute(text(f"DROP DATABASE IF EXISTS `{mariadb_db}`"))
+        with engine.connect() as conn:
+            conn.execute(text(f"DROP DATABASE IF EXISTS `{mariadb_db}`"))
+    finally:
+        engine.dispose()
 
 
 # ---------------------------------------------------------
@@ -68,6 +70,7 @@ def app(db_create):
         yield app
 
         db.drop_all()
+        db.engine.dispose()
 
 
 @pytest.fixture()
@@ -154,8 +157,6 @@ def sample_authentication(
 
         session.close()
 
-    return authentication
-
 
 @pytest.fixture()
 def sample_company(
@@ -202,8 +203,6 @@ def sample_company(
         yield company
 
         session.close()
-
-    return company
 
 
 @pytest.fixture()
@@ -260,8 +259,6 @@ def sample_employee(
 
         session.close()
 
-    return employee
-
 
 @pytest.fixture()
 def sample_job_assignment(
@@ -292,5 +289,3 @@ def sample_job_assignment(
         yield job_assignment
 
         session.close()
-
-    return job_assignment

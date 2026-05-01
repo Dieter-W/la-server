@@ -8,6 +8,8 @@ from sqlalchemy import func
 from app.errors import APIError
 from app.models import Company, JobAssignment
 
+from app.auth.decorations import admin_required
+
 companies_bp = Blueprint("companies", __name__)
 
 logger = logging.getLogger(__name__)
@@ -108,6 +110,7 @@ def get_company(company_name: str):
 
 
 @companies_bp.route("/companies", methods=["POST"])
+@admin_required
 def create_company():
     """Create a new company from JSON payload."""
     data = request.get_json(silent=True)
@@ -133,6 +136,7 @@ def create_company():
 
 
 @companies_bp.route("/companies/<string:company_name>", methods=["PUT"])
+@admin_required
 def update_company(company_name: str):
     """Update fields of a company."""
     data = request.get_json(silent=True)
@@ -175,6 +179,7 @@ def update_company(company_name: str):
 
 
 @companies_bp.route("/companies/<string:company_name>", methods=["DELETE"])
+@admin_required
 def delete_company(company_name: str):
     """Delete a company."""
     with g.db.begin():
