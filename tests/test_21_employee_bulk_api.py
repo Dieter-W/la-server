@@ -53,8 +53,8 @@ def test_bulk_import_employees_create(client,): # fmt: skip
     data = response.get_json()
     assert isinstance(data, dict)
     assert isinstance(data["employees"], list)
-    assert len(data["employees"]) == 3
-    assert data["count"] == 3
+    assert len(data["employees"]) == 4
+    assert data["count"] == 4
 
     assert any(
         _nfc(employee_data["first_name"]) == _nfc(employee_check["first_name"])
@@ -145,10 +145,10 @@ def test_bulk_import_employees_update(client,): # fmt: skip
     assert data2["active"] == employee_check["active"]
     assert _nfc(data2["notes"]) == _nfc(employee_check["notes"])
 
-    # Check if we still have 3 records
+    # Check if we still have 4 records
     response = client.get("/api/employees")
     if response.status_code != 200:
         print(response.text)
     assert response.status_code == 200
     data = response.get_json()
-    assert data["count"] == 3
+    assert data["count"] == 4
