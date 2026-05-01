@@ -196,8 +196,8 @@ def test_employees_query_all_employees(client, sample_company, sample_employee, 
     data = response.get_json()
     assert isinstance(data, dict)
     assert isinstance(data["employees"], list)
-    assert len(data["employees"]) == 3
-    assert data["count"] == 3
+    assert len(data["employees"]) == 4
+    assert data["count"] == 4
     assert any(
         employee_data["id"] == sample_employee.id for employee_data in data["employees"]
     )
@@ -237,8 +237,8 @@ def test_employees_query_all_true(client, sample_employee):
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data["employees"], list)
-    assert len(data["employees"]) == 2
-    assert data["count"] == 2
+    assert len(data["employees"]) == 3
+    assert data["count"] == 3
 
 
 def test_employees_query_all_false(client, sample_employee):
@@ -314,7 +314,7 @@ def test_employees_create(client, sample_employee): # fmt: skip
         print(response.text)
     assert response.status_code == 200
     data = response.get_json()
-    assert data["count"] == 3
+    assert data["count"] == 4
 
     response = client.post("/api/employees", json=payload_create)
     if response.status_code != 201:
@@ -326,7 +326,7 @@ def test_employees_create(client, sample_employee): # fmt: skip
         print(response.text)
     assert response.status_code == 200
     data = response.get_json()
-    assert data["count"] == 4
+    assert data["count"] == 5
 
 
 def test_employees_create_error_1(client, sample_employee):

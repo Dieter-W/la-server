@@ -22,7 +22,7 @@ def test_bulk_import_companies_create(app, db_session):
     assert result.returncode == 0
 
     data = Employee.query.all()
-    assert len(data) == 3
+    assert len(data) == 4
 
 
 # ---------------------------------------------------------------------
@@ -41,7 +41,7 @@ def test_bulk_import_companies_update(app, db_session):
     assert result.returncode == 0
 
     data = Employee.query.all()
-    assert len(data) == 3
+    assert len(data) == 4
 
     # In place update, we use the same data
     result = subprocess.run(
@@ -56,4 +56,4 @@ def test_bulk_import_companies_update(app, db_session):
     assert result.returncode == 0
 
     data = Employee.query.all()
-    assert len(data) == 3
+    assert len(data) == 4
