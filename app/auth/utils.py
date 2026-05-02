@@ -4,6 +4,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from flask_jwt_extended import create_access_token as jwt_create_access_token
 from flask_jwt_extended import create_refresh_token as jwt_create_refresh_token
 
+AUTH_GROUPS = ["employee", "staff", "admin"]
+
 
 def hash_password(password: str) -> str:
     """Hash a password using werkzeug."""
@@ -39,7 +41,7 @@ def create_refresh_token(identity, additional_claims=None):
 
 def verify_access_group(access_group: str) -> tuple[bool, str | None]:
     """Verify if the access group is valid."""
-    if access_group not in ["employee", "staff", "admin"]:
+    if access_group not in AUTH_GROUPS:
         return False, "INVALID_AUTH_GROUP"
 
     return True, None
