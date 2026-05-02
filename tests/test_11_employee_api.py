@@ -9,6 +9,7 @@ payload_create = {
     "role": "Tester",
     "active": True,
     "notes": "Created by create test",
+    "auth_group": "employee",
 }
 
 payload_put = {
@@ -52,7 +53,12 @@ def test_validate_create_payload_error_2(client, sample_authentication, sample_c
     response = client.post(
         "/api/employees",
         headers={"Authorization": f"Bearer {token}"},
-        json={"last_name": "TEST", "employee_number": "TEST", "role": "TEST"},
+        json={
+            "last_name": "TEST",
+            "employee_number": "TEST",
+            "role": "TEST",
+            "auth_group": "TEST",
+        },
     )
     if response.status_code != 400:
         print(response.text)
@@ -71,7 +77,12 @@ def test_validate_create_payload_error_3(client, sample_authentication, sample_c
     response = client.post(
         "/api/employees",
         headers={"Authorization": f"Bearer {token}"},
-        json={"first_name": "TEST", "employee_number": "TEST", "role": "TEST"},
+        json={
+            "first_name": "TEST",
+            "employee_number": "TEST",
+            "role": "TEST",
+            "auth_group": "TEST",
+        },
     )
     if response.status_code != 400:
         print(response.text)
@@ -90,7 +101,12 @@ def test_validate_create_payload_error_4(client, sample_authentication, sample_c
     response = client.post(
         "/api/employees",
         headers={"Authorization": f"Bearer {token}"},
-        json={"first_name": "TEST", "last_name": "TEST", "role": "TEST"},
+        json={
+            "first_name": "TEST",
+            "last_name": "TEST",
+            "role": "TEST",
+            "auth_group": "TEST",
+        },
     )
     if response.status_code != 400:
         print(response.text)
@@ -113,6 +129,7 @@ def test_validate_create_payload_error_5(client, sample_authentication, sample_c
             "first_name": "TEST",
             "last_name": "TEST",
             "employee_number": "TEST",
+            "auth_group": "TEST",
         },
     )
     if response.status_code != 400:
@@ -121,8 +138,30 @@ def test_validate_create_payload_error_5(client, sample_authentication, sample_c
     data = response.get_json()
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
-
 def test_validate_create_payload_error_6(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    response = client.post(
+        "/api/employees",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "first_name": "TEST",
+            "last_name": "TEST",
+            "employee_number": "TEST",
+            "role": "TEST",
+        },
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+def test_validate_create_payload_error_7(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -137,30 +176,7 @@ def test_validate_create_payload_error_6(client, sample_authentication, sample_c
             "last_name": "TEST",
             "employee_number": "TEST",
             "role": "TEST",
-        },
-    )
-    if response.status_code != 400:
-        print(response.text)
-    assert response.status_code == 400
-    data = response.get_json()
-    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
-
-
-def test_validate_create_payload_error_7(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(
-        client,
-        sample_authentication,
-        sample_employee,
-    )
-
-    response = client.post(
-        "/api/employees",
-        headers={"Authorization": f"Bearer {token}"},
-        json={
-            "first_name": "TEST",
-            "last_name": "",
-            "employee_number": "TEST",
-            "role": "TEST",
+            "auth_group": "TEST",
         },
     )
     if response.status_code != 400:
@@ -182,9 +198,10 @@ def test_validate_create_payload_error_8(client, sample_authentication, sample_c
         headers={"Authorization": f"Bearer {token}"},
         json={
             "first_name": "TEST",
-            "last_name": "TEST",
-            "employee_number": "",
+            "last_name": "",
+            "employee_number": "TEST",
             "role": "TEST",
+            "auth_group": "TEST",
         },
     )
     if response.status_code != 400:
@@ -207,8 +224,9 @@ def test_validate_create_payload_error_9(client, sample_authentication, sample_c
         json={
             "first_name": "TEST",
             "last_name": "TEST",
-            "employee_number": "TEST",
-            "role": "",
+            "employee_number": "",
+            "role": "TEST",
+            "auth_group": "TEST",
         },
     )
     if response.status_code != 400:
@@ -228,13 +246,94 @@ def test_validate_create_payload_error_10(client, sample_authentication, sample_
     response = client.post(
         "/api/employees",
         headers={"Authorization": f"Bearer {token}"},
-        json={"first_name": "TEST", "last_name": "TEST", "employee_number": "Wrong", "role": "Test"}, # fmt: skip
+        json={
+            "first_name": "TEST",
+            "last_name": "TEST",
+            "employee_number": "TEST",
+            "role": "",
+            "auth_group": "TEST",
+        },
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_create_payload_error_11(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    response = client.post(
+        "/api/employees",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "first_name": "TEST",
+            "last_name": "TEST",
+            "employee_number": "TEST",
+            "role": "TEST",
+            "auth_group": "",
+        },
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_create_payload_error_12(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    response = client.post(
+        "/api/employees",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "first_name": "TEST",
+            "last_name": "TEST",
+            "employee_number": "Wrong",
+            "role": "Test",
+            "auth_group": "TEST",
+        },
     )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NUMBER_WRONG_IN_JSON"
+
+
+def test_validate_create_payload_error_13(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    response = client.post(
+        "/api/employees",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "first_name": "TEST",
+            "last_name": "TEST",
+            "employee_number": "TEST00753",
+            "role": "Test",
+            "auth_group": "Wrong",
+        },
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_AUTH_GROUP_IN_JSON"
 
 
 # ---------------------------------------------------------------------
@@ -433,6 +532,19 @@ def test_employees_create(client, sample_authentication, sample_company, sample_
     assert response.status_code == 200
     data = response.get_json()
     assert data["count"] == 5
+
+    response = client.post(
+        "/api/auth/login",
+        json={"employee_number": "TEST00753", "password": "Created-User"},
+    )
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["message"] == "Authenticated"
+    assert data["token"] is not None
+    assert data["auth_group"] == "employee"
+    assert data["password_must_change"] is True
 
 
 def test_employees_create_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
