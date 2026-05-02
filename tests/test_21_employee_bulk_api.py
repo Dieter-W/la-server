@@ -4,9 +4,12 @@ import sys
 import subprocess
 
 import unicodedata
+from pathlib import Path
 from urllib.parse import quote
 
 from test_utils import _login_as_admin
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 employee_check = {
     "first_name": "Peter",
@@ -44,8 +47,10 @@ def test_bulk_import_employees_create(client,): # fmt: skip
         ],
         capture_output=True,
         text=True,
+        cwd=str(_REPO_ROOT),
+        check=False,
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, result.stderr
 
     # Query all
     response = client.get("/api/employees")
@@ -58,37 +63,19 @@ def test_bulk_import_employees_create(client,): # fmt: skip
     assert len(data["employees"]) == 4
     assert data["count"] == 4
 
-    assert any(
-        _nfc(employee_data["first_name"]) == _nfc(employee_check["first_name"])
-        for employee_data in data["employees"]
-    )
-    assert any(
-        _nfc(employee_data["last_name"]) == _nfc(employee_check["last_name"])
-        for employee_data in data["employees"]
-    )
-    assert any(
-        employee_data["employee_number"] == employee_check["employee_number"]
-        for employee_data in data["employees"]
-    )
-    assert any(
-        _nfc(employee_data["role"]) == _nfc(employee_check["role"])
-        for employee_data in data["employees"]
-    )
-    assert any(
-        employee_data["active"] is employee_check["active"]
-        for employee_data in data["employees"]
-    )
-    assert any(
-        employee_data["notes"] == employee_check["notes"]
-        for employee_data in data["employees"]
-    )
+    by_number = {e["employee_number"]: e for e in data["employees"]}
+    peter = by_number[employee_check["employee_number"]]
+    assert _nfc(peter["first_name"]) == _nfc(employee_check["first_name"])
+    assert _nfc(peter["last_name"]) == _nfc(employee_check["last_name"])
+    assert _nfc(peter["role"]) == _nfc(employee_check["role"])
+    assert peter["active"] is employee_check["active"]
+    assert peter["notes"] == employee_check["notes"]
 
 
 # ---------------------------------------------------------------------
 # Employees bulk update with API check
 # ---------------------------------------------------------------------
-def test_bulk_import_employees_update(client, sample_authentication, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_bulk_import_employees_update(client,): # fmt: skip
 
     # Bulk insert
     result = subprocess.run(
@@ -99,10 +86,16 @@ def test_bulk_import_employees_update(client, sample_authentication, sample_empl
         ],
         capture_output=True,
         text=True,
+        cwd=str(_REPO_ROOT),
+        check=False,
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, result.stderr
 
     # Update the bulk input ...
+    token = _login_as_admin(
+        client,
+    )
+
     employee_number = employee_check["employee_number"]
     response = client.put(
         f"/api/employees/{quote(employee_number, safe='')}",
@@ -132,14 +125,17 @@ def test_bulk_import_employees_update(client, sample_authentication, sample_empl
         ],
         capture_output=True,
         text=True,
+        cwd=str(_REPO_ROOT),
+        check=False,
     )
+    assert result.returncode == 0, result.stderr
 
     # Check if the original content again available
     employee_number = employee_check["employee_number"]
     response2 = client.get(f"/api/employees/{quote(employee_number, safe='')}")
-    if response.status_code != 200:
-        print(response.text)
-    assert response.status_code == 200
+    if response2.status_code != 200:
+        print(response2.text)
+    assert response2.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
     assert len(data2) == 10
