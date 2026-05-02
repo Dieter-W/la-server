@@ -6,10 +6,10 @@ import os
 from flask import Blueprint, jsonify, request, g
 from stdnum.iso7064 import mod_97_10
 
-from app.errors import APIError
-from app.models import Company, Employee, JobAssignment
-
 from app.auth.decorations import admin_required
+from app.auth.utils import hash_password, verify_access_group
+from app.errors import APIError
+from app.models import Authentication, Company, Employee, JobAssignment
 
 employees_bp = Blueprint("employees", __name__)
 
@@ -50,13 +50,17 @@ def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
     if not data or not isinstance(data, dict):
         return False, "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
-    required = ("first_name", "last_name", "employee_number", "role")
+    required = ("first_name", "last_name", "employee_number", "role", "auth_group")
     for field in required:
         val = data.get(field)
         if val is None or (isinstance(val, str) and not val.strip()):
             return False, "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
     valid, err = _validate_checksum(data.get("employee_number"))
+    if not valid:
+        return False, (f"{err}_IN_JSON")
+
+    valid, err = verify_access_group(data.get("auth_group").strip().lower())
     if not valid:
         return False, (f"{err}_IN_JSON")
 
@@ -160,6 +164,11 @@ def create_employee():
             role=data["role"].strip(),
             active=data.get("active", True),
             notes=data.get("notes") or None,
+            authentication=Authentication(
+                auth_group=data["auth_group"].strip().lower(),
+                password_must_change=True,
+                password_hash=hash_password(data["last_name"].strip()),
+            ),
         )
 
         g.db.add(emp)
