@@ -81,6 +81,125 @@ def test_validate_authenticate_payload_error_6(client, sample_company, sample_em
     assert data["error"] == "EMPLOYEE_NUMBER_WRONG_IN_JSON"
 
 
+# ---------------------------------------------------------------------
+# validate_set_password_payload function
+# ---------------------------------------------------------------------
+def test_validate_set_auth_group_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+    response = client.post(
+        "/api/auth/set-auth-group",
+        headers={"Authorization": f"Bearer {token}"},
+        json="{wrong = JSON}",
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
+
+
+def test_validate_set_auth_group_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/auth/set-auth-group",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "employee_number": "TEST",
+        },
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_set_auth_group_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/auth/set-auth-group",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"auth_group": "TEST"},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+
+
+def test_validate_set_auth_group_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/auth/set-auth-group",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"employee_number": "", "auth_group": "TEST"},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+
+def test_validate_set_auth_group_payload_error_5(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/auth/set-auth-group",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"employee_number": "TEST", "auth_group": ""},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+
+def test_validate_set_auth_group_payload_error_6(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+    response = client.post(
+        "/api/auth/set-auth-group",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"employee_number": "Wrong", "auth_group": "TEST"},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "EMPLOYEE_NUMBER_WRONG_IN_JSON"
+
+def test_validate_set_auth_group_payload_error_7(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    response = client.post(
+        "/api/auth/set-auth-group",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "employee_number": "TEST00753",
+            "auth_group": "Wrong",
+        },
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_AUTH_GROUP_IN_JSON"
+
+# ---------------------------------------------------------------------
+# validate_set_password_payload function
+# ---------------------------------------------------------------------
 def test_validate_set_password_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_employee(
         client,
@@ -382,6 +501,95 @@ def test_me_error_4(client, sample_authentication, sample_employee,):  # fmt: sk
     data = response.get_json()
     assert data["error"] == "EXPIRED_TOKEN"
     assert data["message"] == "Missing Authorization Header"
+
+
+# ---------------------------------------------------------------------
+# Authentication Set Auth Group API
+# ---------------------------------------------------------------------
+def test_set_auth_group_ok(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/auth/set-auth-group",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "employee_number": "A00265",
+            "auth_group": "employee",
+        },
+    )
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["message"] == "Auth group set"
+    assert data["auth_group"] == "employee"
+    assert data["employee_number"] == "A00265"
+
+
+def test_set_auth_group_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/auth/set-auth-group",
+        headers={"Authorization": f"Bearer {token}-invalid-token"},
+        json={
+            "employee_number": "A00265",
+            "auth_group": "employee",
+        },
+    )
+    if response.status_code != 422:
+        print(response.text)
+    assert response.status_code == 422
+    data = response.get_json()
+    assert data["error"] == "INVALID_TOKEN"
+    assert data["message"] == "Invalid crypto padding"
+
+
+def test_set_auth_group_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token= _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    employee_number = "Test00753"
+    response = client.post(
+        "/api/auth/set-auth-group",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "employee_number": employee_number,
+            "auth_group": "employee",
+        },
+    )
+    if response.status_code != 404:
+        print(response.text)
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data["error"] == "EMPLOYEE_NOT_FOUND"
+
+
+def test_set_auth_group_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+    employee_number = "A00265"
+    response = client.put(
+        f"/api/employees/{employee_number}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"active": False},
+    )
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+
+    response = client.post(
+        "/api/auth/set-auth-group",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "employee_number": employee_number,
+            "auth_group": "employee",
+        },
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "EMPLOYEE_NOT_ACTIVE"
 
 
 # ---------------------------------------------------------------------

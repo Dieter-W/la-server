@@ -9,7 +9,7 @@ from flask_jwt_extended import get_jwt, get_jwt_identity
 
 from stdnum.iso7064 import mod_97_10
 
-from app.auth.decorations import staff_required, employee_required
+from app.auth.decorations import admin_required, staff_required, employee_required
 from app.errors import APIError
 from app.models import Authentication, Company, Employee, JobAssignment
 from app.auth.utils import (
@@ -17,6 +17,7 @@ from app.auth.utils import (
     create_refresh_token,
     hash_password,
     verify_password,
+    verify_access_group,
 )
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api")
@@ -66,6 +67,28 @@ def _validate_authenticate_payload(data: Any) -> tuple[bool, str]:
             return False, "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
     valid, err = _validate_checksum(data.get("employee_number"))
+    if not valid:
+        return False, (f"{err}_IN_JSON")
+
+    return True, None
+
+
+def _validate_set_auth_group_payload(data: Any) -> tuple[bool, str]:
+    """Validate the payload for the reset password endpoint."""
+    if data is None or not isinstance(data, dict):
+        return False, "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
+
+    required = ("employee_number", "auth_group")
+    for field in required:
+        val = data.get(field)
+        if val is None or (isinstance(val, str) and not val.strip()):
+            return False, "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
+
+    valid, err = _validate_checksum(data.get("employee_number"))
+    if not valid:
+        return False, (f"{err}_IN_JSON")
+
+    valid, err = verify_access_group(data.get("auth_group"))
     if not valid:
         return False, (f"{err}_IN_JSON")
 
@@ -197,6 +220,55 @@ def me():
 
         logger.debug(f"User: {employee_number}, with auth group: {auth_group}")
         return jsonify(_employee_to_dict(emp, company_name, auth_group)), 200
+
+
+# ---------------------------------------------------------------------
+# Authentication Set auth group API
+# ---------------------------------------------------------------------
+@auth_bp.route("/auth/set-auth-group", methods=["POST"])
+@admin_required
+def set_auth_group():
+    """Set the auth group for the current user."""
+    data = request.get_json(silent=True)
+    valid, err = _validate_set_auth_group_payload(data)
+    if not valid:
+        raise APIError(err, 400)
+
+    employee_number = data.get("employee_number")
+    auth_group = data.get("auth_group")
+
+    claims = get_jwt()
+    admin_employee_number = claims.get("employee_number")
+
+    with g.db.begin():
+        auth_employee = (
+            g.db.query(Authentication)
+            .join(Employee, Authentication.employee_id == Employee.id)
+            .filter(Employee.employee_number == employee_number)
+            .first()
+        )
+        if auth_employee is None:
+            raise APIError("EMPLOYEE_NOT_FOUND", 404)
+
+        if auth_employee.employee.active is False:
+            raise APIError("EMPLOYEE_NOT_ACTIVE", 400)
+
+        auth_employee.auth_group = auth_group
+        g.db.flush()
+
+    logger.info(
+        f"Set auth group: {auth_group} for employee number: {employee_number} by admin employee number: {admin_employee_number}"
+    )
+    return (
+        jsonify(
+            {
+                "message": "Auth group set",
+                "auth_group": auth_group,
+                "employee_number": employee_number,
+            }
+        ),
+        200,
+    )
 
 
 # ---------------------------------------------------------------------
