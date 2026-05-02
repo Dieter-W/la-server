@@ -145,7 +145,7 @@ def sample_authentication(
         authentication = Authentication(
             employee_id=4,  # P00370
             password_hash=hash_password("Krause"),
-            password_must_change=False,
+            password_must_change=True,
             auth_group="admin",
             notes="Created by test script",
         )

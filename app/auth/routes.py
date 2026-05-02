@@ -46,14 +46,6 @@ def _employee_to_dict(emp: Employee, comp_name, auth_group) -> dict:
     }
 
 
-def verify_access_group(access_group: str) -> tuple[bool, str | None]:
-    """Verify if the access group is valid."""
-    if access_group not in ["employee", "staff", "admin"]:
-        return False, "INVALID_AUTH_GROUP"
-
-    return True, None
-
-
 def _validate_checksum(emp_num: str) -> tuple[bool, str | None]:
     """Validate the employee number. Returns (valid, error_message)."""
     if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(emp_num):

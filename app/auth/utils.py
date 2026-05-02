@@ -35,3 +35,11 @@ def create_refresh_token(identity, additional_claims=None):
     return jwt_create_refresh_token(
         identity=str(identity), additional_claims=additional_claims
     )
+
+
+def verify_access_group(access_group: str) -> tuple[bool, str | None]:
+    """Verify if the access group is valid."""
+    if access_group not in ["employee", "staff", "admin"]:
+        return False, "INVALID_AUTH_GROUP"
+
+    return True, None

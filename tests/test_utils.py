@@ -6,7 +6,7 @@ from flask_jwt_extended import create_access_token
 # ---------------------------------------------------------------------
 # Login as employee, staff, admin functions
 # ---------------------------------------------------------------------
-def _login_as_employee(client, sample_authentication, sample_employee,) -> str: # fmt: skip
+def _login_as_employee(client, sample_authentication = None, sample_employee=None,) -> str: # fmt: skip
     response = client.post(
         "/api/auth/login",
         json={"employee_number": "M00252", "password": "Mustermann"},
@@ -22,7 +22,7 @@ def _login_as_employee(client, sample_authentication, sample_employee,) -> str: 
 
     return data["token"]
 
-def _login_as_staff(client, sample_authentication, sample_employee,) -> str: # fmt: skip
+def _login_as_staff(client, sample_authentication = None, sample_employee=None,) -> str: # fmt: skip
     response = client.post(
         "/api/auth/login",
         json={"employee_number": "A00265", "password": "Schmidt"},
@@ -38,7 +38,7 @@ def _login_as_staff(client, sample_authentication, sample_employee,) -> str: # f
 
     return data["token"]
 
-def _login_as_admin(client, sample_authentication, sample_employee,) -> str: # fmt: skip
+def _login_as_admin(client, sample_authentication = None, sample_employee=None,) -> str:  # fmt: skip
     response = client.post(
         "/api/auth/login",
         json={"employee_number": "P00370", "password": "Krause"},
@@ -50,7 +50,7 @@ def _login_as_admin(client, sample_authentication, sample_employee,) -> str: # f
     assert data["message"] == "Authenticated"
     assert data["token"] is not None
     assert data["auth_group"] == "admin"
-    assert data["password_must_change"] is False
+    assert data["password_must_change"] is True
 
     return data["token"]
 
