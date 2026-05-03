@@ -17,7 +17,7 @@ def test_bulk_import_employees_create(app, db_session):
         [
             sys.executable,
             "./scripts/bulk_import_employees.py",
-            "employees_sample.csv",
+            "./data/csv-example/employees_sample.csv",
         ],
         capture_output=True,
         text=True,
@@ -37,7 +37,7 @@ def test_bulk_import_employees_update(app, db_session):
         [
             sys.executable,
             "./scripts/bulk_import_employees.py",
-            "employees_sample.csv",
+            "./data/csv-example/employees_sample.csv",
         ],
         capture_output=True,
         text=True,
@@ -53,7 +53,7 @@ def test_bulk_import_employees_update(app, db_session):
         [
             sys.executable,
             "./scripts/bulk_import_employees.py",
-            "employees_sample.csv",
+            "./data/csv-example/employees_sample.csv",
         ],
         capture_output=True,
         text=True,
