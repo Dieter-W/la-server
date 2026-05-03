@@ -18,7 +18,7 @@ By default the server listens on **`http://localhost:5000`**. In deployment, use
 
 As a **client developer**, you are responsible for the sign-in experience, for **keeping tokens safe**, and for **attaching the right credential on every API call** that requires it. The camp issues accounts (linked to a participant and a company in the server’s data model; see [`app/models.py`](../app/models.py)); your app collects the user name and password only during sign-in and password flows, not on ordinary data requests.
 
-**What the JWT is (short):** after a successful sign-in, the server can return a **JSON Web Token (JWT)**—a signed string that encodes who the user is, which **company** the session belongs to, the **app permission role** (one of three fixed levels, not the same as the descriptive camp “role” on the participant record), and an **expiry** time. You store that string and send it back when you call the API; you do not parse or change the payload yourself.
+**What the JWT is (short):** after a successful sign-in, the server returns an opaque **JSON Web Token (JWT)** in the `token` field. Claims include **`auth_group`** (`employee`, `staff`, or `admin`—not the descriptive camp **`role`** on the participant) and **`employee_number`**, plus **expiry**. Company and full profile fields come from API responses (for example **`GET /api/auth/me`**), not from decoding the token yourself. Store the string and send it back on protected routes; do not modify the payload.
 
 **What you do on a normal API call**
 
@@ -27,25 +27,92 @@ As a **client developer**, you are responsible for the sign-in experience, for *
    `Authorization: Bearer <your_access_token>`
    (replace `<your_access_token>` with the stored JWT string, no quotes). Omit this header only for calls that the server documents as public (for example some health checks).
 3. **Do not** send the user’s password on regular CRUD calls—only where the server explicitly expects it (sign-in, password set/change, etc., when those flows are documented).
-4. If the server responds with an **authentication error** (for example missing/invalid/expired token), **obtain a new access token** the way your integration supports (refresh flow if provided, otherwise send the user through sign-in again), update storage, and **retry the request** with the new `Authorization` header.
+4. If the server responds with an **authentication error** (for example missing/invalid/expired token), obtain a **new** `token` via **`POST /api/auth/refresh`** while the current JWT is still accepted, or send the user through sign-in again; update storage and **retry** with the new `Authorization` header. If the JWT is **already expired**, refresh typically fails—**sign in again** to get a new `token`.
 
-**Sign-in and token storage:** when sign-in succeeds, persist the access token (and a refresh token, if the server returns one) in **secure storage** for your platform (not plain logs, not easy-to-read app bundles). Keep using the access token until it expires or the server rejects it.
+**Sign-in and token storage:** when sign-in succeeds, **`POST /api/auth/login`** returns a single opaque JWT string in **`token`** (no separate refresh field in that response). Persist it in **secure storage** for your platform (not plain logs, not easy-to-read app bundles). To rotate credentials before expiry, use **`POST /api/auth/refresh`** while the current JWT is still valid; it returns a new **`token`** string (different lifetime per server config—see [`app/config.py`](../app/config.py)). Replace the stored value after refresh or re-login.
 
 **Expiry:** access tokens are usually short-lived. Your app should treat expiration as normal: refresh or re-login, then continue calling the API with a fresh `Authorization: Bearer …` header.
 
 **Sign-out:** clear all stored tokens from the device and return the user to the sign-in screen. Unless the server documents a separate revoke step, assume the main effect is on the client side.
 
-**Password changes:** the camp may reset an account or ask the user to set a password the first time; changing an existing password should still require the old password when the account is already active. After a successful password flow, the server may issue new tokens—replace your stored JWTs accordingly.
+**Password changes:** the camp may reset an account or ask the user to set a password the first time; changing an existing password should still require the old password when the account is already active. After a successful password flow, the server may issue new tokens—replace your stored JWTs accordingly. Password checks use the same **case-insensitive** comparison as sign-in ([`hash_password` / `verify_password` in `app/auth/utils.py`](../app/auth/utils.py)); use lowercase when testing to avoid surprises.
 
 **Deployment note:** some environments may still rely on a private network or proxy in addition to JWTs. Your integration should still follow the header rule above whenever the server expects a bearer token.
+
+### Example: sign-in and `GET /api/auth/me`
+
+Use a real **employee number** (with valid ISO 7064 Mod 97,10 checksum when `VALIDATE_CHECK_SUM` is on; see [employee-numbers.md](./employee-numbers.md)) and base URL.
+
+**1. Sign in** — `POST /api/auth/login` with JSON `employee_number` and `password`. The response includes `token` (the access JWT).
+
+```http
+POST /api/auth/login HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+
+{"employee_number": "M00155", "password": "your-password"}
+```
+
+```bash
+curl -s -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"employee_number":"M00155","password":"your-password"}'
+```
+
+**JSON response** (success)
+
+```json
+{
+  "message": "Authenticated",
+  "token": "<jwt-access-token>",
+  "auth_group": "employee",
+  "password_must_change": false
+}
+```
+
+Store `token` securely; use it as `Bearer` on subsequent requests.
+
+**2. Current user** — `GET /api/auth/me` with the access token:
+
+```http
+GET /api/auth/me HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+TOKEN="<paste-token-from-login>"
+curl -s http://localhost:5000/api/auth/me \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**JSON response** (success — fields match the employee record plus session `auth_group`)
+
+```json
+{
+  "id": 1,
+  "first_name": "Ada",
+  "last_name": "Example",
+  "employee_number": "M00155",
+  "role": "participant",
+  "company": "Example Co",
+  "active": true,
+  "notes": null,
+  "created_at": "2025-06-01T10:00:00",
+  "updated_at": "2025-06-01T10:00:00",
+  "auth_group": "employee"
+}
+```
 
 ## Errors and status codes
 
 - Most validation and not-found cases use response body `{"error": "<CODE>"}` and an HTTP status (often `400`, `404`).
 - Database constraint issues may return `**409`** with `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` (duplicate / unique violation) or `{"error": "CONSTRAINT_VIOLATION", "message": "Delete failed, because related entries in JobAssignment table"}` (delete blocked by related rows), as implemented in [`app/errors.py`](../app/errors.py).
-- Uncaught DB errors: `**500**` with `DATABASE_ERROR`.
+- Uncaught DB errors: `**500**` with `DATABASE_ERROR` and a `message` field. Unhandled exceptions: `**500**` with `INTERNAL_SERVER_ERROR` and `message`, per [`app/errors.py`](../app/errors.py).
 
-Common `error` codes include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, and variants with `_IN_JSON` where applicable.
+**Common error codes** include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, `BAD_CREDENTIALS`, `FORBIDDEN_WRONG_AUTH_GROUP`, `OLD_PASSWORD_IS_INCORRECT`, `AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`, and variants with `_IN_JSON` where applicable.
+
+JWT errors from Flask-JWT-Extended (`AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`) also include a `message` field next to `error`; see the loaders in [`app/__init__.py`](../app/__init__.py).
 
 For **village / Spielstadt config** endpoints: `VILLAGE_DATA_NOT_FOUND` (missing `village_data/village.ini`), `VILLAGE_LOGO_NOT_CONFIGURED` / `VILLAGE_FAVICON_NOT_CONFIGURED` (INI lacks the key under `[images]`), `FILE_NOT_FOUND` (path in INI points to a file that does not exist on disk), `INVALID_FILE_PATH` (unsafe or absolute path in INI), `VILLAGE_DATA_INVALID` (INI parse failure on the server).
 
@@ -57,38 +124,66 @@ When `VALIDATE_CHECK_SUM=true` in `.env` (default), employee numbers must satisf
 
 ## Endpoint index
 
+In the table, **Authorization** is shorthand for:
 
-| Method | Path                                     | Summary                             |
-| ------ | ---------------------------------------- | ----------------------------------- |
-| GET    | `/api/health`                            | Liveness                            |
-| GET    | `/api/health/db`                         | Database connectivity               |
-| GET    | `/api/health/runtime`                    | Pool, peaks, redacted DB (no customer data) |
-| GET    | `/api/companies`                         | List companies                      |
-| GET    | `/api/companies/<company_name>`          | Get one company                     |
-| POST   | `/api/companies`                         | Create company                      |
-| PUT    | `/api/companies/<company_name>`          | Update company                      |
-| DELETE | `/api/companies/<company_name>`          | Delete company                      |
-| GET    | `/api/employees`                         | List employees                      |
-| GET    | `/api/employees/<employee_number>`       | Get one employee                    |
-| POST   | `/api/employees`                         | Create employee                     |
-| PUT    | `/api/employees/<employee_number>`       | Update employee                     |
-| DELETE | `/api/employees/<employee_number>`       | Soft or hard delete employee        |
-| GET    | `/api/job-assignments`                   | List job assignments                |
-| POST   | `/api/job-assignments`                   | Create job assignment               |
-| DELETE | `/api/job-assignments/<employee_number>` | Remove assignment for employee      |
-| POST   | `/api/job-assignments/reset`             | Reset assignments (optional filter) |
-| GET    | `/api/village-data`                      | Spielstadt config JSON (`village.ini`) |
-| GET    | `/api/village-data/logo`                 | Logo image (path from INI)         |
-| GET    | `/api/village-data/favicon`             | Favicon image (path from INI)      |
+- **public** — no sign-in needed.
+- **employee or higher** — signed in as a camp participant (any normal login).
+- **staff or higher** — signed in as staff or admin.
+- **admin required** — signed in as an admin.
+
+If an admin changes another person’s access (`POST /api/auth/set-auth-group`), that person should **sign in again** so the app remembers the new permissions.
+
+**List endpoints (no pagination):** `GET /api/companies`, `GET /api/employees`, and `GET /api/job-assignments` return the **full** result set in one response (no `limit`/`offset`). Plan accordingly for large datasets or future API versions.
+
+| Method | Path                                     | Summary                                     | Authorization                    |
+| ------ | ---------------------------------------- | ------------------------------------------- | -------------------------------- |
+| GET    | `/api/health`                            | Liveness                                    | public                           |
+| GET    | `/api/health/db`                         | Database connectivity                       | public                           |
+| GET    | `/api/health/runtime`                    | Pool, peaks, redacted DB (no customer data) | admin required                   |
+| POST   | `/api/auth/login`                        | Sign in                                     | public                           |
+| POST   | `/api/auth/set-auth-group`               | Change another user’s permission level      | admin required                   |
+| GET    | `/api/auth/me`                           | Current employee profile                    | employee or higher               |
+| POST   | `/api/auth/password/set-password`        | Change password                             | employee or higher               |
+| POST   | `/api/auth/password/reset-password`      | Reset password to initial value             | staff or higher                  |
+| POST   | `/api/auth/refresh`                      | Refresh session token                       | employee or higher               |
+| POST   | `/api/auth/logout`                       | Logout                                      | employee or higher               |
+| GET    | `/api/companies`                         | List companies                              | public                           |
+| GET    | `/api/companies/<company_name>`          | List one company                            | public                           |
+| POST   | `/api/companies`                         | Create company                              | admin required                   |
+| PUT    | `/api/companies/<company_name>`          | Update company                              | admin required                   |
+| DELETE | `/api/companies/<company_name>`          | Delete company                              | admin required                   |
+| GET    | `/api/employees`                         | List employees                              | public                           |
+| GET    | `/api/employees/<employee_number>`       | List one employee                           | public                           |
+| POST   | `/api/employees`                         | Create employee                             | admin required                   |
+| PUT    | `/api/employees/<employee_number>`       | Update employee                             | admin required                   |
+| DELETE | `/api/employees/<employee_number>`       | Soft or hard delete employee                | admin required                   |
+| GET    | `/api/job-assignments`                   | List job assignments                        | public                           |
+| POST   | `/api/job-assignments`                   | Create job assignment                       | employee or higher               |
+| DELETE | `/api/job-assignments/<employee_number>` | Remove assignment for employee              | employee or higher               |
+| POST   | `/api/job-assignments/reset`             | Reset assignments (optional filter)         | admin required                   |
+| GET    | `/api/village-data`                      | Spielstadt config JSON (`village.ini`)      | public                           |
+| GET    | `/api/village-data/logo`                 | Logo image (path from INI)                  | public                           |
+| GET    | `/api/village-data/favicon`              | Favicon image (path from INI)               | public                           |
+| GET    | `/api/openapi.json`                       | OpenAPI 3.0 schema (machine-readable)      | public                           |
+| GET    | `/api/docs`                               | Swagger UI (interactive explorer)         | public                           |
 
 
-Each operation below uses the same blocks: **Explanation**, **Parameters**, **Endpoint sample**, **JSON request** (if any), **JSON response** (if any), **HTTP status codes**.
+## OpenAPI / Swagger
+
+- **`GET /api/openapi.json`** — OpenAPI 3.0 document generated from [`app/openapi_spec.py`](../app/openapi_spec.py).
+- **`GET /api/docs`** — Swagger UI in the browser (UI assets from a CDN). Use **Authorize** with the JWT value returned from **`POST /api/auth/login`** (paste the token only; Swagger UI adds the `Bearer` prefix for the `bearerAuth` scheme).
+
+Operation summaries and security in the spec mirror this guide; exact JSON bodies, status codes, and error `error` codes are documented in the sections below.
+
+Each operation below uses the same blocks: **Explanation**, **Parameters**, **Endpoint sample**, **JSON request** (if any), **JSON response** (if any), **HTTP status codes**. When the index marks a route as **employee or higher**, **staff or higher**, or **admin required**, add **`Authorization: Bearer <token>`** (see [**Authentication**](#authentication)); many samples below already show that header—if one omits it, add it when the route is protected.
+
+
 
 ---
 
 ## Health
 
-The `GET /api/health` and `GET /api/health/db` APIs are for client developers to validate the communication with the server works correct.  The third API (`GET /api/health/runtime`) provides runtime information, which are usually not needed by a client developer.
+The `GET /api/health` and `GET /api/health/db` APIs are for client developers to validate the communication with the server works **correctly**. The third API (`GET /api/health/runtime`) provides runtime information, which **is** usually not needed by a client developer.
 
 ### `GET /api/health`
 
@@ -187,6 +282,8 @@ None.
 **Explanation**
 Returns **operational** JSON for debugging and monitoring: process/runtime facts (Python version, platform, PID, app uptime), non-secret config flags (`DEBUG`, `TESTING`, `LOG_LEVEL`), a **password-redacted** database URL summary (host, port, database name, driver), SQLAlchemy **connection pool** statistics, and **`concurrency`**: process-local **historic peaks** for pool checkouts (parallel DB connections) and for Flask requests that have entered the per-request DB session lifecycle (`active` / `max_historic` each). Counts reset when the process restarts. It does **not** expose customer or business data.
 
+**Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
+
 **Privacy / deployment**
 The response still reveals infrastructure details (for example DB host and database name). Use on trusted networks or behind a reverse proxy if you do not want that metadata publicly reachable.
 
@@ -198,10 +295,12 @@ None.
 ```http
 GET /api/health/runtime HTTP/1.1
 Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
 ```
 
 ```bash
-curl -s http://localhost:5000/api/health/runtime
+curl -s http://localhost:5000/api/health/runtime \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 **JSON request**
@@ -251,11 +350,276 @@ None.
 | Code | Meaning |
 | ---- | ------- |
 | 200  | OK      |
+| 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
+
+Missing or invalid JWT behavior matches [Errors and status codes](#errors-and-status-codes).
 
 
 ---
 
-## Authentication
+## Auth API
+
+`POST /api/auth/login` and `GET /api/auth/me` are documented under [Authentication](#authentication) (example subsection). Other auth routes expect `Authorization: Bearer <token>` when the endpoint index marks them as protected.
+
+---
+
+### `POST /api/auth/set-auth-group`
+
+**Explanation**
+Admin updates another user’s app permission `auth_group` (`employee`, `staff`, or `admin`). The target employee must exist and be active. The affected user should sign in again so their JWT reflects the new group.
+
+**Parameters**
+None (JSON body).
+
+**Endpoint sample**
+
+```http
+POST /api/auth/set-auth-group HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X POST http://localhost:5000/api/auth/set-auth-group \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"employee_number":"M00155","auth_group":"staff"}'
+```
+
+**JSON request**
+
+| Field              | Required | Type   | Description                                      |
+| ------------------ | -------- | ------ | ------------------------------------------------ |
+| `employee_number`  | Yes      | string | Target participant (`employee_number`)           |
+| `auth_group`       | Yes      | string | One of `employee`, `staff`, `admin`           |
+
+Example:
+
+```json
+{
+  "employee_number": "M00155",
+  "auth_group": "staff"
+}
+```
+
+**JSON response** (success)
+
+```json
+{
+  "message": "Auth group set",
+  "auth_group": "staff",
+  "employee_number": "M00155"
+}
+```
+
+**HTTP status codes**
+
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 400  | Validation errors, checksum / `INVALID_AUTH_GROUP_IN_JSON`, or `{"error": "EMPLOYEE_NOT_ACTIVE"}` |
+| 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (caller is not admin) |
+| 404  | Error: `{"error": "EMPLOYEE_NOT_FOUND"}` |
+
+
+---
+
+### `POST /api/auth/password/set-password`
+
+**Explanation**
+Signed-in user changes their own password. `old_password` must match the stored hash; `new_password` replaces it. Sets `password_must_change` to false.
+
+**Parameters**
+None (JSON body).
+
+**Endpoint sample**
+
+```http
+POST /api/auth/password/set-password HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X POST http://localhost:5000/api/auth/password/set-password \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"old_password":"current","new_password":"next"}'
+```
+
+**JSON request**
+
+| Field           | Required | Type   | Description        |
+| --------------- | -------- | ------ | ------------------ |
+| `old_password`  | Yes      | string | Current password   |
+| `new_password`  | Yes      | string | New password       |
+
+**JSON response** (success)
+
+```json
+{
+  "message": "Password set"
+}
+```
+
+**HTTP status codes**
+
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 400  | Error: `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}` or `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}` |
+| 403  | Error: `{"error": "OLD_PASSWORD_IS_INCORRECT"}` |
+| 404  | Error: `{"error": "EMPLOYEE_NOT_FOUND"}` |
+| 400  | Error: `{"error": "EMPLOYEE_NOT_ACTIVE"}` |
+
+
+---
+
+### `POST /api/auth/password/reset-password`
+
+**Explanation**
+Staff or admin resets another user’s password to a hash of that user’s **`last_name`** (same rules as [`hash_password`](../app/auth/utils.py) / login: comparison is case-insensitive for verification). Sets `password_must_change` to true so the user must pick a new password via `set-password`. This reproduces the **same initial-password rule** as **new accounts**: admin **`POST /api/employees`** and the **CSV bulk import** script also store the initial hash from **`last_name`** and set `password_must_change` to true, so a reset behaves like a freshly created or re-imported participant for login purposes.
+
+**Parameters**
+None (JSON body).
+
+**Endpoint sample**
+
+```http
+POST /api/auth/password/reset-password HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X POST http://localhost:5000/api/auth/password/reset-password \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"employee_number":"M00155"}'
+```
+
+**JSON request**
+
+| Field              | Required | Type   | Description                            |
+| ------------------ | -------- | ------ | -------------------------------------- |
+| `employee_number`  | Yes      | string | Target participant                     |
+
+**JSON response** (success)
+
+```json
+{
+  "message": "Password reset"
+}
+```
+
+**HTTP status codes**
+
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 400  | Error: `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}` or `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}` or `EMPLOYEE_NUMBER_WRONG_IN_JSON` |
+| 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (caller is not staff or admin) |
+| 404  | Error: `{"error": "EMPLOYEE_NOT_FOUND"}` |
+
+
+---
+
+### `POST /api/auth/refresh`
+
+**Explanation**
+Issued while the current JWT is still valid. Returns a new JWT in `token` for the same identity and claims (`employee_number`, `auth_group`); store it and send it as `Bearer` on later calls.
+
+**Parameters**
+None.
+
+**Endpoint sample**
+
+```http
+POST /api/auth/refresh HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X POST http://localhost:5000/api/auth/refresh \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**JSON request**
+None.
+
+**JSON response** (success)
+
+```json
+{
+  "message": "Token refreshed",
+  "token": "<new-jwt>",
+  "employee_number": "M00155"
+}
+```
+
+**HTTP status codes**
+
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 404  | Error: `{"error": "EMPLOYEE_NOT_FOUND"}` |
+| 400  | Error: `{"error": "EMPLOYEE_NOT_ACTIVE"}` |
+
+JWT handling errors (missing/invalid/expired token, wrong `auth_group`) match [Errors and status codes](#errors-and-status-codes).
+
+
+---
+
+### `POST /api/auth/logout`
+
+**Explanation**
+Acknowledges logout. Response includes `token` set to the literal `INVALID-TOKEN`; clear stored tokens on the client regardless.
+
+**Parameters**
+None.
+
+**Endpoint sample**
+
+```http
+POST /api/auth/logout HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X POST http://localhost:5000/api/auth/logout \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**JSON request**
+None.
+
+**JSON response**
+
+```json
+{
+  "message": "Logged out",
+  "token": "INVALID-TOKEN"
+}
+```
+
+**HTTP status codes**
+
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+
+JWT handling errors match [Errors and status codes](#errors-and-status-codes).
+
 
 ---
 
@@ -386,7 +750,7 @@ None.
 ### `POST /api/companies`
 
 **Explanation**
-Creates a new company row.
+Creates a new company row. **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters**
 None (body is JSON).
@@ -397,11 +761,13 @@ None (body is JSON).
 POST /api/companies HTTP/1.1
 Host: localhost:5000
 Content-Type: application/json
+Authorization: Bearer <jwt-access-token>
 ```
 
 ```bash
 curl -s -X POST http://localhost:5000/api/companies \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"company_name":"Bank","jobs_max":8,"pay_per_hour":10,"active":true}'
 ```
 
@@ -450,6 +816,7 @@ Example:
 | ---- | -------------------------------------------------------------------------------------------------- |
 | 201  | Created                                                                                            |
 | 400  | Error: `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}` or `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}` |
+| 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin)                                     |
 | 409  | Error: `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` |
 
 
@@ -458,7 +825,7 @@ Example:
 ### `PUT /api/companies/<company_name>`
 
 **Explanation**
-Updates any fields present in the JSON body. Lookup is by URL `company_name` before updates (including if you rename via `company_name` in the body).
+Updates any fields present in the JSON body. Lookup is by URL `company_name` before updates (including if you rename via `company_name` in the body). **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters** (path)
 
@@ -474,11 +841,13 @@ Updates any fields present in the JSON body. Lookup is by URL `company_name` bef
 PUT /api/companies/Bank HTTP/1.1
 Host: localhost:5000
 Content-Type: application/json
+Authorization: Bearer <jwt-access-token>
 ```
 
 ```bash
 curl -s -X PUT "http://localhost:5000/api/companies/Bank" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"pay_per_hour":12}'
 ```
 
@@ -512,6 +881,7 @@ Same shape as `GET` one company (current state after update).
 | ---- | ------------------------------------------------- |
 | 200  | OK                                                |
 | 400  | Error: `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}` |
+| 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
 | 404  | Error: `{"error": "COMPANY_NOT_FOUND"}`                  |
 | 409  | Error: `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` |
 
@@ -521,7 +891,7 @@ Same shape as `GET` one company (current state after update).
 ### `DELETE /api/companies/<company_name>`
 
 **Explanation**
-Permanently deletes the company. Fails if foreign keys still reference it (e.g. job assignments).
+Permanently deletes the company. Fails if foreign keys still reference it (e.g. job assignments). **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters** (path)
 
@@ -536,10 +906,12 @@ Permanently deletes the company. Fails if foreign keys still reference it (e.g. 
 ```http
 DELETE /api/companies/Bank HTTP/1.1
 Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
 ```
 
 ```bash
-curl -s -X DELETE "http://localhost:5000/api/companies/Bank"
+curl -s -X DELETE "http://localhost:5000/api/companies/Bank" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 **JSON request**
@@ -559,6 +931,7 @@ None.
 | Code | Meaning                                             |
 | ---- | --------------------------------------------------- |
 | 200  | Deleted                                             |
+| 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
 | 404  | Error: `{"error": "COMPANY_NOT_FOUND"}`                    |
 | 409  | Error: `{"error": "CONSTRAINT_VIOLATION", "message": "Delete failed, because related entries in JobAssignment table"}` |
 
@@ -701,7 +1074,7 @@ None.
 ### `POST /api/employees`
 
 **Explanation**
-Creates a camp participant (employee record). Validates checksum on `employee_number` when enabled.
+Creates a camp participant (employee record). Validates checksum on `employee_number` when enabled. The server stores an **`Authentication`** row: **`auth_group`** from JSON, **`password_must_change`** `true`, and an initial password hash from **`last_name`** (same scheme as staff **reset-password**—sign-in compares passwords case-insensitively). **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters**
 None.
@@ -712,12 +1085,14 @@ None.
 POST /api/employees HTTP/1.1
 Host: localhost:5000
 Content-Type: application/json
+Authorization: Bearer <jwt-access-token>
 ```
 
 ```bash
 curl -s -X POST http://localhost:5000/api/employees \
   -H "Content-Type: application/json" \
-  -d '{"first_name":"Max","last_name":"Mustermann","employee_number":"M00155","role":"Betreuer"}'
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"first_name":"Max","last_name":"Mustermann","employee_number":"M00155","role":"Betreuer","auth_group":"staff"}'
 ```
 
 **JSON request**
@@ -728,7 +1103,8 @@ curl -s -X POST http://localhost:5000/api/employees \
 | `first_name`      | Yes      |                               |
 | `last_name`       | Yes      |                               |
 | `employee_number` | Yes      | Unique; checksum when enabled |
-| `role`            | Yes      |                               |
+| `role`            | Yes      | Descriptive camp role (not app permission) |
+| `auth_group`      | Yes      | App permission: `employee`, `staff`, or `admin` |
 | `active`          | No       | Default `true` (optional)     |
 | `notes`           | No       | Notes (optional)              |
 
@@ -741,12 +1117,13 @@ Example:
   "last_name": "Mustermann",
   "employee_number": "M00155",
   "role": "Betreuer",
+  "auth_group": "staff",
   "active": true,
   "notes": null
 }
 ```
 
-**JSON response** (example — `company` is empty string when none)
+**JSON response** (example — `company` is empty string when none; **`auth_group`** echoes the app permission stored for the new account; list/get employee endpoints omit `auth_group`)
 
 ```json
 {
@@ -759,7 +1136,8 @@ Example:
   "active": true,
   "notes": null,
   "created_at": "2026-01-15T10:00:00+00:00",
-  "updated_at": "2026-01-15T10:00:00+00:00"
+  "updated_at": "2026-01-15T10:00:00+00:00",
+  "auth_group": "staff"
 }
 ```
 
@@ -769,7 +1147,8 @@ Example:
 | Code | Meaning                                      |
 | ---- | -------------------------------------------- |
 | 201  | Created                                      |
-| 400  | Error: validation may return `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}`, `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}`, or `{"error": "EMPLOYEE_NUMBER_WRONG_IN_JSON"}` |
+| 400  | Error: validation may return `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}`, `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}`, `{"error": "EMPLOYEE_NUMBER_WRONG_IN_JSON"}`, or `{"error": "INVALID_AUTH_GROUP_IN_JSON"}` |
+| 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
 | 409  | Error: `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` |
 
 
@@ -778,7 +1157,7 @@ Example:
 ### `PUT /api/employees/<employee_number>`
 
 **Explanation**
-Updates fields present in the body for the camp participant identified by the path `employee_number`.
+Updates fields present in the body for the camp participant identified by the path `employee_number`. **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters** (path)
 
@@ -794,24 +1173,26 @@ Updates fields present in the body for the camp participant identified by the pa
 PUT /api/employees/M00155 HTTP/1.1
 Host: localhost:5000
 Content-Type: application/json
+Authorization: Bearer <jwt-access-token>
 ```
 
 ```bash
 curl -s -X PUT "http://localhost:5000/api/employees/M00155" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"role":"Leiter"}'
 ```
 
-**JSON request** (optional keys)
+**JSON request** (include only keys you want to change; body must be a JSON object)
 
 | Field             | Required | Description                   |
 | ----------------- | -------- | ----------------------------- |
-| `first_name`      | Yes      | (optional)                    |
-| `last_name`       | Yes      | (optional)                    |
-| `employee_number` | Yes      | (optional) Unique; checksum when enabled |
-| `role`            | Yes      | (optional)                    |
-| `active`          | No       | Default `true` (optional)     |
-| `notes`           | No       | Notes (optional)              |
+| `first_name`      | No       | Omit or set to update         |
+| `last_name`       | No       | Omit or set to update         |
+| `employee_number` | No       | New value if renumbering; checksum when enabled |
+| `role`            | No       | Omit or set to update         |
+| `active`          | No       | Omit or set to update         |
+| `notes`           | No       | Omit or set to update         |
 
 ```json
 {
@@ -833,7 +1214,8 @@ Same shape as `GET` one employee (updated row).
 | Code | Meaning                                                   |
 | ---- | --------------------------------------------------------- |
 | 200  | OK                                                        |
-| 400  | Error: `{"error": "EMPLOYEE_NUMBER_WRONG_IN_JSON"}` or `{"error": "EMPLOYEE_NUMBER_WRONG"}` |
+| 400  | Error: `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}`, or `{"error": "EMPLOYEE_NUMBER_WRONG_IN_JSON"}` / `{"error": "EMPLOYEE_NUMBER_WRONG"}` |
+| 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
 | 404  | Error: `{"error": "EMPLOYEE_NOT_FOUND"}`                         |
 | 409  | Error: `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` |
 
@@ -843,7 +1225,7 @@ Same shape as `GET` one employee (updated row).
 ### `DELETE /api/employees/<employee_number>`
 
 **Explanation**
-By default performs a **soft delete** (`active=false`). With `?hard=true`, removes the row permanently.
+By default performs a **soft delete** (`active=false`). With `?hard=true`, removes the row permanently. **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters** (path)
 
@@ -866,11 +1248,14 @@ By default performs a **soft delete** (`active=false`). With `?hard=true`, remov
 ```http
 DELETE /api/employees/M00155?hard=true HTTP/1.1
 Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
 ```
 
 ```bash
-curl -s -X DELETE "http://localhost:5000/api/employees/M00155"
-curl -s -X DELETE "http://localhost:5000/api/employees/M00155?hard=true"
+curl -s -X DELETE "http://localhost:5000/api/employees/M00155" \
+  -H "Authorization: Bearer $TOKEN"
+curl -s -X DELETE "http://localhost:5000/api/employees/M00155?hard=true" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 **JSON request**
@@ -908,6 +1293,7 @@ None.
 | ---- | ------- |
 | 200  | Soft or hard delete succeeded |
 | 400  | Error: `{"error": "EMPLOYEE_NUMBER_WRONG"}` |
+| 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
 | 404  | Error: `{"error": "EMPLOYEE_NOT_FOUND"}` |
 | 409  | Error: `{"error": "CONSTRAINT_VIOLATION", "message": "Delete failed, because related entries in JobAssignment table"}` |
 
@@ -977,7 +1363,7 @@ None.
 ### `POST /api/job-assignments`
 
 **Explanation**
-Assigns an active camp participant to an active company, if capacity allows and they have no job yet (`employee_number` in JSON).
+Assigns an active camp participant to an active company, if capacity allows and they have no job yet (`employee_number` in JSON). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters**
 None.
@@ -988,11 +1374,13 @@ None.
 POST /api/job-assignments HTTP/1.1
 Host: localhost:5000
 Content-Type: application/json
+Authorization: Bearer <jwt-access-token>
 ```
 
 ```bash
 curl -s -X POST http://localhost:5000/api/job-assignments \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"company_name":"Bank","employee_number":"M00155"}'
 ```
 
@@ -1025,6 +1413,7 @@ curl -s -X POST http://localhost:5000/api/job-assignments \
 | ---- | ------- |
 | 201  | Created |
 | 400  | Error: possible `error` values include `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}`, `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}`, `{"error": "EMPLOYEE_NUMBER_WRONG_IN_JSON"}`, `{"error": "COMPANY_NOT_ACTIVE"}`, `{"error": "EMPLOYEE_NOT_ACTIVE"}`, `{"error": "JOB_ALREADY_ASSIGNED"}`, `{"error": "NO_JOB_LEFT"}` |
+| 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not signed in as employee, staff, or admin) |
 | 404  | Error: `{"error": "COMPANY_NOT_FOUND"}` or `{"error": "EMPLOYEE_NOT_FOUND"}` |
 
 ---
@@ -1032,7 +1421,7 @@ curl -s -X POST http://localhost:5000/api/job-assignments \
 ### `DELETE /api/job-assignments/<employee_number>`
 
 **Explanation**
-Removes the job assignment for the given camp participant’s `employee_number` (at most one row per participant in normal operation).
+Removes the job assignment for the given camp participant’s `employee_number` (at most one row per participant in normal operation). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters** (path)
 
@@ -1047,10 +1436,12 @@ Removes the job assignment for the given camp participant’s `employee_number` 
 ```http
 DELETE /api/job-assignments/M00155 HTTP/1.1
 Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
 ```
 
 ```bash
-curl -s -X DELETE "http://localhost:5000/api/job-assignments/M00155"
+curl -s -X DELETE "http://localhost:5000/api/job-assignments/M00155" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 **JSON request**
@@ -1071,6 +1462,7 @@ None.
 | ---- | ------- |
 | 200  | `{"message": "job deleted"}` |
 | 400  | Error: `{"error": "EMPLOYEE_NUMBER_WRONG"}` or `{"error": "NO_JOB_ASSIGNED"}` |
+| 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not signed in as employee, staff, or admin) |
 | 404  | Error: `{"error": "EMPLOYEE_NOT_FOUND"}` |
 
 
@@ -1079,7 +1471,7 @@ None.
 ### `POST /api/job-assignments/reset`
 
 **Explanation**
-Deletes job assignments. With an empty or omitted body, deletes **all** assignments. With `{"company_name": "..."}`, deletes only assignments for that company (company must exist).
+Deletes job assignments. With an empty or omitted body, deletes **all** assignments. With `{"company_name": "..."}`, deletes only assignments for that company (company must exist). **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters**
 None (optional JSON body).
@@ -1090,12 +1482,15 @@ None (optional JSON body).
 POST /api/job-assignments/reset HTTP/1.1
 Host: localhost:5000
 Content-Type: application/json
+Authorization: Bearer <jwt-access-token>
 ```
 
 ```bash
-curl -s -X POST http://localhost:5000/api/job-assignments/reset
+curl -s -X POST http://localhost:5000/api/job-assignments/reset \
+  -H "Authorization: Bearer $TOKEN"
 curl -s -X POST http://localhost:5000/api/job-assignments/reset \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"company_name":"Bank"}'
 ```
 
@@ -1123,6 +1518,7 @@ curl -s -X POST http://localhost:5000/api/job-assignments/reset \
 | ---- | ------- |
 | 200  | Reset completed (`count` may be 0) |
 | 400  | Error: `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}` or `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}` when the JSON body is invalid or `company_name` is empty (non-empty body must include a non-blank `company_name`) |
+| 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
 | 404  | Error: `{"error": "COMPANY_NOT_FOUND"}` when filtering by an unknown `company_name` |
 
 ---
