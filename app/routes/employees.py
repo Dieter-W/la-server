@@ -175,9 +175,19 @@ def create_employee():
         g.db.flush()
         # codeql[py/clear-text-logging-sensitive-data]
         logger.info(
-            "Employee created id=%s employee_number=%s", emp.id, emp.employee_number
+            "Employee created id=%s employee_number=%s",
+            emp.employee_number,
+            emp.last_name,
         )
-        return jsonify(_employee_to_dict(emp, "")), 201
+        return (
+            jsonify(
+                {
+                    **_employee_to_dict(emp, ""),
+                    "auth_group": emp.authentication.auth_group,
+                }
+            ),
+            201,
+        )
 
 
 # ---------------------------------------------------------------------

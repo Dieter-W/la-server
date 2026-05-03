@@ -525,6 +525,8 @@ def test_employees_create(client, sample_authentication, sample_company, sample_
     if response.status_code != 201:
         print(response.text)
     assert response.status_code == 201
+    created = response.get_json()
+    assert created["auth_group"] == payload_create["auth_group"]
 
     response = client.get("/api/employees")
     if response.status_code != 200:
