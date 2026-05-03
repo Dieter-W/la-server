@@ -43,7 +43,7 @@ def test_bulk_import_employees_create(client,): # fmt: skip
         [
             sys.executable,
             "./scripts/bulk_import_employees.py",
-            "employees_sample.csv",
+            "./data/csv-example/employees_sample.csv",
         ],
         capture_output=True,
         text=True,
@@ -82,7 +82,7 @@ def test_bulk_import_employees_update(client,): # fmt: skip
         [
             sys.executable,
             "./scripts/bulk_import_employees.py",
-            "employees_sample.csv",
+            "./data/csv-example/employees_sample.csv",
         ],
         capture_output=True,
         text=True,
@@ -121,7 +121,7 @@ def test_bulk_import_employees_update(client,): # fmt: skip
         [
             sys.executable,
             "./scripts/bulk_import_employees.py",
-            "employees_sample.csv",
+            "./data/csv-example/employees_sample.csv",
         ],
         capture_output=True,
         text=True,

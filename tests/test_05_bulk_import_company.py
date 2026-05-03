@@ -14,7 +14,7 @@ def test_bulk_import_companies_create(app, db_session):
         [
             sys.executable,
             "./scripts/bulk_import_companies.py",
-            "companies_sample.csv",
+            "./data/csv-example/companies_sample.csv",
         ],
         capture_output=True,
         text=True,
@@ -33,7 +33,7 @@ def test_bulk_import_companies_update(app, db_session):
         [
             sys.executable,
             "./scripts/bulk_import_companies.py",
-            "companies_sample.csv",
+            "./data/csv-example/companies_sample.csv",
         ],
         capture_output=True,
         text=True,
@@ -48,7 +48,7 @@ def test_bulk_import_companies_update(app, db_session):
         [
             sys.executable,
             "./scripts/bulk_import_companies.py",
-            "companies_sample.csv",
+            "./data/csv-example/companies_sample.csv",
         ],
         capture_output=True,
         text=True,

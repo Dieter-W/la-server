@@ -41,7 +41,7 @@ def test_bulk_import_companies_create(client,): # fmt: skip
         [
             sys.executable,
             "./scripts/bulk_import_companies.py",
-            "companies_sample.csv",
+            "./data/csv-example/companies_sample.csv",
         ],
         capture_output=True,
         text=True,
@@ -95,7 +95,7 @@ def test_bulk_import_companies_update(client, sample_authentication, sample_empl
         [
             sys.executable,
             "./scripts/bulk_import_companies.py",
-            "companies_sample.csv",
+            "./data/csv-example/companies_sample.csv",
         ],
         capture_output=True,
         text=True,
@@ -127,7 +127,7 @@ def test_bulk_import_companies_update(client, sample_authentication, sample_empl
         [
             sys.executable,
             "./scripts/bulk_import_companies.py",
-            "companies_sample.csv",
+            "./data/csv-example/companies_sample.csv",
         ],
         capture_output=True,
         text=True,

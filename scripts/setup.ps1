@@ -5,7 +5,7 @@ development (Poetry, dev tools, pre-commit, test checks).
 
 .DESCRIPTION
 Production (no Poetry): `pip install -r` uses `data/requirements.txt` (a `poetry export` of `pyproject.toml` / `poetry.lock` — not where you add deps; edit `pyproject.toml` first, then re-export).
-- `init-env`: Create `.env` from `.env.example` (if missing). If `village_data/` is absent, create it and seed from `data/village.ini` and `data/images/*` when those paths exist (see README, `village_data/`). Then stop.
+- `init-env`: Create `.env` from `.env.example` (if missing). If `village_data/` is absent, create it and seed from `data/village.ini` and `data/images/*`. Whenever `village_data/` exists, copy missing bulk-import samples from `data/csv-example/` (`employees_sample.csv`, `companies_sample.csv`) into it (see README). Then stop.
 - `provision`: Verify `.env` was customized, create `.venv`, `pip install -r`, create database.
 
 Development (use Poetry only: `poetry` + `pyproject.toml` / lockfile, same as CI `poetry install --with dev`):
@@ -196,6 +196,29 @@ if ($Mode -eq "init-env") {
         }
 
         Write-Host "Created 'village_data/' with sample content." -ForegroundColor Green
+    }
+
+    # Bulk-import samples: also when village_data/ already existed (CSV copy was previously only on first create).
+    if (Test-Path -LiteralPath $VillageDataPath) {
+        $srcEmployeesCsv = Join-Path $ProjectRoot "data/csv-example/employees_sample.csv"
+        $srcCompaniesCsv = Join-Path $ProjectRoot "data/csv-example/companies_sample.csv"
+        $destEmployeesCsv = Join-Path $VillageDataPath "employees_sample.csv"
+        $destCompaniesCsv = Join-Path $VillageDataPath "companies_sample.csv"
+
+        if (Test-Path -LiteralPath $srcEmployeesCsv) {
+            if (-not (Test-Path -LiteralPath $destEmployeesCsv)) {
+                Copy-Item -LiteralPath $srcEmployeesCsv -Destination $destEmployeesCsv
+            }
+        } else {
+            Write-Host "Warning: missing '$srcEmployeesCsv'; add village_data/employees_sample.csv manually if you need the bulk-import sample." -ForegroundColor Yellow
+        }
+        if (Test-Path -LiteralPath $srcCompaniesCsv) {
+            if (-not (Test-Path -LiteralPath $destCompaniesCsv)) {
+                Copy-Item -LiteralPath $srcCompaniesCsv -Destination $destCompaniesCsv
+            }
+        } else {
+            Write-Host "Warning: missing '$srcCompaniesCsv'; add village_data/companies_sample.csv manually if you need the bulk-import sample." -ForegroundColor Yellow
+        }
     }
 
     Write-Host ""
