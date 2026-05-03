@@ -14,6 +14,16 @@ The following versions are required to run the LA-Server:
 - Python 3.14+
 - MariaDB 10.6+
 
+## Authorization
+
+In client apps can user sign in with **employee number** and **password**. The server then gives the app a **token** to attach to later requests, so the server knows who is calling.
+
+Some operations are open to everyone (public). Others need a signed-in user; a few need **staff** or **admin**, the most need **employee** (all kids in the summer camp). The **API Endpoints** table below marks each route as **public** or with the minimum type of account that is allowed.
+
+### Initial password
+
+When an account is **created** (`POST /api/employees`), **imported from CSV** ([CSV bulk import](#csv-bulk-import)), or when **staff or admin runs a password reset** (`POST /api/auth/password/reset-password`), the server sets the login secret from the participant’s **`last_name`** (trimmed, then hashed). **Sign-in treats the password as case-insensitive**, so the surname can be typed in normal spelling. The account stays flagged **`password_must_change`** until the user picks their own password with **`POST /api/auth/password/set-password`**. The **login** response includes that flag so client apps can send new users through “change password” immediately after the first sign-in.
+
 ## Setup (Production, no Poetry)
 
 1. **Clone or copy the GIT repository**
@@ -198,58 +208,68 @@ The script creates or updates companies (by `company_name`) and logs successes a
 python ./scripts/bulk_import_employees.py employees.csv
 ```
 
-To skip checksum validation on employee numbers (not recommended), pass `--nochecksum-check` as a second argument:
-
-```bash
-python ./scripts/bulk_import_employees.py employees.csv --nochecksum-check
-```
+The script takes **only** the path to the CSV file. Employee-number checksum validation follows **`VALIDATE_CHECK_SUM`** in `.env` (default `true`; see Optional environment variables above). To disable validation for local testing only, set `VALIDATE_CHECK_SUM=false` in `.env`.
 
 **Note:**
-It's useful to use employee numbers with checksums, otherwise a typo can refer to a different camp participant.  A full explanation of how to create employee numbers with checksums in Excel is in `[./docs/employee-numbers.md](./docs/employee-numbers.md)`.
+It's useful to use employee numbers with checksums, otherwise a typo can refer to a different camp participant. A full explanation of how to create employee numbers with checksums in Excel is in `[./docs/employee-numbers.md](./docs/employee-numbers.md)`.
 
-**CSV format:** Comma-separated with a header row. Required columns: `first_name`, `last_name`, `employee_number`, `role`, `active`, `notes`.
+**CSV format:** Comma-separated with a header row. Required columns: `first_name`, `last_name`, `employee_number`, `role`, `active`, `auth_group`, `notes`. Empty rows are skipped (including a trailing spreadsheet row).
 
-Example `employees.csv`:
+`auth_group` must be one of `employee`, `staff`, or `admin`.
+
+The repository ships `employees_sample.csv` as a template. Example excerpt:
 
 ```csv
-first_name,last_name,employee_number,role,active,notes
-Max,Mustermann,M00155,Betreuer,true,Works weekends
-Anna,Schmidt,A00265,Helferin,true,
+first_name,last_name,employee_number,role,active,auth_group,notes
+Max,Mustermann,M00155,Kind,false,Employee,Works weekends
+Monika,Mustermann,M00252,Kind,true,Employee,
+Anna,Schmidt,A00265,Helferin,true,Staff,
+Peter,Krause,P00370,Leiter,true,Admin,Team lead
 ```
 
 The script creates or updates camp participants one row per `employee_number`—and logs successes and errors to stdout. It exits with a non-zero code if any row fails to import.
 
 
-## Development
-
-- For developer information see: `[./docs/developer-guide.md](./docs/developer-guide.md)` — tools, API usage for client developers and backend notes for contributors.
-- For information about the database layout see:   `[./docs/database_design.md](./docs/database_design.md)` — database schema and design.
-
 ## API Endpoints
 
+In the table, **Authorization** is shorthand for:
 
-| Endpoint                                        | Description                                                               |
-| ----------------------------------------------- | ------------------------------------------------------------------------- |
-| `GET /api/health`                               | Basic health check                                                        |
-| `GET /api/health/db`                            | Database connectivity                                                     |
-| `GET /api/health/runtime`                       | Operational diagnostics (pool, concurrency peaks, redacted DB URL; no customer data) |
-| `GET /api/employees`                            | List all employees (optional `?active=true` or `?active=false`)           |
-| `GET /api/employees/<employee_number>`          | Fetch a single employee                                                   |
-| `POST /api/employees`                           | Create a new employee                                                     |
-| `PUT /api/employees/<employee_number>`          | Update an employee                                                        |
-| `DELETE /api/employees/<employee_number>`       | Soft delete (sets `active=false`); use `?hard=true` to permanently delete |
-| `GET /api/companies`                            | List all companies (optional `?active=true` or `?active=false`)           |
-| `GET /api/companies/<company_name>`             | Fetch a single company                                                    |
-| `POST /api/companies`                           | Create a new company                                                      |
-| `PUT /api/companies/<company_name>`             | Update a company                                                          |
-| `DELETE /api/companies/<company_name>`          | Delete company permanently                                                |
-| `GET /api/job-assignments`                      | List all job assignments                                                  |
-| `POST /api/job-assignments`                     | Create a job assignment (JSON: `company_name`, `employee_number`)         |
-| `DELETE /api/job-assignments/<employee_number>` | Remove the job assignment for that employee                               |
-| `POST /api/job-assignments/reset`               | Reset assignments (optional JSON `company_name` to limit scope)           |
-| `GET /api/village-data`                         | Spielstadt config from `village_data/village.ini` (JSON; `ETag` caching)  |
-| `GET /api/village-data/logo`                    | Logo file from `village_data/` (path from INI)                            |
-| `GET /api/village-data/favicon`                 | Favicon file from `village_data/` (path from INI)                         |
+- **public** — no sign-in needed.
+- **employee or higher** — signed in as a camp participant (any normal login).
+- **staff or higher** — signed in as staff or admin.
+- **admin required** — signed in as an admin.
+
+If an admin changes another person’s access (`POST /api/auth/set-auth-group`), that person should **sign in again** so the app remembers the new permissions.
+
+| Method | Path                                     | Summary                                     | Authorization                    |
+| ------ | ---------------------------------------- | ------------------------------------------- | -------------------------------- |
+| GET    | `/api/health`                            | Liveness                                    | public                           |
+| GET    | `/api/health/db`                         | Database connectivity                       | public                           |
+| GET    | `/api/health/runtime`                    | Pool, peaks, redacted DB (no customer data) | admin required                   |
+| POST   | `/api/auth/login`                        | Sign in                                     | public                           |
+| POST   | `/api/auth/set-auth-group`               | Change another user’s permission level      | admin required                   |
+| GET    | `/api/auth/me`                           | Current employee profile                    | employee or higher               |
+| POST   | `/api/auth/password/set-password`        | Change password                             | employee or higher               |
+| POST   | `/api/auth/password/reset-password`      | Reset password to initial value             | staff or higher                  |
+| POST   | `/api/auth/refresh`                      | Refresh session token                       | employee or higher               |
+| POST   | `/api/auth/logout`                       | Logout                                      | employee or higher               |
+| GET    | `/api/companies`                         | List companies                              | public                           |
+| GET    | `/api/companies/<company_name>`          | List one company                            | public                           |
+| POST   | `/api/companies`                         | Create company                              | admin required                   |
+| PUT    | `/api/companies/<company_name>`          | Update company                              | admin required                   |
+| DELETE | `/api/companies/<company_name>`          | Delete company                              | admin required                   |
+| GET    | `/api/employees`                         | List employees                              | public                           |
+| GET    | `/api/employees/<employee_number>`       | List one employee                           | public                           |
+| POST   | `/api/employees`                         | Create employee                             | admin required                   |
+| PUT    | `/api/employees/<employee_number>`       | Update employee                             | admin required                   |
+| DELETE | `/api/employees/<employee_number>`       | Soft or hard delete employee                | admin required                   |
+| GET    | `/api/job-assignments`                   | List job assignments                        | public                           |
+| POST   | `/api/job-assignments`                   | Create job assignment                       | employee or higher               |
+| DELETE | `/api/job-assignments/<employee_number>` | Remove assignment for employee              | employee or higher               |
+| POST   | `/api/job-assignments/reset`             | Reset assignments (optional filter)         | admin required                   |
+| GET    | `/api/village-data`                      | Spielstadt config JSON (`village.ini`)      | public                           |
+| GET    | `/api/village-data/logo`                 | Logo image (path from INI)                  | public                           |
+| GET    | `/api/village-data/favicon`              | Favicon image (path from INI)               | public                           |
 
 
 ### API examples
@@ -275,6 +295,13 @@ curl http://localhost:5000/api/employees?active=true
 ```bash
 curl http://localhost:5000/api/job-assignments
 ```
+
+## Development
+
+If you build or integrate a client, see [docs/developer-guide.md](docs/developer-guide.md) for the exact headers and flows. With the server running, **`GET /api/openapi.json`** serves the OpenAPI 3.0 schema and **`GET /api/docs`** serves Swagger UI (same host and port as the API).
+
+- For developer information see: `[./docs/developer-guide.md](./docs/developer-guide.md)` — tools, API usage for client developers and backend notes for contributors.
+- For information about the database layout see:   `[./docs/database_design.md](./docs/database_design.md)` — database schema and design.
 
 ## License
 
