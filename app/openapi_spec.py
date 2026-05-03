@@ -314,7 +314,38 @@ def build_openapi_dict() -> dict:
     # --- Village ---
     merge_path(
         "/api/village-data",
-        _op("get", "Spielstadt config JSON (`village.ini`)", tag="Village data"),
+        {
+            "get": {
+                "tags": ["Village data"],
+                "summary": "Spielstadt config JSON (`village.ini`)",
+                "description": (
+                    "Loads **`village.ini`** as JSON (one object per section, string-valued keys). "
+                    "Adds a **`la-server`** object with JWT TTLs, auth groups, and employee-number checksum settings."
+                ),
+                "responses": {
+                    "200": {
+                        "description": (
+                            "`application/json`; includes **`ETag`**. Omit body with matching **`If-None-Match`** is `304`."
+                        ),
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/VillageConfig"
+                                },
+                            },
+                        },
+                    },
+                    "304": {
+                        "description": "Not modified; **`If-None-Match`** matched the current **`ETag`**.",
+                    },
+                    **{
+                        k: v
+                        for k, v in _RESPONSES_DEFAULT.items()
+                        if k in ("404", "500")
+                    },
+                },
+            }
+        },
     )
     merge_path("/api/village-data/logo", _op("get", "Logo image", tag="Village data"))
     merge_path(
@@ -349,7 +380,10 @@ def build_openapi_dict() -> dict:
                 "name": "Job assignments",
                 "description": "Participant–company placements",
             },
-            {"name": "Village data", "description": "INI-backed Spielstadt branding"},
+            {
+                "name": "Village data",
+                "description": "INI-backed Spielstadt branding; **`/village-data`** adds runtime **`la-server`** metadata.",
+            },
         ],
         "paths": paths,
         "components": {
@@ -361,13 +395,70 @@ def build_openapi_dict() -> dict:
                 }
             },
             "schemas": {
+                "LAServerRuntime": {
+                    "type": "object",
+                    "description": (
+                        "Runtime metadata appended by LA-Server. Any **`[la-server]`** section "
+                        "in **`village.ini`** is discarded and replaced with this block."
+                    ),
+                    "required": [
+                        "auth_groups",
+                        "validate_employee_number_checksum",
+                        "employee_number_checksum_algorithm",
+                        "jwt_access_ttl_minutes",
+                        "jwt_refresh_ttl_hours",
+                    ],
+                    "properties": {
+                        "auth_groups": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Allowed JWT `auth_group` values.",
+                        },
+                        "validate_employee_number_checksum": {
+                            "type": "boolean",
+                            "description": "Whether employee numbers must pass ISO 7064 Mod 97,10 checksum validation.",
+                        },
+                        "employee_number_checksum_algorithm": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": "`ISO_7064_MOD_97_10` when validation is on; `null` when off.",
+                            "example": "ISO_7064_MOD_97_10",
+                        },
+                        "jwt_access_ttl_minutes": {
+                            "type": "integer",
+                            "description": "Access JWT lifetime from server config.",
+                            "minimum": 0,
+                        },
+                        "jwt_refresh_ttl_hours": {
+                            "type": "integer",
+                            "description": "Refresh JWT lifetime from server config.",
+                            "minimum": 0,
+                        },
+                    },
+                },
+                "VillageConfig": {
+                    "type": "object",
+                    "required": ["la-server"],
+                    "properties": {
+                        "la-server": {"$ref": "#/components/schemas/LAServerRuntime"}
+                    },
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": {"type": "string"},
+                        "description": "One object per **`village.ini`** section (string keys to string values).",
+                    },
+                    "description": (
+                        "**`village.ini`** as nested maps, plus **`la-server`** injected at runtime. "
+                        "Responses include an **`ETag`** header; repeat with **`If-None-Match`** for `304 Not Modified`."
+                    ),
+                },
                 "ErrorBody": {
                     "type": "object",
                     "properties": {
                         "error": {"type": "string"},
                         "message": {"type": "string"},
                     },
-                }
+                },
             },
             "responses": {
                 "BadRequest": {

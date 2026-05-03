@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+from app.auth.utils import AUTH_GROUPS
 from app.routes import village_data as village_data_module
 
 
@@ -33,6 +34,57 @@ def test_village_data_get_ok_etag(client):
         print(response2.text)
     assert response2.status_code == 304
     assert not response2.data
+
+
+def test_village_data_get_ok_la_server(client):
+    response = client.get("/api/village-data")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert "la-server" in data
+    ls = data["la-server"]
+    assert ls["auth_groups"] == AUTH_GROUPS
+    assert isinstance(ls["validate_employee_number_checksum"], bool)
+    if ls["validate_employee_number_checksum"]:
+        assert ls["employee_number_checksum_algorithm"] == "ISO_7064_MOD_97_10"
+    else:
+        assert ls["employee_number_checksum_algorithm"] is None
+    assert isinstance(ls["jwt_access_ttl_minutes"], int)
+    assert isinstance(ls["jwt_refresh_ttl_minutes"], int)
+
+
+def test_village_data_get_ok_server_config_changes(client, app):
+    response1 = client.get("/api/village-data")
+    assert response1.status_code == 200
+    etag_before = response1.headers["ETag"]
+
+    prev = app.config["VALIDATE_CHECK_SUM"]
+    app.config["VALIDATE_CHECK_SUM"] = not prev
+
+    response2 = client.get("/api/village-data")
+    assert response2.status_code == 200
+    etag_after = response2.headers["ETag"]
+    assert etag_before != etag_after
+
+    stale = client.get(
+        "/api/village-data", headers={"If-None-Match": f'"{etag_before}"'}
+    )
+    assert stale.status_code == 200
+    assert stale.get_json() is not None
+
+
+def test_village_data_get_ok_ini_file_changes(client):
+    fake_ini = {
+        "general": {"name": "X"},
+        "la-server": {"should_not_appear": "ini-mistake"},
+    }
+    with patch.object(village_data_module, "_load_village_data", return_value=fake_ini):
+        response = client.get("/api/village-data")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert "should_not_appear" not in data["la-server"]
+    assert data["la-server"]["auth_groups"] == AUTH_GROUPS
 
 
 # ---------------------------------------------------------------------
