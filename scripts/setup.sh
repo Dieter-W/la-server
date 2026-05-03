@@ -31,7 +31,7 @@ usage() {
 LA-Server setup (same behavior as scripts/setup.ps1).
 
 Production (no Poetry): data/requirements.txt is a poetry export; edit pyproject.toml first, then re-export.
-- init-env: create .env from .env.example (if missing). If village_data/ is absent, create it and seed from data/village.ini and data/images/* when those paths exist (see README). Then stop.
+- init-env: create .env from .env.example (if missing). If village_data/ is absent, create it and seed from data/village.ini and data/images/*. Whenever village_data/ exists, copy bulk-import samples from data/csv-example/ (employees_sample.csv, companies_sample.csv) into it if those files are missing (see README). Then stop.
 - provision: verify .env was customized, create .venv, pip install -r, create database.
 
 Development (Poetry: poetry install --with dev, pre-commit, optional checks):
@@ -227,6 +227,26 @@ if [[ "$MODE" == "init-env" ]]; then
       echo "Note: no sample favicon at '$SRC_FAVICON'; add village_data/images/favicon.png if clients need it." >&2
     fi
     echo "Created 'village_data/' with sample content."
+  fi
+
+  # Bulk-import samples: also when village_data/ already existed (CSV copy was previously only on first create).
+  if [[ -d "$VILLAGE_DATA_PATH" ]]; then
+    SRC_EMPLOYEES_CSV="$PROJECT_ROOT/data/csv-example/employees_sample.csv"
+    SRC_COMPANIES_CSV="$PROJECT_ROOT/data/csv-example/companies_sample.csv"
+    if [[ -f "$SRC_EMPLOYEES_CSV" ]]; then
+      if [[ ! -f "$VILLAGE_DATA_PATH/employees_sample.csv" ]]; then
+        cp "$SRC_EMPLOYEES_CSV" "$VILLAGE_DATA_PATH/employees_sample.csv"
+      fi
+    else
+      echo "Warning: missing '$SRC_EMPLOYEES_CSV'; add village_data/employees_sample.csv manually if you need the bulk-import sample." >&2
+    fi
+    if [[ -f "$SRC_COMPANIES_CSV" ]]; then
+      if [[ ! -f "$VILLAGE_DATA_PATH/companies_sample.csv" ]]; then
+        cp "$SRC_COMPANIES_CSV" "$VILLAGE_DATA_PATH/companies_sample.csv"
+      fi
+    else
+      echo "Warning: missing '$SRC_COMPANIES_CSV'; add village_data/companies_sample.csv manually if you need the bulk-import sample." >&2
+    fi
   fi
 
   echo ""
