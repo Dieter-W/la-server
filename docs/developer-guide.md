@@ -16,6 +16,8 @@ By default the server listens on **`http://localhost:5000`**. In deployment, use
 
 ## Authentication
 
+**Normative reference:** Full **request/response shapes and HTTP status codes** for every auth route are under **[Auth API](#auth-api)** — start with [Login service](#login-service) and [Me service](#me-service), then the `POST` operations in that section. **This heading** explains **how JWTs fit into client calls** and includes a **short walkthrough**; it is **not** the complete specification for each endpoint.
+
 As a **client developer**, you are responsible for the sign-in experience, for **keeping tokens safe**, and for **attaching the right credential on every API call** that requires it. The camp issues accounts (linked to a participant and a company in the server’s data model; see [`app/models.py`](../app/models.py)); your app collects the user name and password only during sign-in and password flows, not on ordinary data requests.
 
 **What the JWT is (short):** after a successful sign-in, the server returns an opaque **JSON Web Token (JWT)** in the `token` field. Claims include **`auth_group`** (`employee`, `staff`, or `admin`—not the descriptive camp **`role`** on the participant) and **`employee_number`**, plus **expiry**. Company and full profile fields come from API responses (for example **`GET /api/auth/me`**), not from decoding the token yourself. Store the string and send it back on protected routes; do not modify the payload.
@@ -39,7 +41,9 @@ As a **client developer**, you are responsible for the sign-in experience, for *
 
 **Deployment note:** some environments may still rely on a private network or proxy in addition to JWTs. Your integration should still follow the header rule above whenever the server expects a bearer token.
 
-### Example: sign-in and `GET /api/auth/me`
+### Example walkthrough - /api/auth/login and /api/auth/me
+
+*Illustrative walkthrough only; exact fields and status codes are in **[Auth API](#auth-api)** ([Login service](#login-service), [Me service](#me-service)).*
 
 Use a real **employee number** (with valid ISO 7064 Mod 97,10 checksum when `VALIDATE_CHECK_SUM` is on; see [employee-numbers.md](./employee-numbers.md)) and base URL.
 
@@ -141,8 +145,8 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | GET    | `/api/health/db`                         | Database connectivity                       | public                           |
 | GET    | `/api/health/runtime`                    | Pool, peaks, redacted DB (no customer data) | admin required                   |
 | POST   | `/api/auth/login`                        | Sign in                                     | public                           |
-| POST   | `/api/auth/set-auth-group`               | Change another user’s permission level      | admin required                   |
 | GET    | `/api/auth/me`                           | Current employee profile                    | employee or higher               |
+| POST   | `/api/auth/set-auth-group`               | Change another user’s permission level      | admin required                   |
 | POST   | `/api/auth/password/set-password`        | Change password                             | employee or higher               |
 | POST   | `/api/auth/password/reset-password`      | Reset password to initial value             | staff or higher                  |
 | POST   | `/api/auth/refresh`                      | Refresh session token                       | employee or higher               |
@@ -177,15 +181,13 @@ Operation summaries and security in the spec mirror this guide; exact JSON bodie
 
 Each operation below uses the same blocks: **Explanation**, **Parameters**, **Endpoint sample**, **JSON request** (if any), **JSON response** (if any), **HTTP status codes**. When the index marks a route as **employee or higher**, **staff or higher**, or **admin required**, add **`Authorization: Bearer <token>`** (see [**Authentication**](#authentication)); many samples below already show that header—if one omits it, add it when the route is protected.
 
-
-
 ---
 
 ## Health
 
 The `GET /api/health` and `GET /api/health/db` APIs are for client developers to validate the communication with the server works **correctly**. The third API (`GET /api/health/runtime`) provides runtime information, which **is** usually not needed by a client developer.
 
-### `GET /api/health`
+### Liveness - /api/health
 
 **Explanation**
 Returns a simple JSON payload so load balancers and monitors can verify the process is up. Does not check the database.
@@ -226,7 +228,7 @@ None.
 
 ---
 
-### `GET /api/health/db`
+### Database connectivity - /api/health/db
 
 **Explanation**
 Runs `SELECT 1` against the configured database to verify connectivity.
@@ -277,7 +279,7 @@ None.
 
 ---
 
-### `GET /api/health/runtime`
+### Runtime diagnostics - /api/health/runtime
 
 **Explanation**
 Returns **operational** JSON for debugging and monitoring: process/runtime facts (Python version, platform, PID, app uptime), non-secret config flags (`DEBUG`, `TESTING`, `LOG_LEVEL`), a **password-redacted** database URL summary (host, port, database name, driver), SQLAlchemy **connection pool** statistics, and **`concurrency`**: process-local **historic peaks** for pool checkouts (parallel DB connections) and for Flask requests that have entered the per-request DB session lifecycle (`active` / `max_historic` each). Counts reset when the process restarts. It does **not** expose customer or business data.
@@ -359,11 +361,142 @@ Missing or invalid JWT behavior matches [Errors and status codes](#errors-and-st
 
 ## Auth API
 
-`POST /api/auth/login` and `GET /api/auth/me` are documented under [Authentication](#authentication) (example subsection). Other auth routes expect `Authorization: Bearer <token>` when the endpoint index marks them as protected.
+**Login:** [Login service](#login-service). **Current user profile:** [Me service](#me-service). **Other routes** in this section expect `Authorization: Bearer <token>` when the endpoint index marks them as protected (bearer usage: [Authentication](#authentication)).
 
 ---
 
-### `POST /api/auth/set-auth-group`
+<a id="login-service"></a>
+
+### Login service - /api/auth/login
+
+**Explanation**
+Public sign-in. The server checks the JSON **`employee_number`** and **`password`** against the participant’s row in [`Authentication`](../app/models.py). On success it returns a **JWT** in **`token`**, the app permission **`auth_group`** (`employee`, `staff`, or `admin`), and **`password_must_change`**. Server implementation: [`app/auth/routes.py`](../app/auth/routes.py) (`authenticate`). Use the stored JWT as `Authorization: Bearer …` on protected routes ([Authentication](#authentication)).
+
+**Parameters**
+None (JSON body).
+
+**Endpoint sample**
+
+```http
+POST /api/auth/login HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+
+{"employee_number": "M00155", "password": "your-password"}
+```
+
+```bash
+curl -s -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"employee_number":"M00155","password":"your-password"}'
+```
+
+**JSON request**
+
+| Field               | Required | Type   | Description |
+| ------------------- | -------- | ------ | ----------- |
+| `employee_number`   | Yes      | string | Participant number; when `VALIDATE_CHECK_SUM` is on, must satisfy ISO 7064 Mod 97,10 ([Employee numbers and checksums](#employee-numbers-and-checksums)). |
+| `password`          | Yes      | string | Plain text password (use **HTTPS** in production). |
+
+**JSON response** (success — `200`)
+
+```json
+{
+  "message": "Authenticated",
+  "token": "<jwt-access-token>",
+  "auth_group": "employee",
+  "password_must_change": false
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK — body includes `token`, `auth_group`, `password_must_change`. |
+| 400  | `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `EMPLOYEE_NUMBER_WRONG_IN_JSON`, or `{"error": "EMPLOYEE_NOT_ACTIVE"}`. |
+| 401  | `{"error": "BAD_CREDENTIALS"}`. |
+| 404  | `{"error": "EMPLOYEE_NOT_FOUND"}`. |
+
+Other auth-related error codes are listed under [Errors and status codes](#errors-and-status-codes).
+
+---
+
+<a id="me-service"></a>
+
+### Me service - /api/auth/me
+
+**Explanation**
+Returns the signed-in **participant** (employee) as JSON: profile fields from the database plus **`auth_group`** from the **JWT** (not the camp descriptive **`role`** on the record). Requires a valid access token whose claim **`auth_group`** is one of `employee`, `staff`, or `admin`. Server implementation: [`app/auth/routes.py`](../app/auth/routes.py) (`me`).
+
+**Parameters**
+None.
+
+**Endpoint sample**
+
+```http
+GET /api/auth/me HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+TOKEN="<paste-access-token>"
+curl -s http://localhost:5000/api/auth/me \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**JSON request**
+None.
+
+**JSON response** (success — `200`)
+
+| Field               | Type    | Description |
+| ------------------- | ------- | ----------- |
+| `id`                | integer | Employee primary key. |
+| `first_name`        | string  | |
+| `last_name`         | string  | |
+| `employee_number`   | string  | |
+| `role`              | string  | Camp role (e.g. participant); distinct from JWT `auth_group`. |
+| `company`           | string  | Company name (empty string if none resolved from job assignment join). |
+| `active`            | boolean | |
+| `notes`             | string or null | |
+| `created_at`        | string or null | ISO 8601 timestamp. |
+| `updated_at`        | string or null | ISO 8601 timestamp. |
+| `auth_group`        | string  | `employee`, `staff`, or `admin` from the JWT. |
+
+Example:
+
+```json
+{
+  "id": 1,
+  "first_name": "Ada",
+  "last_name": "Example",
+  "employee_number": "M00155",
+  "role": "participant",
+  "company": "Example Co",
+  "active": true,
+  "notes": null,
+  "created_at": "2025-06-01T10:00:00",
+  "updated_at": "2025-06-01T10:00:00",
+  "auth_group": "employee"
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK — body is the employee object above. |
+| 400  | `{"error": "EMPLOYEE_NOT_ACTIVE"}`. |
+| 403  | `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` — JWT `auth_group` not allowed for this route (see [`employee_required`](../app/auth/decorations.py)). |
+| 404  | `{"error": "EMPLOYEE_NOT_FOUND"}` — no row for the JWT’s `employee_number`. |
+
+Missing, invalid, or expired JWT responses (`AUTHORIZATION_REQUIRED`, `INVALID_TOKEN`, `EXPIRED_TOKEN`) match [Errors and status codes](#errors-and-status-codes) and [`app/__init__.py`](../app/__init__.py) JWT loaders.
+
+---
+
+### Set auth group - /api/auth/set-auth-group
 
 **Explanation**
 Admin updates another user’s app permission `auth_group` (`employee`, `staff`, or `admin`). The target employee must exist and be active. The affected user should sign in again so their JWT reflects the new group.
@@ -426,7 +559,7 @@ Example:
 
 ---
 
-### `POST /api/auth/password/set-password`
+### Set password - /api/auth/password/set-password
 
 **Explanation**
 Signed-in user changes their own password. `old_password` must match the stored hash; `new_password` replaces it. Sets `password_must_change` to false.
@@ -479,7 +612,7 @@ curl -s -X POST http://localhost:5000/api/auth/password/set-password \
 
 ---
 
-### `POST /api/auth/password/reset-password`
+### Reset password - /api/auth/password/reset-password
 
 **Explanation**
 Staff or admin resets another user’s password to a hash of that user’s **`last_name`** (same rules as [`hash_password`](../app/auth/utils.py) / login: comparison is case-insensitive for verification). Sets `password_must_change` to true so the user must pick a new password via `set-password`. This reproduces the **same initial-password rule** as **new accounts**: admin **`POST /api/employees`** and the **CSV bulk import** script also store the initial hash from **`last_name`** and set `password_must_change` to true, so a reset behaves like a freshly created or re-imported participant for login purposes.
@@ -530,7 +663,7 @@ curl -s -X POST http://localhost:5000/api/auth/password/reset-password \
 
 ---
 
-### `POST /api/auth/refresh`
+### Refresh session - /api/auth/refresh
 
 **Explanation**
 Issued while the current JWT is still valid. Returns a new JWT in `token` for the same identity and claims (`employee_number`, `auth_group`); store it and send it as `Bearer` on later calls.
@@ -578,7 +711,7 @@ JWT handling errors (missing/invalid/expired token, wrong `auth_group`) match [E
 
 ---
 
-### `POST /api/auth/logout`
+### Logout - /api/auth/logout
 
 **Explanation**
 Acknowledges logout. Response includes `token` set to the literal `INVALID-TOKEN`; clear stored tokens on the client regardless.
@@ -625,7 +758,7 @@ JWT handling errors match [Errors and status codes](#errors-and-status-codes).
 
 ## Companies
 
-### `GET /api/companies`
+### List companies - /api/companies
 
 **Explanation**
 Returns all companies, optionally filtered by `active`.
@@ -694,7 +827,7 @@ None.
 
 ---
 
-### `GET /api/companies/<company_name>`
+### Get company - /api/companies/<company_name>
 
 **Explanation**
 Returns one company by exact `company_name` (URL path).
@@ -747,7 +880,7 @@ None.
 
 ---
 
-### `POST /api/companies`
+### Create company - /api/companies
 
 **Explanation**
 Creates a new company row. **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
@@ -822,7 +955,7 @@ Example:
 
 ---
 
-### `PUT /api/companies/<company_name>`
+### Update company - /api/companies/<company_name>
 
 **Explanation**
 Updates any fields present in the JSON body. Lookup is by URL `company_name` before updates (including if you rename via `company_name` in the body). **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
@@ -888,7 +1021,7 @@ Same shape as `GET` one company (current state after update).
 
 ---
 
-### `DELETE /api/companies/<company_name>`
+### Delete company - /api/companies/<company_name>
 
 **Explanation**
 Permanently deletes the company. Fails if foreign keys still reference it (e.g. job assignments). **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
@@ -942,7 +1075,7 @@ None.
 
 In domain language, each row is a **camp participant** (child or staff). The API keeps the historical names *employee* / `employee_number`.
 
-### `GET /api/employees`
+### List employees - /api/employees
 
 **Explanation**
 Lists employees (camp participants), optionally filtered by `active`.
@@ -1015,7 +1148,7 @@ None.
 
 ---
 
-### `GET /api/employees/<employee_number>`
+### Get employee - /api/employees/<employee_number>
 
 **Explanation**
 Returns one camp participant by `employee_number` (one employee record). Checksum validated when `VALIDATE_CHECK_SUM` is enabled.
@@ -1071,7 +1204,7 @@ None.
 
 ---
 
-### `POST /api/employees`
+### Create employee - /api/employees
 
 **Explanation**
 Creates a camp participant (employee record). Validates checksum on `employee_number` when enabled. The server stores an **`Authentication`** row: **`auth_group`** from JSON, **`password_must_change`** `true`, and an initial password hash from **`last_name`** (same scheme as staff **reset-password**—sign-in compares passwords case-insensitively). **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
@@ -1154,7 +1287,7 @@ Example:
 
 ---
 
-### `PUT /api/employees/<employee_number>`
+### Update employee - /api/employees/<employee_number>
 
 **Explanation**
 Updates fields present in the body for the camp participant identified by the path `employee_number`. **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
@@ -1222,7 +1355,7 @@ Same shape as `GET` one employee (updated row).
 
 ---
 
-### `DELETE /api/employees/<employee_number>`
+### Delete employee - /api/employees/<employee_number>
 
 **Explanation**
 By default performs a **soft delete** (`active=false`). With `?hard=true`, removes the row permanently. **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
@@ -1302,7 +1435,7 @@ None.
 
 ## Job assignments
 
-### `GET /api/job-assignments`
+### List job assignments - /api/job-assignments
 
 **Explanation**
 Lists all job assignment rows (ids reference `companies.id` and `employees.id`; each assignment is one camp participant at one company).
@@ -1360,7 +1493,7 @@ None.
 
 ---
 
-### `POST /api/job-assignments`
+### Create job assignment - /api/job-assignments
 
 **Explanation**
 Assigns an active camp participant to an active company, if capacity allows and they have no job yet (`employee_number` in JSON). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
@@ -1418,7 +1551,7 @@ curl -s -X POST http://localhost:5000/api/job-assignments \
 
 ---
 
-### `DELETE /api/job-assignments/<employee_number>`
+### Remove job assignment - /api/job-assignments/<employee_number>
 
 **Explanation**
 Removes the job assignment for the given camp participant’s `employee_number` (at most one row per participant in normal operation). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
@@ -1468,7 +1601,7 @@ None.
 
 ---
 
-### `POST /api/job-assignments/reset`
+### Reset job assignments - /api/job-assignments/reset
 
 **Explanation**
 Deletes job assignments. With an empty or omitted body, deletes **all** assignments. With `{"company_name": "..."}`, deletes only assignments for that company (company must exist). **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
@@ -1529,16 +1662,18 @@ Camp-specific **name**, **currency** labels, optional extra INI sections, and **
 
 **INI → JSON:** The file is parsed with Python’s `configparser`. Each **`[section]`** becomes a top-level key in the JSON object; each option becomes a string value inside that object. Optional double quotes around values in the INI are stripped in the API output. Option names are normalized to **lower case** by the parser.
 
-**Caching:** The parsed JSON is cached in memory until **`village_data/village.ini`** changes (file modification time). The **`ETag`** response header on `GET /api/village-data` is an MD5 hex digest of the **raw** INI bytes; send **`If-None-Match`** (quoted, comma-separated, or weak `W/"..."` forms are accepted) to receive **`304 Not Modified`** with an **empty body** when nothing changed.
+**Runtime-only `la-server`:** The response always includes a top-level **`la-server`** object built by the server (auth groups, whether employee-number checksum validation is enabled, JWT time-to-live hints, etc.). It is **not** read from `village.ini` and must **not** be configured via a `[la-server]` section in the INI; if that section appears in the file, the server **overwrites** it in the JSON so the payload matches real server behavior.
+
+**Caching:** The **INI-derived** keys are cached in memory until **`village_data/village.ini`** changes (file modification time). The **`ETag`** on **`GET /api/village-data`** is an MD5 hex digest of a **canonical JSON serialization** of the **entire** object returned to the client (all INI sections **plus** the **`la-server`** block). That way, changes from environment or app config (for example checksum validation) update **`ETag`** even when `village.ini` is unchanged. Send **`If-None-Match`** (quoted, comma-separated, or weak `W/"..."` forms are accepted) to receive **`304 Not Modified`** with an **empty body** when the represented body is unchanged.
 
 **Logo and favicon files:** `GET /api/village-data/logo` and `GET /api/village-data/favicon` also return **`ETag`** and honor **`If-None-Match`** the same way. Their **`ETag`** is an MD5 hex digest of the resolved file’s **nanosecond mtime and size** (not the file contents). On **`200`**, responses include **`Cache-Control: public, max-age=3600, must-revalidate`**. On **`304`**, the body is **empty** (no image bytes).
 
 ---
 
-### `GET /api/village-data`
+### Spielstadt config - /api/village-data
 
 **Explanation**
-Returns the Spielstadt configuration as JSON for clients (titles, currency strings, image path keys, and any other sections present in `village.ini`).
+Returns the Spielstadt configuration as JSON for clients (titles, currency strings, image path keys, and any other sections present in `village.ini`), plus the server-generated **`la-server`** metadata block described above.
 
 **Parameters**
 None. Optional request header **`If-None-Match`**: previous **`ETag`** to skip body when unchanged.
@@ -1572,12 +1707,19 @@ None.
     "name_short": "AT"
   },
   "salary": {
-    "increase": ="0",
-    "tax" = "3"
+    "increase": "0",
+    "tax": "3"
   },
   "images": {
     "logo": "images/logo.png",
     "favicon": "images/favicon.png"
+  },
+  "la-server": {
+    "auth_groups": ["employee", "staff", "admin"],
+    "validate_employee_number_checksum": true,
+    "employee_number_checksum_algorithm": "ISO_7064_MOD_97_10",
+    "jwt_access_ttl_minutes": 15,
+    "jwt_refresh_ttl_hours": 3
   }
 }
 ```
@@ -1593,7 +1735,7 @@ None.
 
 ---
 
-### `GET /api/village-data/logo`
+### Village logo - /api/village-data/logo
 
 **Explanation**
 Streams the **logo** file. The path comes from **`images.logo`** in the parsed config (typically under section **`[images]`** in `village.ini`). The path is **relative to `village_data/`** (e.g. `images/logo.png` → file `village_data/images/logo.png`).
@@ -1631,7 +1773,7 @@ On **`304`**: **empty** body; **`ETag`** repeats the current validator.
 
 ---
 
-### `GET /api/village-data/favicon`
+### Village favicon - /api/village-data/favicon
 
 **Explanation**
 Same as the logo endpoint, but uses **`images.favicon`** from the config.
