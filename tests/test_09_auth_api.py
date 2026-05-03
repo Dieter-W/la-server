@@ -500,7 +500,7 @@ def test_me_error_4(client, sample_authentication, sample_employee,):  # fmt: sk
     assert response.status_code == 401
     data = response.get_json()
     assert data["error"] == "EXPIRED_TOKEN"
-    assert data["message"] == "Missing Authorization Header"
+    assert data["message"] == "Token has expired"
 
 
 # ---------------------------------------------------------------------
@@ -833,7 +833,7 @@ def test_refresh_token_error_4(client, sample_authentication, sample_employee,):
     assert response.status_code == 401
     data = response.get_json()
     assert data["error"] == "EXPIRED_TOKEN"
-    assert data["message"] == "Missing Authorization Header"
+    assert data["message"] == "Token has expired"
 
 
 # ---------------------------------------------------------------------
