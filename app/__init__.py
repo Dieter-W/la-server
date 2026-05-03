@@ -34,7 +34,7 @@ def create_app(config_object=None) -> Flask:
 
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
-        return jsonify({"error": "EXPIRED_TOKEN", "message": "Missing Authorization Header"}), 401 # fmt: skip
+        return jsonify({"error": "EXPIRED_TOKEN", "message": "Token has expired"}), 401 # fmt: skip
 
     @jwt.invalid_token_loader
     def invalid_token_callback(error_string):
