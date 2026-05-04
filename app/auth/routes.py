@@ -1,13 +1,10 @@
 """Authentication routes and endpoints for the AUTH service."""
 
 import logging
-import os
 from typing import Any
 
 from flask import Blueprint, jsonify, request, g
-from flask_jwt_extended import get_jwt, get_jwt_identity
-
-from stdnum.iso7064 import mod_97_10
+from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 
 from app.auth.decorations import admin_required, staff_required, employee_required
 from app.errors import APIError
@@ -19,42 +16,16 @@ from app.auth.utils import (
     verify_password,
     verify_access_group,
 )
+from app.utils import employee_to_dict, validate_checksum
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api")
 
 logger = logging.getLogger(__name__)
 
-VALIDATE_CHECK_SUM = os.getenv("VALIDATE_CHECK_SUM", "true").lower() == "true"
-
 
 # ---------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------
-def _employee_to_dict(emp: Employee, comp_name, auth_group) -> dict:
-    """Serialize Employee to JSON-serializable dict."""
-    return {
-        "id": emp.id,
-        "first_name": emp.first_name,
-        "last_name": emp.last_name,
-        "employee_number": emp.employee_number,
-        "role": emp.role,
-        "company": comp_name or "",
-        "active": emp.active,
-        "notes": emp.notes,
-        "created_at": emp.created_at.isoformat() if emp.created_at else None,
-        "updated_at": emp.updated_at.isoformat() if emp.updated_at else None,
-        "auth_group": auth_group,
-    }
-
-
-def _validate_checksum(emp_num: str) -> tuple[bool, str | None]:
-    """Validate the employee number. Returns (valid, error_message)."""
-    if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(emp_num):
-        return False, "EMPLOYEE_NUMBER_WRONG"
-
-    return True, None
-
-
 def _validate_authenticate_payload(data: Any) -> tuple[bool, str]:
     """Validate the payload for the authenticate endpoint."""
     if data is None or not isinstance(data, dict):
@@ -66,7 +37,7 @@ def _validate_authenticate_payload(data: Any) -> tuple[bool, str]:
         if val is None or (isinstance(val, str) and not val.strip()):
             return False, "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
-    valid, err = _validate_checksum(data.get("employee_number"))
+    valid, err = validate_checksum(data.get("employee_number"))
     if not valid:
         return False, (f"{err}_IN_JSON")
 
@@ -74,7 +45,7 @@ def _validate_authenticate_payload(data: Any) -> tuple[bool, str]:
 
 
 def _validate_set_auth_group_payload(data: Any) -> tuple[bool, str]:
-    """Validate the payload for the reset password endpoint."""
+    """Validate the payload for the set-auth-group endpoint."""
     if data is None or not isinstance(data, dict):
         return False, "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
@@ -84,7 +55,7 @@ def _validate_set_auth_group_payload(data: Any) -> tuple[bool, str]:
         if val is None or (isinstance(val, str) and not val.strip()):
             return False, "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
-    valid, err = _validate_checksum(data.get("employee_number"))
+    valid, err = validate_checksum(data.get("employee_number"))
     if not valid:
         return False, (f"{err}_IN_JSON")
 
@@ -118,7 +89,7 @@ def _validate_reset_password_payload(data: Any) -> tuple[bool, str]:
     if val is None or (isinstance(val, str) and not val.strip()):
         return False, "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
-    valid, err = _validate_checksum(data.get("employee_number"))
+    valid, err = validate_checksum(data.get("employee_number"))
     if not valid:
         return False, (f"{err}_IN_JSON")
 
@@ -141,7 +112,7 @@ def _validate_token_payload(data: Any) -> tuple[bool, str]:
 # ---------------------------------------------------------------------
 @auth_bp.route("/auth/login", methods=["POST"])
 def authenticate():
-    """Authenticate a user and return a token (public; JWT not required). The password is passed in plain text."""
+    """Authenticate a user and return tokens (public; JWT not required). The password is passed in plain text."""
     data = request.get_json(silent=True)
     valid, err = _validate_authenticate_payload(data)
     if not valid:
@@ -167,22 +138,30 @@ def authenticate():
         if not verify_password(auth_employee.password_hash, password_plain):
             raise APIError("BAD_CREDENTIALS", 401)
 
+        token_claims = {
+            "auth_group": auth_employee.auth_group,
+            "employee_number": auth_employee.employee.employee_number,
+        }
         access_token = create_access_token(
             identity=auth_employee.id,
-            additional_claims={
-                "auth_group": auth_employee.auth_group,
-                "employee_number": auth_employee.employee.employee_number,
-            },
+            additional_claims=token_claims,
+        )
+        refresh_token = create_refresh_token(
+            identity=auth_employee.id,
+            additional_claims=token_claims,
         )
 
     logger.info(
-        f"Authenticated user: {auth_employee.employee.employee_number}, with auth group: {auth_employee.auth_group}"
+        "Authenticated user: %s, with auth group: %s",
+        auth_employee.employee.employee_number,
+        auth_employee.auth_group,
     )
     return (
         jsonify(
             {
                 "message": "Authenticated",
                 "token": access_token,
+                "refresh_token": refresh_token,
                 "auth_group": auth_employee.auth_group,
                 "password_must_change": auth_employee.password_must_change,
             }
@@ -218,8 +197,8 @@ def me():
         if emp.active is False:
             raise APIError("EMPLOYEE_NOT_ACTIVE", 400)
 
-        logger.debug(f"User: {employee_number}, with auth group: {auth_group}")
-        return jsonify(_employee_to_dict(emp, company_name, auth_group)), 200
+        logger.debug("User: %s, with auth group: %s", employee_number, auth_group)
+        return jsonify(employee_to_dict(emp, company_name, auth_group)), 200
 
 
 # ---------------------------------------------------------------------
@@ -257,7 +236,10 @@ def set_auth_group():
         g.db.flush()
 
     logger.info(
-        f"Set auth group: {auth_group} for employee number: {employee_number} by admin employee number: {admin_employee_number}"
+        "Set auth group: %s for employee number: %s by admin employee number: %s",
+        auth_group,
+        employee_number,
+        admin_employee_number,
     )
     return (
         jsonify(
@@ -306,7 +288,7 @@ def set_password():
         auth_employee.password_must_change = False
         g.db.flush()
 
-    logger.debug(f"Set password for employee number: {employee_number}")
+    logger.debug("Set password for employee number: %s", employee_number)
     return jsonify({"message": "Password set"}), 200
 
 
@@ -342,7 +324,9 @@ def reset_password():
         g.db.flush()
 
     logger.info(
-        f"Reset password for employee number: {employee_number} by staff/admin employee number: {staff_employee_number}"
+        "Reset password for employee number: %s by staff/admin employee number: %s",
+        employee_number,
+        staff_employee_number,
     )
     return jsonify({"message": "Password reset"}), 200
 
@@ -351,9 +335,9 @@ def reset_password():
 # Authentication Refresh Token API
 # ---------------------------------------------------------------------
 @auth_bp.route("/auth/refresh", methods=["POST"])
-@employee_required
+@jwt_required(refresh=True)
 def refresh_token():
-    """Refresh the token for the current user."""
+    """Issue a new access token using a valid refresh token."""
 
     claims = get_jwt()
     employee_number = claims.get("employee_number")
@@ -373,7 +357,7 @@ def refresh_token():
             raise APIError("EMPLOYEE_NOT_ACTIVE", 400)
 
         identity = get_jwt_identity()
-        access_token = create_refresh_token(
+        access_token = create_access_token(
             identity=identity,
             additional_claims={
                 "auth_group": auth_group,
@@ -382,7 +366,9 @@ def refresh_token():
         )
 
     logger.debug(
-        f"Refreshed token for user: {employee_number}, with auth group: {auth_group}"
+        "Refreshed token for user: %s, with auth group: %s",
+        employee_number,
+        auth_group,
     )
     return (
         jsonify(
@@ -402,10 +388,15 @@ def refresh_token():
 @auth_bp.route("/auth/logout", methods=["POST"])
 @employee_required
 def logout():
-    """Logout the current user."""
+    """Logout the current user.
+
+    Note: JWTs are stateless — the token remains technically valid until its
+    15-minute expiry. Clients must discard the token on receipt of this response.
+    For stricter invalidation, implement a server-side token blocklist.
+    """
     claims = get_jwt()
     employee_number = claims.get("employee_number")
     auth_group = claims.get("auth_group")
 
-    logger.info(f"Logged out user: {employee_number}, with auth group: {auth_group}")
+    logger.info("Logged out user: %s, with auth group: %s", employee_number, auth_group)
     return jsonify({"message": "Logged out", "token": "INVALID-TOKEN"}), 200

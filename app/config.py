@@ -78,9 +78,13 @@ class Config:
                 "pool_pre_ping": True,
             }
         else:
+            threads = int(os.getenv("THREADS", "4"))
             sqlalchemy_engine_options = {
                 "pool_pre_ping": True,
                 "pool_recycle": 300,
+                "pool_size": threads,
+                "max_overflow": 2,
+                "pool_timeout": 10,
             }
 
         return {

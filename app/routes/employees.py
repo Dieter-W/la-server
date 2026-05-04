@@ -1,50 +1,24 @@
 """CRUD for camp participants (children and staff); URLs and JSON use *employee* / employee_number as stable API names."""
 
 import logging
-import os
 
 from flask import Blueprint, jsonify, request, g
-from stdnum.iso7064 import mod_97_10
+from sqlalchemy import func, distinct
 
 from app.auth.decorations import admin_required
 from app.auth.utils import hash_password, verify_access_group
 from app.errors import APIError
 from app.models import Authentication, Company, Employee, JobAssignment
+from app.utils import employee_to_dict, validate_checksum
 
 employees_bp = Blueprint("employees", __name__)
 
 logger = logging.getLogger(__name__)
 
-VALIDATE_CHECK_SUM = os.getenv("VALIDATE_CHECK_SUM", "true").lower() == "true"
-
 
 # ---------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------
-def _employee_to_dict(emp: Employee, comp_name) -> dict:
-    """Serialize Employee to JSON-serializable dict."""
-    return {
-        "id": emp.id,
-        "first_name": emp.first_name,
-        "last_name": emp.last_name,
-        "employee_number": emp.employee_number,
-        "role": emp.role,
-        "company": comp_name or "",
-        "active": emp.active,
-        "notes": emp.notes,
-        "created_at": emp.created_at.isoformat() if emp.created_at else None,
-        "updated_at": emp.updated_at.isoformat() if emp.updated_at else None,
-    }
-
-
-def _validate_checksum(emp_num: str) -> tuple[bool, str | None]:
-    """Validate the employee number. Returns (valid, error_message)."""
-    if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(emp_num):
-        return False, "EMPLOYEE_NUMBER_WRONG"
-
-    return True, None
-
-
 def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
     """Validate POST payload. Returns (valid, error_message)."""
     if not data or not isinstance(data, dict):
@@ -56,7 +30,7 @@ def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
         if val is None or (isinstance(val, str) and not val.strip()):
             return False, "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
-    valid, err = _validate_checksum(data.get("employee_number"))
+    valid, err = validate_checksum(data.get("employee_number"))
     if not valid:
         return False, (f"{err}_IN_JSON")
 
@@ -73,7 +47,7 @@ def _validate_update_payload(data: dict) -> tuple[bool, str | None]:
         return False, "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
     if data.get("employee_number") is not None:
-        valid, err = _validate_checksum(data.get("employee_number"))
+        valid, err = validate_checksum(data.get("employee_number"))
         if not valid:
             return False, (f"{err}_IN_JSON")
 
@@ -102,14 +76,14 @@ def list_employees():
             elif active_param.lower() in ("false", "0", "no"):
                 emp = emp.filter(Employee.active.is_(False))
 
-        emp.all
-        emp_entries = emp.count()
+        emp_entries = emp.with_entities(func.count(distinct(Employee.id))).scalar()
 
         return (
             jsonify(
                 {
                     "employees": [
-                        _employee_to_dict(e, company_name) for e, company_name in emp
+                        employee_to_dict(e, company_name)
+                        for e, company_name in emp.all()
                     ],
                     "count": emp_entries,
                 }
@@ -124,7 +98,7 @@ def list_employees():
 @employees_bp.route("/employees/<string:employee_number>", methods=["GET"])
 def get_employee(employee_number: str):
     """Fetch a single employee by employee number."""
-    valid, err = _validate_checksum(employee_number)
+    valid, err = validate_checksum(employee_number)
     if not valid:
         raise APIError(err, 400)
 
@@ -141,7 +115,7 @@ def get_employee(employee_number: str):
 
         emp, company_name = emp_comp
 
-        return jsonify(_employee_to_dict(emp, company_name)), 200
+        return jsonify(employee_to_dict(emp, company_name)), 200
 
 
 # ---------------------------------------------------------------------
@@ -176,13 +150,13 @@ def create_employee():
         # codeql[py/clear-text-logging-sensitive-data]
         logger.info(
             "Employee created id=%s employee_number=%s",
+            emp.id,
             emp.employee_number,
-            emp.last_name,
         )
         return (
             jsonify(
                 {
-                    **_employee_to_dict(emp, ""),
+                    **employee_to_dict(emp, ""),
                     "auth_group": emp.authentication.auth_group,
                 }
             ),
@@ -197,7 +171,7 @@ def create_employee():
 @admin_required
 def update_employee(employee_number: str):
     """Update fields of an employee."""
-    valid, err = _validate_checksum(employee_number)
+    valid, err = validate_checksum(employee_number)
     if not valid:
         raise APIError(err, 400)
 
@@ -242,7 +216,7 @@ def update_employee(employee_number: str):
         logger.info(
             "Employee updated id=%s employee_number=%s", emp.id, emp.employee_number
         )
-        return jsonify(_employee_to_dict(emp, company_name)), 200
+        return jsonify(employee_to_dict(emp, company_name)), 200
 
 
 # ---------------------------------------------------------------------
@@ -252,7 +226,7 @@ def update_employee(employee_number: str):
 @admin_required
 def delete_employee(employee_number: str):
     """Soft delete (set active=false) or hard delete if ?hard=true."""
-    valid, err = _validate_checksum(employee_number)
+    valid, err = validate_checksum(employee_number)
     if not valid:
         raise APIError(err, 400)
 
@@ -278,7 +252,7 @@ def delete_employee(employee_number: str):
                 emp.id,
                 emp.employee_number,
             )
-            return jsonify(_employee_to_dict(emp, company_name)), 200
+            return jsonify(employee_to_dict(emp, company_name)), 200
         else:
             g.db.delete(emp)
             # codeql[py/clear-text-logging-sensitive-data]

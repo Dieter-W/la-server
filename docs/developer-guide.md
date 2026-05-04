@@ -20,20 +20,26 @@ By default the server listens on **`http://localhost:5000`**. In deployment, use
 
 As a **client developer**, you are responsible for the sign-in experience, for **keeping tokens safe**, and for **attaching the right credential on every API call** that requires it. The camp issues accounts (linked to a participant and a company in the server’s data model; see [`app/models.py`](../app/models.py)); your app collects the user name and password only during sign-in and password flows, not on ordinary data requests.
 
-**What the JWT is (short):** after a successful sign-in, the server returns an opaque **JSON Web Token (JWT)** in the `token` field. Claims include **`auth_group`** (`employee`, `staff`, or `admin`—not the descriptive camp **`role`** on the participant) and **`employee_number`**, plus **expiry**. Company and full profile fields come from API responses (for example **`GET /api/auth/me`**), not from decoding the token yourself. Store the string and send it back on protected routes; do not modify the payload.
+**Tokens after sign-in (short):** a successful **`POST /api/auth/login`** returns **two** opaque JWT strings: **`token`** (short-lived **access**) and **`refresh_token`** (long-lived **refresh**). Both encode claims such as **`auth_group`** (`employee`, `staff`, or `admin`—not the descriptive camp **`role`** on the participant) and **`employee_number`**, plus **expiry** (lifetime differs between access and refresh; see [`app/config.py`](../app/config.py)). Company and full profile fields come from API responses (for example **`GET /api/auth/me`**), not from decoding the payloads yourself.
+
+- Use **`token`** as **`Authorization: Bearer …`** on almost every protected route.
+- **`POST /api/auth/refresh`** is different: send **`Authorization: Bearer <refresh_token>`** — the Bearer value must be the **refresh** JWT returned at login, **not** the access token.
+
+Do not modify JWT strings yourself; rotate them only via the documented endpoints.
 
 **What you do on a normal API call**
 
-1. **Use HTTPS** in real deployments so the token is not exposed on the network.
-2. **Send the access JWT on each request** that requires authentication: add an HTTP header
+1. **Use HTTPS** in real deployments so tokens are not exposed on the network.
+2. **Send the access JWT** (`token`) on each request that requires authentication: add an HTTP header
    `Authorization: Bearer <your_access_token>`
-   (replace `<your_access_token>` with the stored JWT string, no quotes). Omit this header only for calls that the server documents as public (for example some health checks).
+   (replace `<your_access_token>` with the stored access JWT, no quotes). Omit this header only for calls that the server documents as public (for example some health checks).
 3. **Do not** send the user’s password on regular CRUD calls—only where the server explicitly expects it (sign-in, password set/change, etc., when those flows are documented).
-4. If the server responds with an **authentication error** (for example missing/invalid/expired token), obtain a **new** `token` via **`POST /api/auth/refresh`** while the current JWT is still accepted, or send the user through sign-in again; update storage and **retry** with the new `Authorization` header. If the JWT is **already expired**, refresh typically fails—**sign in again** to get a new `token`.
+4. If the server rejects a request because the **access** token is missing, invalid, or **expired**, but your **refresh** token is **still valid**, call **`POST /api/auth/refresh`** with **`Authorization: Bearer <refresh_token>`**; the response carries a **new** access **`token`** (see [Refresh session](#refresh-session)). Replace the stored access token and **retry** the original request with the updated Bearer header.
+5. If the **refresh** token is **expired** or unusable—or you no longer have it—**sign in again** to obtain new **`token`** and **`refresh_token`**.
 
-**Sign-in and token storage:** when sign-in succeeds, **`POST /api/auth/login`** returns a single opaque JWT string in **`token`** (no separate refresh field in that response). Persist it in **secure storage** for your platform (not plain logs, not easy-to-read app bundles). To rotate credentials before expiry, use **`POST /api/auth/refresh`** while the current JWT is still valid; it returns a new **`token`** string (different lifetime per server config—see [`app/config.py`](../app/config.py)). Replace the stored value after refresh or re-login.
+**Sign-in and token storage:** persist **both** values in **secure storage** for your platform (not plain logs, not easy-to-read app bundles): keep the access JWT for ordinary API calls, and keep the refresh JWT **only** for calling **`POST /api/auth/refresh`** (same header name—do not confuse the two). After a successful refresh, replace the stored **access** `token`; the server does **not** return a new **`refresh_token`** on refresh, so retain the existing refresh JWT until login again or it expires.
 
-**Expiry:** access tokens are usually short-lived. Your app should treat expiration as normal: refresh or re-login, then continue calling the API with a fresh `Authorization: Bearer …` header.
+**Expiry:** treat a short-lived access token as routine: refresh with a valid **`refresh_token`**, then continue with a fresh Bearer access token on data calls. Plan for **re-login** when both tokens are no longer acceptable.
 
 **Sign-out:** clear all stored tokens from the device and return the user to the sign-in screen. Unless the server documents a separate revoke step, assume the main effect is on the client side.
 
@@ -47,7 +53,7 @@ As a **client developer**, you are responsible for the sign-in experience, for *
 
 Use a real **employee number** (with valid ISO 7064 Mod 97,10 checksum when `VALIDATE_CHECK_SUM` is on; see [employee-numbers.md](./employee-numbers.md)) and base URL.
 
-**1. Sign in** — `POST /api/auth/login` with JSON `employee_number` and `password`. The response includes `token` (the access JWT).
+**1. Sign in** — `POST /api/auth/login` with JSON `employee_number` and `password`. On success the body includes **`token`** (short-lived access JWT) and **`refresh_token`** (long-lived refresh JWT).
 
 ```http
 POST /api/auth/login HTTP/1.1
@@ -69,12 +75,13 @@ curl -s -X POST http://localhost:5000/api/auth/login \
 {
   "message": "Authenticated",
   "token": "<jwt-access-token>",
+  "refresh_token": "<jwt-refresh-token>",
   "auth_group": "employee",
   "password_must_change": false
 }
 ```
 
-Store `token` securely; use it as `Bearer` on subsequent requests.
+Store **`token`** and **`refresh_token`** securely. Use **`token`** as **`Authorization: Bearer …`** on **`GET /api/auth/me`** and other protected routes; do **not** put the refresh JWT on those headers—send it **only** on **`POST /api/auth/refresh`** as **`Authorization: Bearer <refresh_token>`**. After a refresh, replace the saved **`token`** with the one from the refresh response ([Refresh session](#refresh-session)).
 
 **2. Current user** — `GET /api/auth/me` with the access token:
 
@@ -112,11 +119,11 @@ curl -s http://localhost:5000/api/auth/me \
 
 - Most validation and not-found cases use response body `{"error": "<CODE>"}` and an HTTP status (often `400`, `404`).
 - Database constraint issues may return `**409`** with `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` (duplicate / unique violation) or `{"error": "CONSTRAINT_VIOLATION", "message": "Delete failed, because related entries in JobAssignment table"}` (delete blocked by related rows), as implemented in [`app/errors.py`](../app/errors.py).
-- Uncaught DB errors: `**500**` with `DATABASE_ERROR` and a `message` field. Unhandled exceptions: `**500**` with `INTERNAL_SERVER_ERROR` and `message`, per [`app/errors.py`](../app/errors.py).
+- Uncaught DB errors: `**500**` with `DATABASE_ERROR`. Unhandled exceptions: `**500**` with `INTERNAL_SERVER_ERROR`, per [`app/errors.py`](../app/errors.py). For both, a **`message`** field is included in the JSON **only when** server **`DEBUG`** is enabled (otherwise the body is just `{"error": "<CODE>"}`).
 
 **Common error codes** include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, `BAD_CREDENTIALS`, `FORBIDDEN_WRONG_AUTH_GROUP`, `OLD_PASSWORD_IS_INCORRECT`, `AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`, and variants with `_IN_JSON` where applicable.
 
-JWT errors from Flask-JWT-Extended (`AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`) also include a `message` field next to `error`; see the loaders in [`app/__init__.py`](../app/__init__.py).
+JWT responses from Flask-JWT-Extended include a `message` next to `error` where applicable; see [`app/__init__.py`](../app/__init__.py). **HTTP mapping:** missing `Authorization` / Bearer → **`401`** `AUTHORIZATION_REQUIRED`; expired JWT → **`401`** `EXPIRED_TOKEN`; malformed or invalid Bearer / wrong token type for the loader → **`422`** `INVALID_TOKEN`.
 
 For **village / Spielstadt config** endpoints: `VILLAGE_DATA_NOT_FOUND` (missing `village_data/village.ini`), `VILLAGE_LOGO_NOT_CONFIGURED` / `VILLAGE_FAVICON_NOT_CONFIGURED` (INI lacks the key under `[images]`), `FILE_NOT_FOUND` (path in INI points to a file that does not exist on disk), `INVALID_FILE_PATH` (unsafe or absolute path in INI), `VILLAGE_DATA_INVALID` (INI parse failure on the server).
 
@@ -175,7 +182,8 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 ## OpenAPI / Swagger
 
 - **`GET /api/openapi.json`** — OpenAPI 3.0 document generated from [`app/openapi_spec.py`](../app/openapi_spec.py).
-- **`GET /api/docs`** — Swagger UI in the browser (UI assets from a CDN). Use **Authorize** with the JWT value returned from **`POST /api/auth/login`** (paste the token only; Swagger UI adds the `Bearer` prefix for the `bearerAuth` scheme).
+- **`GET /api/docs`** — Swagger UI in the browser (UI assets from a CDN). Use **Authorize** with the **access** JWT from login: the **`token`** field from **`POST /api/auth/login`** (paste the token only; Swagger UI adds the `Bearer` prefix for the `bearerAuth` scheme). That matches almost all protected operations.
+- **Refresh vs Authorize:** **`POST /api/auth/refresh`** must send the **refresh** JWT (`refresh_token` from login) in **`Authorization: Bearer …`**, not the access token. Swagger UI exposes a **single** global **Authorize** value for `bearerAuth`, so it cannot hold access and refresh at once. For **Try it out** on **refresh**, either temporarily replace **Authorize** with the refresh token, or call the endpoint with a client or manual header that sends the refresh JWT.
 
 Operation summaries and security in the spec mirror this guide; exact JSON bodies, status codes, and error `error` codes are documented in the sections below.
 
@@ -370,7 +378,7 @@ Missing or invalid JWT behavior matches [Errors and status codes](#errors-and-st
 ### Login service - /api/auth/login
 
 **Explanation**
-Public sign-in. The server checks the JSON **`employee_number`** and **`password`** against the participant’s row in [`Authentication`](../app/models.py). On success it returns a **JWT** in **`token`**, the app permission **`auth_group`** (`employee`, `staff`, or `admin`), and **`password_must_change`**. Server implementation: [`app/auth/routes.py`](../app/auth/routes.py) (`authenticate`). Use the stored JWT as `Authorization: Bearer …` on protected routes ([Authentication](#authentication)).
+Public sign-in. The server checks the JSON **`employee_number`** and **`password`** against the participant’s row in [`Authentication`](../app/models.py). On success it returns two JWT strings — **`token`** (short-lived **access**) and **`refresh_token`** (long-lived **refresh**) — plus **`auth_group`** (`employee`, `staff`, or `admin`) and **`password_must_change`**. Server implementation: [`app/auth/routes.py`](../app/auth/routes.py) (`authenticate`). Use **`token`** as `Authorization: Bearer …` on protected routes; keep **`refresh_token`** only for **`POST /api/auth/refresh`** ([Authentication](#authentication)).
 
 **Parameters**
 None (JSON body).
@@ -404,6 +412,7 @@ curl -s -X POST http://localhost:5000/api/auth/login \
 {
   "message": "Authenticated",
   "token": "<jwt-access-token>",
+  "refresh_token": "<jwt-refresh-token>",
   "auth_group": "employee",
   "password_must_change": false
 }
@@ -413,7 +422,7 @@ curl -s -X POST http://localhost:5000/api/auth/login \
 
 | Code | Meaning |
 | ---- | ------- |
-| 200  | OK — body includes `token`, `auth_group`, `password_must_change`. |
+| 200  | OK — body includes `token`, `refresh_token`, `auth_group`, `password_must_change`. |
 | 400  | `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `EMPLOYEE_NUMBER_WRONG_IN_JSON`, or `{"error": "EMPLOYEE_NOT_ACTIVE"}`. |
 | 401  | `{"error": "BAD_CREDENTIALS"}`. |
 | 404  | `{"error": "EMPLOYEE_NOT_FOUND"}`. |
@@ -663,10 +672,12 @@ curl -s -X POST http://localhost:5000/api/auth/password/reset-password \
 
 ---
 
+<a id="refresh-session"></a>
+
 ### Refresh session - /api/auth/refresh
 
 **Explanation**
-Issued while the current JWT is still valid. Returns a new JWT in `token` for the same identity and claims (`employee_number`, `auth_group`); store it and send it as `Bearer` on later calls.
+Requires the **refresh** JWT from **`POST /api/auth/login`** (the **`refresh_token`** response field): send **`Authorization: Bearer <jwt-refresh-token>`** — **not** the access token. While that refresh JWT is valid, the response includes a **new** **access** JWT in **`token`** for the same `employee_number` and `auth_group`; store it and use it as Bearer on ordinary protected routes. See [**Authentication**](#authentication).
 
 **Parameters**
 None.
@@ -676,12 +687,13 @@ None.
 ```http
 POST /api/auth/refresh HTTP/1.1
 Host: localhost:5000
-Authorization: Bearer <jwt-access-token>
+Authorization: Bearer <jwt-refresh-token>
 ```
 
 ```bash
+REFRESH_TOKEN="<paste-refresh-token-from-login>"
 curl -s -X POST http://localhost:5000/api/auth/refresh \
-  -H "Authorization: Bearer $TOKEN"
+  -H "Authorization: Bearer $REFRESH_TOKEN"
 ```
 
 **JSON request**
@@ -692,21 +704,23 @@ None.
 ```json
 {
   "message": "Token refreshed",
-  "token": "<new-jwt>",
+  "token": "<new-access-jwt>",
   "employee_number": "M00155"
 }
 ```
 
 **HTTP status codes**
 
-
 | Code | Meaning |
 | ---- | ------- |
-| 200  | OK |
-| 404  | Error: `{"error": "EMPLOYEE_NOT_FOUND"}` |
-| 400  | Error: `{"error": "EMPLOYEE_NOT_ACTIVE"}` |
+| 200  | OK — body includes new access `token` and `employee_number`. |
+| 401  | `AUTHORIZATION_REQUIRED` — missing `Authorization` header or Bearer value ([`app/__init__.py`](../app/__init__.py)). |
+| 401  | `EXPIRED_TOKEN` — refresh JWT expired (`message`: token expired). |
+| 422  | `INVALID_TOKEN` — Bearer JWT malformed or otherwise invalid (`message` from Flask-JWT-Extended). |
+| 404  | `{"error": "EMPLOYEE_NOT_FOUND"}` — employee removed since login while refresh JWT still valid. |
+| 400  | `{"error": "EMPLOYEE_NOT_ACTIVE"}` |
 
-JWT handling errors (missing/invalid/expired token, wrong `auth_group`) match [Errors and status codes](#errors-and-status-codes).
+Sending an **access** JWT instead of a **refresh** JWT typically yields **`422`** `INVALID_TOKEN` (wrong token type). Other JWT conventions: [Errors and status codes](#errors-and-status-codes).
 
 
 ---
@@ -1662,7 +1676,7 @@ Camp-specific **name**, **currency** labels, optional extra INI sections, and **
 
 **INI → JSON:** The file is parsed with Python’s `configparser`. Each **`[section]`** becomes a top-level key in the JSON object; each option becomes a string value inside that object. Optional double quotes around values in the INI are stripped in the API output. Option names are normalized to **lower case** by the parser.
 
-**Runtime-only `la-server`:** The response always includes a top-level **`la-server`** object built by the server (auth groups, whether employee-number checksum validation is enabled, JWT time-to-live hints, etc.). It is **not** read from `village.ini` and must **not** be configured via a `[la-server]` section in the INI; if that section appears in the file, the server **overwrites** it in the JSON so the payload matches real server behavior.
+**Runtime-only `la-server`:** The response always includes a top-level **`la-server`** object built by the server (auth groups, whether employee-number checksum validation is enabled, JWT TTL hints in **minutes** for access and refresh, etc.). When checksum validation is off, **`employee_number_checksum_algorithm`** is JSON **`null`**. It is **not** read from `village.ini` and must **not** be configured via a `[la-server]` section in the INI; if that section appears in the file, the server **overwrites** it in the JSON so the payload matches real server behavior.
 
 **Caching:** The **INI-derived** keys are cached in memory until **`village_data/village.ini`** changes (file modification time). The **`ETag`** on **`GET /api/village-data`** is an MD5 hex digest of a **canonical JSON serialization** of the **entire** object returned to the client (all INI sections **plus** the **`la-server`** block). That way, changes from environment or app config (for example checksum validation) update **`ETag`** even when `village.ini` is unchanged. Send **`If-None-Match`** (quoted, comma-separated, or weak `W/"..."` forms are accepted) to receive **`304 Not Modified`** with an **empty body** when the represented body is unchanged.
 
@@ -1719,7 +1733,7 @@ None.
     "validate_employee_number_checksum": true,
     "employee_number_checksum_algorithm": "ISO_7064_MOD_97_10",
     "jwt_access_ttl_minutes": 15,
-    "jwt_refresh_ttl_hours": 3
+    "jwt_refresh_ttl_minutes": 180
   }
 }
 ```

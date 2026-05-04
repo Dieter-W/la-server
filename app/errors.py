@@ -2,7 +2,7 @@
 
 import logging
 
-from flask import jsonify, g
+from flask import current_app, jsonify, g
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 logger = logging.getLogger(__name__)
@@ -23,26 +23,33 @@ def register_error_handlers(app):
 
     @app.errorhandler(IntegrityError)
     def handle_integrity_error(e):
-        msg = str(e)
+        raw = str(e)
         g.db.rollback()
 
-        if "Duplicate entry" in msg:
+        if "Duplicate entry" in raw:
             msg = "Create failed, because entry is already in database"
-
-        elif "UPDATE job_assignments" in msg:
+        elif "UPDATE job_assignments" in raw:
             msg = "Delete failed, because related entries in JobAssignment table"
+        else:
+            msg = "Constraint violation"
 
-        logger.warning("Integrity constraint: %s", msg)
-        return jsonify({"error": "CONSTRAINT_VIOLATION", "message": f"{msg}"}), 409
+        logger.warning("Integrity constraint: %s", raw)
+        return jsonify({"error": "CONSTRAINT_VIOLATION", "message": msg}), 409
 
     @app.errorhandler(SQLAlchemyError)
     def handle_sqlalchemy_error(e):
         g.db.rollback()
         logger.exception("Database error")
-        return jsonify({"error": "DATABASE_ERROR", "message": f"{e}"}), 500
+        body: dict = {"error": "DATABASE_ERROR"}
+        if current_app.config.get("DEBUG"):
+            body["message"] = str(e)
+        return jsonify(body), 500
 
     @app.errorhandler(Exception)
     def handle_unknown_error(e):
         g.db.rollback()
         logger.exception("Unhandled error")
-        return jsonify({"error": "INTERNAL_SERVER_ERROR", "message": f"{e}"}), 500
+        body: dict = {"error": "INTERNAL_SERVER_ERROR"}
+        if current_app.config.get("DEBUG"):
+            body["message"] = str(e)
+        return jsonify(body), 500

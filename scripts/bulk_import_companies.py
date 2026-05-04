@@ -12,7 +12,6 @@ sys.path.insert(0, str(project_root))
 
 from app import create_app  # noqa: E402
 from app.config import Config  # noqa: E402
-from app.database import db  # noqa: E402
 from app.models import Company  # noqa: E402
 
 load_dotenv(project_root / ".env")
@@ -27,7 +26,7 @@ def _parse_active(value: str) -> bool:
     return str(value).strip().lower() in ("true", "1", "yes")
 
 
-def import_row(row: dict, row_num: int) -> bool:
+def import_row(session, row: dict, row_num: int) -> bool:
     """Create or update a company from a CSV row. Returns True on success. Must be called within app context."""
     company_name = (row.get("company_name") or "").strip()
     jobs_max = (row.get("jobs_max") or "").strip()
@@ -35,14 +34,14 @@ def import_row(row: dict, row_num: int) -> bool:
     active = _parse_active(row.get("active", "true"))
     notes = (row.get("notes") or "").strip() or None
 
-    existing = Company.query.filter_by(company_name=company_name).first()
+    existing = session.query(Company).filter_by(company_name=company_name).first()
     if existing:
         existing.company_name = company_name
         existing.jobs_max = jobs_max
         existing.pay_per_hour = pay_per_hour
         existing.active = active
         existing.notes = notes
-        db.session.commit()
+        session.commit()
         print(f"  Database entry UPDATED by CSV file row {row_num} - {company_name}")
     else:
         comp = Company(
@@ -52,8 +51,8 @@ def import_row(row: dict, row_num: int) -> bool:
             active=active,
             notes=notes,
         )
-        db.session.add(comp)
-        db.session.commit()
+        session.add(comp)
+        session.commit()
         print(f"  Database entry CREATED by CSV file row {row_num} - {company_name}")
     return True
 
@@ -87,13 +86,18 @@ def main() -> int:
         rows = list(reader)
 
     with app.app_context():
-        for i, row in enumerate(rows, start=2):  # row 1 is header
-            try:
-                if not import_row(row, i):
+        session = app.SessionLocal()
+        try:
+            for i, row in enumerate(rows, start=2):  # row 1 is header
+                try:
+                    if not import_row(session, row, i):
+                        failed += 1
+                except Exception as e:
+                    session.rollback()
+                    print(f"  Row {i}: ERROR - {e}")
                     failed += 1
-            except Exception as e:
-                print(f"  Row {i}: ERROR - {e}")
-                failed += 1
+        finally:
+            session.close()
 
     if failed:
         print(f"\n{failed} row(s) failed to import.", file=sys.stderr)
