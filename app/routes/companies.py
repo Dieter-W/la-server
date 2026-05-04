@@ -79,7 +79,6 @@ def list_companies():
             elif active_param.lower() in ("false", "0", "no"):
                 comp = comp.filter(Company.active.is_(False))
 
-        comp.all
         comp_entries = comp.count()
 
         return jsonify(

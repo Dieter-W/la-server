@@ -8,8 +8,12 @@ repos:
         name: Create requirements.txt
         entry: "python scripts/$check_poetry_to_requirements.py"
         language: system
-        types: [python]
-        pass_filenames: true
+        # Only Poetry inputs matter; hook ignores argv and uses staged files.
+        # Do not match all Python files: pre-commit runs those invocations in
+        # parallel and each one called `git add`, causing index.lock races.
+        files: ^(pyproject\.toml|poetry\.lock)$
+        pass_filenames: false
+        require_serial: true
 
   # ------------------------------------
   # General repo hygiene

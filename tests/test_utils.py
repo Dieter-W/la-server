@@ -1,7 +1,7 @@
 """Utility functions for authentication tests"""
 
 from datetime import timedelta
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, create_refresh_token
 
 # ---------------------------------------------------------------------
 # Login as employee, staff, admin functions
@@ -17,6 +17,7 @@ def _login_as_employee(client, sample_authentication = None, sample_employee=Non
     data = response.get_json()
     assert data["message"] == "Authenticated"
     assert data["token"] is not None
+    assert data["refresh_token"] is not None
     assert data["auth_group"] == "employee"
     assert data["password_must_change"] is True
 
@@ -33,6 +34,7 @@ def _login_as_staff(client, sample_authentication = None, sample_employee=None,)
     data = response.get_json()
     assert data["message"] == "Authenticated"
     assert data["token"] is not None
+    assert data["refresh_token"] is not None
     assert data["auth_group"] == "staff"
     assert data["password_must_change"] is False
 
@@ -49,16 +51,40 @@ def _login_as_admin(client, sample_authentication = None, sample_employee=None,)
     data = response.get_json()
     assert data["message"] == "Authenticated"
     assert data["token"] is not None
+    assert data["refresh_token"] is not None
     assert data["auth_group"] == "admin"
     assert data["password_must_change"] is True
 
     return data["token"]
 
 
+def _get_refresh_token(client, employee_number: str, password: str) -> str:
+    """Log in and return the refresh token."""
+    response = client.post(
+        "/api/auth/login",
+        json={"employee_number": employee_number, "password": password},
+    )
+    assert response.status_code == 200
+    return response.get_json()["refresh_token"]
+
+
 def _login_as_employee_expired_token(client) -> str:
     """Access token for auth id 2 (M00252) that is already expired."""
     with client.application.app_context():
         return create_access_token(
+            identity="2",
+            additional_claims={
+                "auth_group": "employee",
+                "employee_number": "M00252",
+            },
+            expires_delta=timedelta(seconds=-1),
+        )
+
+
+def _login_as_employee_expired_refresh_token(client) -> str:
+    """Expired refresh token for auth id 2 (M00252)."""
+    with client.application.app_context():
+        return create_refresh_token(
             identity="2",
             additional_claims={
                 "auth_group": "employee",
