@@ -18,7 +18,6 @@ sys.path.insert(0, str(project_root))
 
 from app import create_app  # noqa: E402
 from app.config import Config  # noqa: E402
-from app.database import db  # noqa: E402
 from app.models import Authentication, Employee  # noqa: E402
 from app.auth.utils import hash_password, verify_access_group  # noqa: E402
 
@@ -62,7 +61,7 @@ def _parse_auth_group(raw_auth_group) -> tuple[str | None, str | None]:
     return auth_group, None
 
 
-def import_row(row: dict, row_num: int) -> bool:
+def import_row(session, row: dict, row_num: int) -> bool:
     """Create or update an employee from a CSV row. Returns True on success. Must be called within app context."""
     employee_number = (row.get("employee_number") or "").strip()
     if not employee_number:
@@ -87,7 +86,9 @@ def import_row(row: dict, row_num: int) -> bool:
         print(f"  Row {row_num}: SKIP - {auth_err}")
         return False
 
-    existing = Employee.query.filter_by(employee_number=employee_number).first()
+    existing = (
+        session.query(Employee).filter_by(employee_number=employee_number).first()
+    )
     if existing:
         emp = existing
         emp.first_name = first_name
@@ -113,10 +114,10 @@ def import_row(row: dict, row_num: int) -> bool:
                 password_hash=hash_password(last_name),
             ),
         )
-        db.session.add(emp)
+        session.add(emp)
         action = "CREATED"
 
-    db.session.commit()
+    session.commit()
     # codeql[py/clear-text-logging-sensitive-data]
     print(f"  Row {row_num}: {action} - {employee_number}")
     return True
@@ -168,13 +169,18 @@ def main() -> int:
                     sys.exit(1)
 
     with app.app_context():
-        for i, row in enumerate(rows, start=2):  # row 1 is header
-            try:
-                if not import_row(row, i):
+        session = app.SessionLocal()
+        try:
+            for i, row in enumerate(rows, start=2):  # row 1 is header
+                try:
+                    if not import_row(session, row, i):
+                        failed += 1
+                except Exception as e:
+                    session.rollback()
+                    print(f"  Row {i}: ERROR - {e}")
                     failed += 1
-            except Exception as e:
-                print(f"  Row {i}: ERROR - {e}")
-                failed += 1
+        finally:
+            session.close()
 
     if failed:
         print(f"\n{failed} row(s) failed to import.", file=sys.stderr)

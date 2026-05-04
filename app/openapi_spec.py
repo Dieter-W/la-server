@@ -1,12 +1,27 @@
 """OpenAPI 3.0 schema for the LA-Server REST API. Narrative docs: docs/developer-guide.md."""
 
+import tomllib
+from pathlib import Path
+
+
+def _read_project_version() -> str:
+    """Read the canonical version from pyproject.toml."""
+    toml_path = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    try:
+        with open(toml_path, "rb") as f:
+            data = tomllib.load(f)
+        return data.get("project", {}).get("version", "unknown")
+    except Exception:
+        return "unknown"
+
+
 API_TITLE = "LA-Server API"
 API_DESCRIPTION = (
     "Kinderspielstadt Los Ämmerles JSON REST API (companies, employees, job assignments, "
     "village configuration, auth). For request/response shapes and error codes see "
     "[developer-guide.md](docs/developer-guide.md)."
 )
-API_VERSION = "0.5.0"
+API_VERSION = _read_project_version()
 
 _BEARER = [{"bearerAuth": []}]
 
@@ -406,7 +421,7 @@ def build_openapi_dict() -> dict:
                         "validate_employee_number_checksum",
                         "employee_number_checksum_algorithm",
                         "jwt_access_ttl_minutes",
-                        "jwt_refresh_ttl_hours",
+                        "jwt_refresh_ttl_minutes",
                     ],
                     "properties": {
                         "auth_groups": {
@@ -429,9 +444,9 @@ def build_openapi_dict() -> dict:
                             "description": "Access JWT lifetime from server config.",
                             "minimum": 0,
                         },
-                        "jwt_refresh_ttl_hours": {
+                        "jwt_refresh_ttl_minutes": {
                             "type": "integer",
-                            "description": "Refresh JWT lifetime from server config.",
+                            "description": "Refresh JWT lifetime in minutes from server config.",
                             "minimum": 0,
                         },
                     },

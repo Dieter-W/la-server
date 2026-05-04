@@ -5,6 +5,8 @@ from test_utils import (
     _login_as_employee,
     _login_as_staff,
     _login_as_employee_expired_token,
+    _login_as_employee_expired_refresh_token,
+    _get_refresh_token,
 )
 
 # ---------------------------------------------------------------------
@@ -746,25 +748,26 @@ def test_reset_password_error_2(client, sample_authentication, sample_company, s
 # Authentication Refresh Token API
 # ---------------------------------------------------------------------
 def test_refresh_token_ok(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    refresh_token = _get_refresh_token(client, "M00252", "Mustermann")
 
     response = client.post(
         "/api/auth/refresh",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {refresh_token}"},
     )
     if response.status_code != 200:
         print(response.text)
     assert response.status_code == 200
     data = response.get_json()
     assert data["message"] == "Token refreshed"
+    assert data["token"] is not None
 
 
 def test_refresh_token_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    refresh_token = _get_refresh_token(client, "M00252", "Mustermann")
 
     response = client.post(
         "/api/auth/refresh",
-        headers={"Authorization": f"Bearer {token}-invalid-token"},
+        headers={"Authorization": f"Bearer {refresh_token}-invalid-token"},
     )
     if response.status_code != 422:
         print(response.text)
@@ -775,7 +778,7 @@ def test_refresh_token_error_1(client, sample_authentication, sample_company, sa
 
 def test_refresh_token_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
     token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
-    token_employee = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    refresh_token_employee = _get_refresh_token(client, "M00252", "Mustermann")
 
     employee_number = "M00252"
     response = client.delete(
@@ -788,7 +791,7 @@ def test_refresh_token_error_2(client, sample_authentication, sample_company, sa
 
     response = client.post(
         "/api/auth/refresh",
-        headers={"Authorization": f"Bearer {token_employee}"},
+        headers={"Authorization": f"Bearer {refresh_token_employee}"},
     )
     if response.status_code != 404:
         print(response.text)
@@ -798,7 +801,7 @@ def test_refresh_token_error_2(client, sample_authentication, sample_company, sa
 
 def test_refresh_token_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
     token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
-    token_employee = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    refresh_token_employee = _get_refresh_token(client, "M00252", "Mustermann")
 
     employee_number = "M00252"
     response = client.put(
@@ -812,7 +815,7 @@ def test_refresh_token_error_3(client, sample_authentication, sample_company, sa
 
     response = client.post(
         "/api/auth/refresh",
-        headers={"Authorization": f"Bearer {token_employee}"},
+        headers={"Authorization": f"Bearer {refresh_token_employee}"},
     )
     if response.status_code != 400:
         print(response.text)
@@ -822,7 +825,7 @@ def test_refresh_token_error_3(client, sample_authentication, sample_company, sa
 
 
 def test_refresh_token_error_4(client, sample_authentication, sample_employee,):  # fmt: skip
-    token = _login_as_employee_expired_token(client)
+    token = _login_as_employee_expired_refresh_token(client)
 
     response = client.post(
         "/api/auth/refresh",

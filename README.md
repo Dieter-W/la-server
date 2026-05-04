@@ -16,7 +16,7 @@ The following versions are required to run the LA-Server:
 
 ## Authorization
 
-In client apps can user sign in with **employee number** and **password**. The server then gives the app a **token** to attach to later requests, so the server knows who is calling.
+In client apps users sign in with **employee number** and **password**. The server returns a short-lived **access** JWT (`token`) sent as **`Authorization: Bearer`** on ordinary API calls, plus a separate **refresh** JWT (`refresh_token`) that is sent the same way only to **`POST /api/auth/refresh`** to obtain a new access JWT. Exact headers and error handling: [docs/developer-guide.md](./docs/developer-guide.md).
 
 Some operations are open to everyone (public). Others need a signed-in user; a few need **staff** or **admin**, the most need **employee** (all kids in the summer camp). The **API Endpoints** table below marks each route as **public** or with the minimum type of account that is allowed.
 
@@ -257,7 +257,7 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | GET    | `/api/auth/me`                           | Current employee profile                    | employee or higher               |
 | POST   | `/api/auth/password/set-password`        | Change password                             | employee or higher               |
 | POST   | `/api/auth/password/reset-password`      | Reset password to initial value             | staff or higher                  |
-| POST   | `/api/auth/refresh`                      | Refresh session token                       | employee or higher               |
+| POST   | `/api/auth/refresh`                      | New access token                            | employee or higher               |
 | POST   | `/api/auth/logout`                       | Logout                                      | employee or higher               |
 | GET    | `/api/companies`                         | List companies                              | public                           |
 | GET    | `/api/companies/<company_name>`          | List one company                            | public                           |

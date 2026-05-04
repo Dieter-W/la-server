@@ -45,6 +45,7 @@ def init_db(app) -> None:
             bind=engine,
             autocommit=False,
             autoflush=False,
+            expire_on_commit=False,
         )
         app.db_engine = engine
         app.SessionLocal = SessionLocal
@@ -54,5 +55,8 @@ def init_db(app) -> None:
 
         import app.models  # noqa: F401 - register models before create_all
 
+        # create_all ensures schema for dev, tests, and fresh installs.
+        # Operators may use scripts/create_database.py and adjust models or
+        # apply DDL manually in production as they choose.
         db.create_all()
         logger.info("Database schema ensured (create_all).")

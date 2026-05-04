@@ -1,21 +1,18 @@
 """Job assignment endpoints: camp participants (children and staff) take jobs at companies (*employee* names match the API)."""
 
 import logging
-import os
 
 from flask import Blueprint, jsonify, request, g
-from stdnum.iso7064 import mod_97_10
 
 from app.errors import APIError
 from app.models import Company, Employee, JobAssignment
 
 from app.auth.decorations import admin_required, employee_required
+from app.utils import validate_checksum
 
 job_assignment_bp = Blueprint("job_assignments", __name__)
 
 logger = logging.getLogger(__name__)
-
-VALIDATE_CHECK_SUM = os.getenv("VALIDATE_CHECK_SUM", "true").lower() == "true"
 
 
 # ---------------------------------------------------------------------
@@ -33,13 +30,6 @@ def _job_assignment_to_dict(job: JobAssignment) -> dict:
     }
 
 
-def _validate_checksum(employee_number: str) -> tuple[bool, str | None]:
-    if VALIDATE_CHECK_SUM and not mod_97_10.is_valid(employee_number):
-        return False, "EMPLOYEE_NUMBER_WRONG"
-
-    return True, None
-
-
 def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
     """Validate POST-Create payload. Returns (valid, error_message)."""
 
@@ -52,7 +42,7 @@ def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
         if val is None or (isinstance(val, str) and not val.strip()):
             return False, "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
-    valid, err = _validate_checksum(data.get("employee_number"))
+    valid, err = validate_checksum(data.get("employee_number"))
     if not valid:
         return valid, (f"{err}_IN_JSON")
 
@@ -60,11 +50,15 @@ def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
 
 
 def _validate_reset_payload(data: dict) -> tuple[bool, str | None]:
-    """Validate POST-Create payload. Returns (valid, error_message)."""
-    if not data:
-        return True, None
+    """Validate POST-Reset payload. Returns (valid, error_message).
 
-    if not data or not isinstance(data, dict):
+    An empty / missing body is allowed (resets all assignments).
+    A non-empty body must be a JSON object with a non-empty ``company_name``.
+    """
+    if not data:
+        return True, None  # no body → reset all
+
+    if not isinstance(data, dict):
         return False, "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
     required = ("company_name",)
@@ -80,7 +74,7 @@ def _validate_reset_payload(data: dict) -> tuple[bool, str | None]:
 # Job Assignment Get-all API
 # ---------------------------------------------------------------------
 @job_assignment_bp.route("/job-assignments", methods=["GET"])
-def list_companies():
+def list_job_assignments():
     """List job assignments."""
 
     with g.db.begin():
@@ -166,7 +160,7 @@ def create_job_assignment():
 @employee_required
 def delete_job_assignment(employee_number: str):
     """Delete a job assignment."""
-    valid, err = _validate_checksum(employee_number)
+    valid, err = validate_checksum(employee_number)
     if not valid:
         raise APIError(err, 400)
 
@@ -204,7 +198,7 @@ def delete_job_assignment(employee_number: str):
 @job_assignment_bp.route("/job-assignments/reset", methods=["POST"])
 @admin_required
 def reset_job_assignment():
-    """Delete a group of job assignment or all."""
+    """Delete a group of job assignments or all."""
     data = request.get_json(silent=True)
     valid, err = _validate_reset_payload(data)
     if not valid:
@@ -215,11 +209,11 @@ def reset_job_assignment():
 
         count = jobs.count()
         if count > 0:
-
-            if data and data["company_name"].strip():
+            company_name = data.get("company_name", "").strip() if data else ""
+            if company_name:
                 comp = (
                     g.db.query(Company)
-                    .filter(Company.company_name == data["company_name"].strip())
+                    .filter(Company.company_name == company_name)
                     .first()
                 )
 
@@ -229,9 +223,8 @@ def reset_job_assignment():
                 jobs = jobs.filter(JobAssignment.company_id == comp.id)
                 count = jobs.count()
 
-        reset_scope = "*"
-        if data and data.get("company_name") and data["company_name"].strip():
-            reset_scope = data["company_name"].strip()
+        reset_scope = data.get("company_name", "").strip() if data else ""
+        reset_scope = reset_scope or "*"
 
         if count > 0:
             jobs.delete(synchronize_session=False)

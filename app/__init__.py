@@ -61,10 +61,11 @@ def create_app(config_object=None) -> Flask:
                 return
 
             try:
-                if exception is None:
-                    db.commit()
-                else:
-                    db.rollback()
+                if db.in_transaction():
+                    if exception is None:
+                        db.commit()
+                    else:
+                        db.rollback()
             finally:
                 db.close()
         finally:
