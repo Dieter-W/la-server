@@ -22,6 +22,20 @@ _DATA_DIR = _PROJECT_ROOT / "village_data"
 
 
 # ---------------------------------------------------------------------
+# Externalized Helper functions
+# ---------------------------------------------------------------------
+def get_salary_increase() -> int:
+    """Return salary increase from village.ini"""
+    village_data = _load_village_data()
+    if village_data:
+        salary = village_data.get("salary")
+        if isinstance(salary, dict):
+            increase = salary.get("increase")
+            return int(increase)
+    return 0
+
+
+# ---------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------
 

@@ -9,6 +9,7 @@ from app.errors import APIError
 from app.models import Company, JobAssignment
 
 from app.auth.decorations import admin_required
+from app.routes.village_data import get_salary_increase
 
 companies_bp = Blueprint("companies", __name__)
 
@@ -27,7 +28,7 @@ def _company_to_dict(comp: Company, assigned_jobs) -> dict:
             "available": comp.jobs_max - assigned_jobs,
             "max": comp.jobs_max,
         },
-        "pay_per_hour": comp.pay_per_hour,
+        "pay_per_hour": (comp.pay_per_hour + get_salary_increase()),
         "active": comp.active,
         "notes": comp.notes,
         "created_at": comp.created_at.isoformat() if comp.created_at else None,
