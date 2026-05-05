@@ -169,7 +169,7 @@ def sample_company(
         company = Company(
             company_name="Bank",
             jobs_max=5,
-            pay_per_hour=9,
+            hourly_pay=9,
             active=False,
             notes="Created by test script",
         )
@@ -177,7 +177,7 @@ def sample_company(
         company = Company(
             company_name="Arbeitsamt",
             jobs_max=10,
-            pay_per_hour=9,
+            hourly_pay=9,
             active=True,
             notes="Created by test script",
         )
@@ -185,7 +185,7 @@ def sample_company(
         company = Company(
             company_name="Küche",
             jobs_max=2,
-            pay_per_hour=9,
+            hourly_pay=9,
             active=True,
             notes="Created by test script",
         )
@@ -193,7 +193,7 @@ def sample_company(
         company = Company(
             company_name="Bauhof",
             jobs_max=1,
-            pay_per_hour=9,
+            hourly_pay=9,
             active=True,
             notes="Created by test script",
         )

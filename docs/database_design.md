@@ -32,7 +32,7 @@ All concrete tables inherit from `BaseModel` (`__abstract__ = True`):
 | `id`           | integer           | PK (from `BaseModel`)   |
 | `company_name` | `String(255)`     | `NOT NULL`, `UNIQUE`    |
 | `jobs_max`     | integer           | `NOT NULL`              |
-| `pay_per_hour` | integer           | `NOT NULL` (project units) |
+| `hourly_pay` | integer           | `NOT NULL` (project units) |
 | `active`       | boolean           | `NOT NULL`, default `true` |
 | `notes`        | `Text`            | nullable                |
 | `created_at`, `updated_at` | datetime (tz) | from `BaseModel` |
@@ -106,7 +106,7 @@ erDiagram
         int id PK
         string company_name UK
         int jobs_max
-        int pay_per_hour
+        int hourly_pay
         boolean active
         text notes
         datetime created_at
@@ -155,7 +155,7 @@ erDiagram
 - Each row represents an **employer** in the Spielstadt that offers jobs.
 - `company_name` must be unique.
 - `jobs_max` caps concurrent assignments for that company (enforced with the API).
-- `pay_per_hour` is amount of money **camp participants** (children and staff in their Spielstadt roles) get for one hour of work.
+- `hourly_pay` is amount of money **camp participants** (children and staff in their Spielstadt roles) get for one hour of work.
 - `active` marks whether the company is offering jobs. `notes` is optional free text.
 
 ### Employee (`employees`)
