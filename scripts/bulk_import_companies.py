@@ -16,7 +16,7 @@ from app.models import Company  # noqa: E402
 
 load_dotenv(project_root / ".env")
 
-REQUIRED_COLUMNS = ("company_name", "jobs_max", "pay_per_hour", "active", "notes")
+REQUIRED_COLUMNS = ("company_name", "jobs_max", "hourly_pay", "active", "notes")
 
 
 def _parse_active(value: str) -> bool:
@@ -30,7 +30,7 @@ def import_row(session, row: dict, row_num: int) -> bool:
     """Create or update a company from a CSV row. Returns True on success. Must be called within app context."""
     company_name = (row.get("company_name") or "").strip()
     jobs_max = (row.get("jobs_max") or "").strip()
-    pay_per_hour = (row.get("pay_per_hour") or "").strip()
+    hourly_pay = (row.get("hourly_pay") or "").strip()
     active = _parse_active(row.get("active", "true"))
     notes = (row.get("notes") or "").strip() or None
 
@@ -38,7 +38,7 @@ def import_row(session, row: dict, row_num: int) -> bool:
     if existing:
         existing.company_name = company_name
         existing.jobs_max = jobs_max
-        existing.pay_per_hour = pay_per_hour
+        existing.hourly_pay = hourly_pay
         existing.active = active
         existing.notes = notes
         session.commit()
@@ -47,7 +47,7 @@ def import_row(session, row: dict, row_num: int) -> bool:
         comp = Company(
             company_name=company_name,
             jobs_max=jobs_max,
-            pay_per_hour=pay_per_hour,
+            hourly_pay=hourly_pay,
             active=active,
             notes=notes,
         )

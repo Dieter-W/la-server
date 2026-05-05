@@ -125,7 +125,7 @@ curl -s http://localhost:5000/api/auth/me \
 
 JWT responses from Flask-JWT-Extended include a `message` next to `error` where applicable; see [`app/__init__.py`](../app/__init__.py). **HTTP mapping:** missing `Authorization` / Bearer → **`401`** `AUTHORIZATION_REQUIRED`; expired JWT → **`401`** `EXPIRED_TOKEN`; malformed or invalid Bearer / wrong token type for the loader → **`422`** `INVALID_TOKEN`.
 
-For **village / Spielstadt config** endpoints: `VILLAGE_DATA_NOT_FOUND` (missing `village_data/village.ini`), `VILLAGE_LOGO_NOT_CONFIGURED` / `VILLAGE_FAVICON_NOT_CONFIGURED` (INI lacks the key under `[images]`), `FILE_NOT_FOUND` (path in INI points to a file that does not exist on disk), `INVALID_FILE_PATH` (unsafe or absolute path in INI), `VILLAGE_DATA_INVALID` (INI parse failure on the server).
+For **village / Spielstadt config** endpoints: `VILLAGE_DATA_NOT_FOUND` (missing `village_data/village.ini`), `VILLAGE_LOGO_NOT_CONFIGURED` / `VILLAGE_FAVICON_NOT_CONFIGURED` (INI lacks the key under `[village-images]`), `FILE_NOT_FOUND` (path in INI points to a file that does not exist on disk), `INVALID_FILE_PATH` (unsafe or absolute path in INI), `VILLAGE_DATA_INVALID` (INI parse failure on the server).
 
 ## Employee numbers and checksums
 
@@ -810,7 +810,7 @@ None.
       "id": 1,
       "company_name": "Bank",
       "jobs": { "available": 6, "max": 8 },
-      "pay_per_hour": 10,
+      "hourly_pay": 10,
       "active": true,
       "notes": null,
       "created_at": "2026-01-15T10:00:00+00:00",
@@ -820,7 +820,7 @@ None.
       "id": 2,
       "company_name": "Bauhof",
       "jobs": { "available": 4, "max": 4 },
-      "pay_per_hour": 10,
+      "hourly_pay": 10,
       "active": false,
       "notes": null,
       "created_at": "2026-01-15T10:00:00+00:00",
@@ -875,7 +875,7 @@ None.
   "id": 1,
   "company_name": "Bank",
   "jobs": { "available": 6, "max": 8 },
-  "pay_per_hour": 10,
+  "hourly_pay": 10,
   "active": true,
   "notes": null,
   "created_at": "2026-01-15T10:00:00+00:00",
@@ -915,7 +915,7 @@ Authorization: Bearer <jwt-access-token>
 curl -s -X POST http://localhost:5000/api/companies \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"company_name":"Bank","jobs_max":8,"pay_per_hour":10,"active":true}'
+  -d '{"company_name":"Bank","jobs_max":8,"hourly_pay":10,"active":true}'
 ```
 
 **JSON request**
@@ -924,7 +924,7 @@ curl -s -X POST http://localhost:5000/api/companies \
 | -------------- | -------- | -------------- | -------------------------- |
 | `company_name` | Yes      | string         | Unique name                |
 | `jobs_max`     | Yes      | integer        | Max concurrent assignments |
-| `pay_per_hour` | Yes      | integer        | payment per hour           |
+| `hourly_pay` | Yes      | integer        | payment per hour           |
 | `active`       | No       | boolean        | Default `true`  (optional) |
 | `notes`        | No       | string or null | Free text  (optional)      |
 
@@ -935,7 +935,7 @@ Example:
 {
   "company_name": "Bank",
   "jobs_max": 8,
-  "pay_per_hour": 10,
+  "hourly_pay": 10,
   "active": true,
   "notes": null
 }
@@ -948,7 +948,7 @@ Example:
   "id": 1,
   "company_name": "Bank",
   "jobs": { "available": 8, "max": 8 },
-  "pay_per_hour": 10,
+  "hourly_pay": 10,
   "active": true,
   "notes": null,
   "created_at": "2026-01-15T10:00:00+00:00",
@@ -995,7 +995,7 @@ Authorization: Bearer <jwt-access-token>
 curl -s -X PUT "http://localhost:5000/api/companies/Bank" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"pay_per_hour":12}'
+  -d '{"hourly_pay":12}'
 ```
 
 **JSON request** (all optional keys; only sent fields are updated)
@@ -1004,7 +1004,7 @@ curl -s -X PUT "http://localhost:5000/api/companies/Bank" \
 | -------------- | -------- | -------------- | -------------------------------------- |
 | `company_name` | Yes      | string         | Unique name  (optional)                |
 | `jobs_max`     | Yes      | integer        | Max concurrent assignments  (optional) |
-| `pay_per_hour` | Yes      | integer        | payment per hour  (optional)           |
+| `hourly_pay` | Yes      | integer        | payment per hour  (optional)           |
 | `active`       | No       | boolean        | Default `true`  (optional)             |
 | `notes`        | No       | string or null | Free text  (optional)                  |
 
@@ -1012,7 +1012,7 @@ curl -s -X PUT "http://localhost:5000/api/companies/Bank" \
 {
   "company_name": "Bank Filiale",
   "jobs_max": 10,
-  "pay_per_hour": 12,
+  "hourly_pay": 12,
   "active": true,
   "notes": "Updated"
 }
@@ -1720,7 +1720,7 @@ None.
     "name": "Ammertaler",
     "name_short": "AT"
   },
-  "salary": {
+  "hourly_pay": {
     "increase": "0",
     "tax": "3"
   },
@@ -1752,7 +1752,7 @@ None.
 ### Village logo - /api/village-data/logo
 
 **Explanation**
-Streams the **logo** file. The path comes from **`images.logo`** in the parsed config (typically under section **`[images]`** in `village.ini`). The path is **relative to `village_data/`** (e.g. `images/logo.png` → file `village_data/images/logo.png`).
+Streams the **logo** file. The path comes from **`images.logo`** in the parsed config (typically under section **`[village-images]`** in `village.ini`). The path is **relative to `village_data/`** (e.g. `images/logo.png` → file `village_data/images/logo.png`).
 
 **Parameters**
 None. Optional request header **`If-None-Match`**: the **`ETag`** from a previous **`200`** response for this endpoint (same rules as `GET /api/village-data`: quoted tokens, comma-separated lists, and weak **`W/"..."`** are accepted).

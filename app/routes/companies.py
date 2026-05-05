@@ -9,7 +9,7 @@ from app.errors import APIError
 from app.models import Company, JobAssignment
 
 from app.auth.decorations import admin_required
-from app.routes.village_data import get_salary_increase
+from app.routes.village_data import get_hourly_pay_increase
 
 companies_bp = Blueprint("companies", __name__)
 
@@ -28,7 +28,7 @@ def _company_to_dict(comp: Company, assigned_jobs) -> dict:
             "available": comp.jobs_max - assigned_jobs,
             "max": comp.jobs_max,
         },
-        "pay_per_hour": (comp.pay_per_hour + get_salary_increase()),
+        "hourly_pay": (comp.hourly_pay + get_hourly_pay_increase()),
         "active": comp.active,
         "notes": comp.notes,
         "created_at": comp.created_at.isoformat() if comp.created_at else None,
@@ -41,7 +41,7 @@ def _validate_create_payload(data: dict) -> tuple[bool, str | None]:
     if not data or not isinstance(data, dict):
         return False, "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
-    required = ("company_name", "jobs_max", "pay_per_hour")
+    required = ("company_name", "jobs_max", "hourly_pay")
     for field in required:
         val = data.get(field)
         if val is None or (isinstance(val, str) and not val.strip()):
@@ -122,7 +122,7 @@ def create_company():
         comp = Company(
             company_name=data["company_name"].strip(),
             jobs_max=data["jobs_max"],
-            pay_per_hour=data["pay_per_hour"],
+            hourly_pay=data["hourly_pay"],
             active=data.get("active", True),
             notes=data.get("notes") or None,
         )
@@ -151,7 +151,7 @@ def update_company(company_name: str):
         updatable = (
             "company_name",
             "jobs_max",
-            "pay_per_hour",
+            "hourly_pay",
             "active",
             "notes",
         )
@@ -163,7 +163,7 @@ def update_company(company_name: str):
                     comp.active = bool(val)
                 elif field in ("company_name"):
                     comp.__setattr__(field, (val or "").strip())
-                elif field in ("jobs_max", "pay_per_hour"):
+                elif field in ("jobs_max", "hourly_pay"):
                     comp.__setattr__(field, int(val) if val is not None else None)
                 else:
                     comp.__setattr__(field, val if val is not None else None)

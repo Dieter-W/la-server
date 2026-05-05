@@ -125,7 +125,7 @@ Before you **run LA-Server**, the camp-specific configuration and branding files
 
 - **`[general]`** — Display context for the Spielstadt: e.g. `name`, `location`, `language`, `year`.
 - **`[currency]`** — In-game money label: e.g. `name`, `name_short` (values may be quoted in the INI; the server strips optional double quotes).
-- **`[images]`** — Filenames relative to `village_data/`, for example `logo = images/logo.jpg` and `favicon = images/favicon.png`. Missing files or bad paths result in HTTP 404 from the image endpoints.
+- **`[village-images]`** — Filenames relative to `village_data/`, for example `logo = images/logo.jpg` and `favicon = images/favicon.png`. Missing files or bad paths result in HTTP 404 from the image endpoints.
 
 Further API detail: [docs/developer-guide.md](./docs/developer-guide.md).
 
@@ -192,12 +192,12 @@ python ./scripts/bulk_import_companies.py companies.csv
 
 Example inputs: `village_data/companies_sample.csv`has created. You can use `village_data/companies_sample.csv` as a template for your own file and bulk-import into the database. The same sample also lives under `data/csv-example/companies_sample.csv`.
 
-**CSV format:** Comma-separated with a header row. Required columns: `company_name`, `jobs_max`, `pay_per_hour`, `active`, `notes`.
+**CSV format:** Comma-separated with a header row. Required columns: `company_name`, `jobs_max`, `hourly_pay`, `active`, `notes`.
 
 Templates ship in **`data/csv-example/companies_sample.csv`** (and **init-env** places a copy in `village_data/` when that file is not already there). Example excerpt:
 
 ```csv
-company_name,jobs_max,pay_per_hour,active,notes
+company_name,jobs_max,hourly_pay,active,notes
 Bank,8,10,true,,
 Arbeitsamt,7,10,true,
 Bauhof,8,10,true,

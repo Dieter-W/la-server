@@ -16,7 +16,7 @@ payload_create = {
 payload_put = {
     "company_name": "Kitchen",
     "jobs_max": 5,
-    "pay_per_hour": 99,
+    "hourly_pay": 99,
     "active": False,
     "notes": "Updated by test",
 }

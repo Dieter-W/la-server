@@ -24,13 +24,13 @@ _DATA_DIR = _PROJECT_ROOT / "village_data"
 # ---------------------------------------------------------------------
 # Externalized Helper functions
 # ---------------------------------------------------------------------
-def get_salary_increase() -> int:
-    """Return salary increase from village.ini"""
+def get_hourly_pay_increase() -> int:
+    """Return hourly_pay increase from village.ini"""
     village_data = _load_village_data()
     if village_data:
-        salary = village_data.get("salary")
-        if isinstance(salary, dict):
-            increase = salary.get("increase")
+        hourly_pay = village_data.get("hourly_pay")
+        if isinstance(hourly_pay, dict):
+            increase = hourly_pay.get("increase")
             return int(increase)
     return 0
 
@@ -199,7 +199,7 @@ def get_village_data_logo():
         raise APIError("VILLAGE_DATA_NOT_FOUND", 404)
 
     try:
-        logo_rel = village_data["images"]["logo"]
+        logo_rel = village_data["village-images"]["logo"]
     except KeyError:
         logger.error("Village logo not configured")
         raise APIError("VILLAGE_LOGO_NOT_CONFIGURED", 404)
@@ -218,7 +218,7 @@ def get_village_data_favicon():
         raise APIError("VILLAGE_DATA_NOT_FOUND", 404)
 
     try:
-        favicon_rel = village_data["images"]["favicon"]
+        favicon_rel = village_data["village-images"]["favicon"]
     except KeyError:
         logger.error("Village favicon not configured")
         raise APIError("VILLAGE_FAVICON_NOT_CONFIGURED", 404)

@@ -17,9 +17,9 @@ def test_village_data_get_ok(client):
     data = response.get_json()
     assert "general" in data
     assert "currency" in data
-    assert "images" in data
+    assert "village-images" in data
     assert data["general"].get("name")
-    assert "logo" in data["images"]
+    assert "logo" in data["village-images"]
     assert response.headers.get("ETag")
 
 
@@ -119,7 +119,7 @@ def test_village_get_logo_error_1(client):
     with patch.object(
         village_data_module,
         "_load_village_data",
-        return_value={"general": {}, "currency": {}, "images": {}},
+        return_value={"general": {}, "currency": {}, "village-images": {}},
     ):
         response = client.get("/api/village-data/logo")
     if response.status_code != 404:
@@ -160,7 +160,7 @@ def test_village_get_favicon_error_1(client):
     with patch.object(
         village_data_module,
         "_load_village_data",
-        return_value={"general": {}, "currency": {}, "images": {}},
+        return_value={"general": {}, "currency": {}, "villageimages": {}},
     ):
         response = client.get("/api/village-data/favicon")
     if response.status_code != 404:

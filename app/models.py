@@ -28,7 +28,7 @@ class Company(BaseModel):
     __tablename__ = "companies"
     company_name = db.Column(db.String(255), unique=True, nullable=False)
     jobs_max = db.Column(db.Integer, nullable=False)
-    pay_per_hour = db.Column(db.Integer, nullable=False)
+    hourly_pay = db.Column(db.Integer, nullable=False)
     active = db.Column(db.Boolean, default=True, nullable=False)
     notes = db.Column(db.Text, nullable=True)
 

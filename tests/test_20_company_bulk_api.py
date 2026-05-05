@@ -14,14 +14,14 @@ company_check = {
         "max": 10,
         "available": 10,
     },
-    "pay_per_hour": 15,
+    "hourly_pay": 15,
     "active": False,
     "notes": "Only weekdays",
 }
 
 payload_put = {
     "jobs_max": 5,
-    "pay_per_hour": 99,
+    "hourly_pay": 99,
     "active": True,
     "notes": "Updated by test",
 }
@@ -72,7 +72,7 @@ def test_bulk_import_companies_create(client,): # fmt: skip
         for company_data in data["companies"]
     )
     assert any(
-        company_data["pay_per_hour"] == company_check["pay_per_hour"]
+        company_data["hourly_pay"] == company_check["hourly_pay"]
         for company_data in data["companies"]
     )
     assert any(
@@ -118,7 +118,7 @@ def test_bulk_import_companies_update(client, sample_authentication, sample_empl
     assert len(data) == 8
     assert data["jobs"]["max"] == payload_put["jobs_max"]
     assert data["jobs"]["available"] == payload_put["jobs_max"]
-    assert data["pay_per_hour"] == payload_put["pay_per_hour"]
+    assert data["hourly_pay"] == payload_put["hourly_pay"]
     assert data["active"] == payload_put["active"]
     assert data["notes"] == payload_put["notes"]
 
@@ -145,7 +145,7 @@ def test_bulk_import_companies_update(client, sample_authentication, sample_empl
     assert _nfc(data2["company_name"]) == _nfc(company_check["company_name"])
     assert data["jobs"]["max"] == payload_put["jobs_max"]
     assert data["jobs"]["available"] == payload_put["jobs_max"]
-    assert data2["pay_per_hour"] == company_check["pay_per_hour"]
+    assert data2["hourly_pay"] == company_check["hourly_pay"]
     assert data2["active"] == company_check["active"]
     assert data2["notes"] == company_check["notes"]
 

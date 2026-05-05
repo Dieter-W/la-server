@@ -8,7 +8,7 @@ from test_utils import _login_as_admin
 payload_create = {
     "company_name": "TEST_COMPANY",
     "jobs_max": 10,
-    "pay_per_hour": 9,
+    "hourly_pay": 9,
     "active": True,
     "notes": "Created by create test",
 }
@@ -17,7 +17,7 @@ payload_create = {
 payload_put = {
     "company_name": "Kitchen",
     "jobs_max": 5,
-    "pay_per_hour": 99,
+    "hourly_pay": 99,
     "active": False,
     "notes": "Updated by test",
 }
@@ -52,7 +52,7 @@ def test_validate_create_payload_error_2(client, sample_authentication, sample_c
     response = client.post(
         "/api/companies",
         headers={"Authorization": f"Bearer {token}"},
-        json={"jobs_max": "TEST", "pay_per_hour": "TEST"},
+        json={"jobs_max": "TEST", "hourly_pay": "TEST"},
     )
     if response.status_code != 400:
         print(response.text)
@@ -67,7 +67,7 @@ def test_validate_create_payload_error_3(client, sample_authentication, sample_c
     response = client.post(
         "/api/companies",
         headers={"Authorization": f"Bearer {token}"},
-        json={"company_name": "TEST", "pay_per_hour": "TEST"},
+        json={"company_name": "TEST", "hourly_pay": "TEST"},
     )
     if response.status_code != 400:
         print(response.text)
@@ -97,7 +97,7 @@ def test_validate_create_payload_error_5(client, sample_authentication, sample_c
     response = client.post(
         "/api/companies",
         headers={"Authorization": f"Bearer {token}"},
-        json={"company_name": "", "jobs_max": "TEST", "pay_per_hour": "TEST"},
+        json={"company_name": "", "jobs_max": "TEST", "hourly_pay": "TEST"},
     )
     if response.status_code != 400:
         print(response.text)
@@ -112,7 +112,7 @@ def test_validate_create_payload_error_6(client, sample_authentication, sample_c
     response = client.post(
         "/api/companies",
         headers={"Authorization": f"Bearer {token}"},
-        json={"company_name": "TEST", "jobs_max": "", "pay_per_hour": "TEST"},
+        json={"company_name": "TEST", "jobs_max": "", "hourly_pay": "TEST"},
     )
     if response.status_code != 400:
         print(response.text)
@@ -127,7 +127,7 @@ def test_validate_create_payload_error_7(client, sample_authentication, sample_c
     response = client.post(
         "/api/companies",
         headers={"Authorization": f"Bearer {token}"},
-        json={"company_name": "TEST", "jobs_max": "TEST", "pay_per_hour": ""},
+        json={"company_name": "TEST", "jobs_max": "TEST", "hourly_pay": ""},
     )
     if response.status_code != 400:
         print(response.text)
@@ -183,7 +183,7 @@ def test_companies_query_all(client, sample_company, sample_job_assignment): # f
         company_data["jobs"]["available"] == 0 for company_data in data["companies"]
     )
     assert any(
-        company_data["pay_per_hour"] == sample_company.pay_per_hour
+        company_data["hourly_pay"] == sample_company.hourly_pay
         for company_data in data["companies"]
     )
     assert any(
@@ -241,7 +241,7 @@ def test_companies_query(client, sample_company, sample_job_assignment,): # fmt:
     assert data["company_name"] == sample_company.company_name
     assert data["jobs"]["available"] == 0
     assert data["jobs"]["max"] == sample_company.jobs_max
-    assert data["pay_per_hour"] == sample_company.pay_per_hour
+    assert data["hourly_pay"] == sample_company.hourly_pay
     assert data["active"] is sample_company.active
     assert data["notes"] == sample_company.notes
 
@@ -283,7 +283,7 @@ def test_companies_create(client, sample_authentication, sample_company, sample_
     assert data["company_name"] == payload_create["company_name"]
     assert data["jobs"]["available"] == payload_create["jobs_max"]
     assert data["jobs"]["max"] == payload_create["jobs_max"]
-    assert data["pay_per_hour"] == payload_create["pay_per_hour"]
+    assert data["hourly_pay"] == payload_create["hourly_pay"]
     assert data["active"] == payload_create["active"]
     assert data["notes"] == payload_create["notes"]
 
@@ -336,7 +336,7 @@ def test_companies_update(client, sample_authentication, sample_company, sample_
     assert len(data) == 8
     assert data["id"] == sample_company.id
     assert _nfc(data["company_name"]) == _nfc(payload_put["company_name"])
-    assert data["pay_per_hour"] == payload_put["pay_per_hour"]
+    assert data["hourly_pay"] == payload_put["hourly_pay"]
     assert data["active"] == payload_put["active"]
     assert data["notes"] == payload_put["notes"]
 
