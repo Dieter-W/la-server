@@ -14,6 +14,9 @@ from app.auth.decorations import admin_required
 health_bp = Blueprint("health", __name__)
 
 
+# ---------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------
 def _pool_stats(engine) -> dict:
     """SQLAlchemy connection pool metrics."""
     pool = engine.pool
@@ -35,7 +38,7 @@ def _pool_stats(engine) -> dict:
     return out
 
 
-def database_summary(config: dict) -> dict:
+def _database_summary(config: dict) -> dict:
     """Redacted DB connectivity info (no credentials)."""
     uri = config.get("SQLALCHEMY_DATABASE_URI") or ""
     try:
@@ -52,6 +55,7 @@ def database_summary(config: dict) -> dict:
 
 
 def _runtime_info(app) -> dict:
+    """Python version, platform, PID, and optional uptime since app startup."""
     out = {
         "python_version": sys.version.split()[0],
         "platform": sys.platform,
@@ -66,6 +70,7 @@ def _runtime_info(app) -> dict:
 
 
 def _safe_config_snapshot(config: dict) -> dict:
+    """High-level Flask flags safe to expose on the admin runtime endpoint."""
     return {
         "DEBUG": config.get("DEBUG"),
         "TESTING": config.get("TESTING"),
@@ -85,6 +90,9 @@ def _concurrency_snapshot(app) -> dict:
     return out
 
 
+# ---------------------------------------------------------------------
+# Health — basic
+# ---------------------------------------------------------------------
 @health_bp.route("/health", methods=["GET"])
 def health_check():
     """Basic health check endpoint."""
@@ -93,6 +101,9 @@ def health_check():
     )
 
 
+# ---------------------------------------------------------------------
+# Health — database
+# ---------------------------------------------------------------------
 @health_bp.route("/health/db", methods=["GET"])
 def db_health_check():
     """Check database connectivity."""
@@ -104,6 +115,9 @@ def db_health_check():
         return jsonify({"status": "error", "database": str(e)}), 503
 
 
+# ---------------------------------------------------------------------
+# Health — runtime (admin)
+# ---------------------------------------------------------------------
 @health_bp.route("/health/runtime", methods=["GET"])
 @admin_required
 def health_runtime():
@@ -115,7 +129,7 @@ def health_runtime():
             "service": "Kinderspielstadt Los Ämmerles - LA-Server",
             "runtime": _runtime_info(app),
             "config": _safe_config_snapshot(current_app.config),
-            "database": database_summary(current_app.config),
+            "database": _database_summary(current_app.config),
             "concurrency": _concurrency_snapshot(app),
             "pool": _pool_stats(app.db_engine),
         }

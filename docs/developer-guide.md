@@ -378,7 +378,7 @@ Missing or invalid JWT behavior matches [Errors and status codes](#errors-and-st
 ### Login service - /api/auth/login
 
 **Explanation**
-Public sign-in. The server checks the JSON **`employee_number`** and **`password`** against the participant’s row in [`Authentication`](../app/models.py). On success it returns two JWT strings — **`token`** (short-lived **access**) and **`refresh_token`** (long-lived **refresh**) — plus **`auth_group`** (`employee`, `staff`, or `admin`) and **`password_must_change`**. Server implementation: [`app/auth/routes.py`](../app/auth/routes.py) (`authenticate`). Use **`token`** as `Authorization: Bearer …` on protected routes; keep **`refresh_token`** only for **`POST /api/auth/refresh`** ([Authentication](#authentication)).
+Public sign-in. The server checks the JSON **`employee_number`** and **`password`** against the participant’s row in [`Authentication`](../app/models.py). On success it returns two JWT strings — **`token`** (short-lived **access**) and **`refresh_token`** (long-lived **refresh**) — plus **`auth_group`** (`employee`, `staff`, or `admin`) and **`password_must_change`**. HTTP handler: [`app/auth/routes.py`](../app/auth/routes.py) (`authenticate`); logic in **`AuthService`** — [`app/services/auth.py`](../app/services/auth.py). Use **`token`** as `Authorization: Bearer …` on protected routes; keep **`refresh_token`** only for **`POST /api/auth/refresh`** ([Authentication](#authentication)).
 
 **Parameters**
 None (JSON body).
@@ -436,7 +436,7 @@ Other auth-related error codes are listed under [Errors and status codes](#error
 ### Me service - /api/auth/me
 
 **Explanation**
-Returns the signed-in **participant** (employee) as JSON: profile fields from the database plus **`auth_group`** from the **JWT** (not the camp descriptive **`role`** on the record). Requires a valid access token whose claim **`auth_group`** is one of `employee`, `staff`, or `admin`. Server implementation: [`app/auth/routes.py`](../app/auth/routes.py) (`me`).
+Returns the signed-in **participant** (employee) as JSON: profile fields from the database plus **`auth_group`** from the **JWT** (not the camp descriptive **`role`** on the record). Requires a valid access token whose claim **`auth_group`** is one of `employee`, `staff`, or `admin`. HTTP handler: [`app/auth/routes.py`](../app/auth/routes.py) (`me`); **`AuthService`** — [`app/services/auth.py`](../app/services/auth.py).
 
 **Parameters**
 None.
@@ -1672,9 +1672,11 @@ curl -s -X POST http://localhost:5000/api/job-assignments/reset \
 
 ## Village data (Spielstadt configuration)
 
-Camp-specific **name**, **currency** labels, optional extra INI sections, and **image paths** live on the server under **`village_data/`** at the repository root (not under `data/`). The server resolves this directory from the project root, not from the process working directory. Deployments edit **`village_data/village.ini`** and files under **`village_data/images/`** (or rely on samples created by **`init-env`** from `data/`—see the [README](../README.md)). Implementations: [`app/routes/village_data.py`](../app/routes/village_data.py).
+Camp-specific **name**, **currency** labels, optional **`[village-theme]`** UI palette (hex strings for clients), other optional INI sections, and **image paths** live on the server under **`village_data/`** at the repository root (not under `data/`). The server resolves this directory from the project root, not from the process working directory. Deployments edit **`village_data/village.ini`** and files under **`village_data/images/`** (or rely on samples created by **`init-env`** from `data/`—see the [README](../README.md)). Implementations: [`app/routes/village_data.py`](../app/routes/village_data.py) (HTTP); INI load and parse in [`app/village_config.py`](../app/village_config.py).
 
-**INI → JSON:** The file is parsed with Python’s `configparser`. Each **`[section]`** becomes a top-level key in the JSON object; each option becomes a string value inside that object. Optional double quotes around values in the INI are stripped in the API output. Option names are normalized to **lower case** by the parser.
+**INI → JSON:** The file is parsed with Python’s `configparser`. Each **`[section]`** becomes a top-level key in the JSON object; each option becomes a string value inside that object. Optional double quotes around values in the INI are stripped in the API output. Option names are normalized to **lower case** by the parser. Inline remarks on the same line as a value must use **`;`** (not **`#`**); that way hex colors like **`#2563eb`** stay intact **as the value**. A **`#`** that starts **an entire comment line** (full-line **`#`** comment) remains valid.
+
+**`[village-theme]`:** Optional section for **client apps only**. Keys are typically CSS-style hex colors (`accent`, `on-accent`, status pairs such as `ok` / `ok-bg`). LA-Server does **not** apply these colors to HTTP responses; it only passes them through under the JSON key **`village-theme`** (matching the INI section name). Omit the section if a deployment does not need themed UIs. A full sample lives in the repo’s **`data/village.ini`**.
 
 **Runtime-only `la-server`:** The response always includes a top-level **`la-server`** object built by the server (auth groups, whether employee-number checksum validation is enabled, JWT TTL hints in **minutes** for access and refresh, etc.). When checksum validation is off, **`employee_number_checksum_algorithm`** is JSON **`null`**. It is **not** read from `village.ini` and must **not** be configured via a `[la-server]` section in the INI; if that section appears in the file, the server **overwrites** it in the JSON so the payload matches real server behavior.
 
@@ -1687,7 +1689,7 @@ Camp-specific **name**, **currency** labels, optional extra INI sections, and **
 ### Spielstadt config - /api/village-data
 
 **Explanation**
-Returns the Spielstadt configuration as JSON for clients (titles, currency strings, image path keys, and any other sections present in `village.ini`), plus the server-generated **`la-server`** metadata block described above.
+Returns the Spielstadt configuration as JSON for clients (titles, currency strings, optional **`village-theme`** colors, image path keys under **`village-images`**, and any other sections present in `village.ini`), plus the server-generated **`la-server`** metadata block described above.
 
 **Parameters**
 None. Optional request header **`If-None-Match`**: previous **`ETag`** to skip body when unchanged.
@@ -1724,9 +1726,24 @@ None.
     "increase": "0",
     "tax": "3"
   },
-  "images": {
+  "village-images": {
     "logo": "images/logo.png",
     "favicon": "images/favicon.png"
+  },
+  "village-theme": {
+    "accent": "#2563eb",
+    "on-accent": "#ffffff",
+    "bg": "#f4f6fa",
+    "surface": "#ffffff",
+    "border": "#d1dae6",
+    "text": "#162032",
+    "muted": "#5c6b80",
+    "ok":  "#15803d",
+    "ok-bg": "#dcfce7",
+    "warn": "#b45309",
+    "warn-bg": "#fef9c3" ,
+    "bad": "#b91c1c",
+    "bad-bg": "#fee2e2",
   },
   "la-server": {
     "auth_groups": ["employee", "staff", "admin"],
@@ -1752,7 +1769,7 @@ None.
 ### Village logo - /api/village-data/logo
 
 **Explanation**
-Streams the **logo** file. The path comes from **`images.logo`** in the parsed config (typically under section **`[village-images]`** in `village.ini`). The path is **relative to `village_data/`** (e.g. `images/logo.png` → file `village_data/images/logo.png`).
+Streams the **logo** file. The path comes from the **`logo`** key under the top-level **`village-images`** object in the parsed config (INI section **`[village-images]`** in `village.ini`). The path is **relative to `village_data/`** (e.g. `images/logo.png` → file `village_data/images/logo.png`).
 
 **Parameters**
 None. Optional request header **`If-None-Match`**: the **`ETag`** from a previous **`200`** response for this endpoint (same rules as `GET /api/village-data`: quoted tokens, comma-separated lists, and weak **`W/"..."`** are accepted).
@@ -1790,7 +1807,7 @@ On **`304`**: **empty** body; **`ETag`** repeats the current validator.
 ### Village favicon - /api/village-data/favicon
 
 **Explanation**
-Same as the logo endpoint, but uses **`images.favicon`** from the config.
+Same as the logo endpoint, but uses the **`favicon`** key under **`village-images`** in the parsed config.
 
 **Parameters**
 None. Optional request header **`If-None-Match`**: the **`ETag`** from a previous **`200`** response for this endpoint (same rules as `GET /api/village-data`).
@@ -1826,6 +1843,16 @@ Same as **`GET /api/village-data/logo`**: **`200`** returns **binary** image byt
 # Backend development (server contributors)
 
 **Local development is Poetry-based:** install and run everything through **`poetry install --with dev`** and **`poetry run …`**. **`pyproject.toml`** and **`poetry.lock`** are the only definitions you edit for dependencies. **`data/requirements.txt`** is **not** hand-maintained as primary: it is produced with **`poetry export`** (see the top of [`pyproject.toml`](../pyproject.toml) and the [README](../README.md)) for **production** `pip` installs. You do not use `pip install -r` or **`setup.ps1` / `setup.sh` in `provision` mode** for a dev machine (those are for **production** without Poetry on the host).
+
+## Request flow (schemas, services, repositories)
+
+For typical JSON endpoints the stack is:
+
+- **Route modules** under **`app/`** — Flask Blueprints: HTTP only; validate JSON into **`app/schemas/`** dataclasses or helpers, run work inside **`g.db.begin()`**, return **`jsonify`** responses.
+- **`app/services/`** — Orchestration and rules (companies, employees, job assignments, auth flows); raise **`APIError`** with stable **`error`** tokens and HTTP status codes.
+- **`app/repositories/`** — SQLAlchemy **`select`** / **`execute`** / **`flush`** / **`delete`** grouped per model or use-case (no Flask imports).
+
+Blueprint handlers stay thin (for example [`app/auth/routes.py`](../app/auth/routes.py) delegates to **`AuthService`** in [`app/services/auth.py`](../app/services/auth.py)). Password hashing and JWT helpers remain in **`app/auth/`** (`utils`, decorators).
 
 ## Prerequisites
 

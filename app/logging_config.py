@@ -16,6 +16,9 @@ from pathlib import Path
 
 from flask import Flask
 
+# ---------------------------------------------------------------------
+# Formatting defaults & process-wide listener bookkeeping
+# ---------------------------------------------------------------------
 _DEFAULT_FORMAT = "%(asctime)s [%(threadName)s] %(name)s %(levelname)s: %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -23,7 +26,11 @@ _listener: QueueListener | None = None
 _atexit_registered = False
 
 
+# ---------------------------------------------------------------------
+# QueueListener lifecycle helpers
+# ---------------------------------------------------------------------
 def _level_from_name(name: str) -> int:
+    """Resolve ``logging`` level from name or numeric string; fallback ``INFO``."""
     key = name.upper().strip()
     mapping = logging.getLevelNamesMapping()
     if key in mapping:
@@ -35,6 +42,7 @@ def _level_from_name(name: str) -> int:
 
 
 def _stop_listener() -> None:
+    """Shutdown the background ``QueueListener`` on process exit."""
     global _listener
     if _listener is not None:
         try:
@@ -43,6 +51,9 @@ def _stop_listener() -> None:
             _listener = None
 
 
+# ---------------------------------------------------------------------
+# Public configuration entry point
+# ---------------------------------------------------------------------
 def configure_logging(app: Flask) -> None:
     """Configure ``app.logger`` for multi-threaded WSGI.
 

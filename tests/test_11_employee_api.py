@@ -22,9 +22,9 @@ payload_put = {
 }
 
 # ---------------------------------------------------------------------
-# validate_create_payload function
+# POST /employees — invalid payload
 # ---------------------------------------------------------------------
-def test_validate_create_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -43,7 +43,7 @@ def test_validate_create_payload_error_1(client, sample_authentication, sample_c
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
-def test_validate_create_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -67,7 +67,7 @@ def test_validate_create_payload_error_2(client, sample_authentication, sample_c
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -91,7 +91,7 @@ def test_validate_create_payload_error_3(client, sample_authentication, sample_c
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -115,7 +115,7 @@ def test_validate_create_payload_error_4(client, sample_authentication, sample_c
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_5(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_5(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -138,7 +138,7 @@ def test_validate_create_payload_error_5(client, sample_authentication, sample_c
     data = response.get_json()
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
-def test_validate_create_payload_error_6(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_6(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -161,7 +161,7 @@ def test_validate_create_payload_error_6(client, sample_authentication, sample_c
     data = response.get_json()
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
-def test_validate_create_payload_error_7(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_7(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -186,7 +186,7 @@ def test_validate_create_payload_error_7(client, sample_authentication, sample_c
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_8(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_8(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -211,7 +211,7 @@ def test_validate_create_payload_error_8(client, sample_authentication, sample_c
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_9(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_9(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -236,7 +236,7 @@ def test_validate_create_payload_error_9(client, sample_authentication, sample_c
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_10(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_10(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -261,7 +261,7 @@ def test_validate_create_payload_error_10(client, sample_authentication, sample_
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_11(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_11(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -286,7 +286,7 @@ def test_validate_create_payload_error_11(client, sample_authentication, sample_
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_12(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_12(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -311,7 +311,7 @@ def test_validate_create_payload_error_12(client, sample_authentication, sample_
     assert data["error"] == "EMPLOYEE_NUMBER_WRONG_IN_JSON"
 
 
-def test_validate_create_payload_error_13(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_13(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -337,9 +337,9 @@ def test_validate_create_payload_error_13(client, sample_authentication, sample_
 
 
 # ---------------------------------------------------------------------
-# validate_update_payload function
+# PUT /employees — invalid payload
 # ---------------------------------------------------------------------
-def test_validate_update_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_update_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -358,7 +358,7 @@ def test_validate_update_payload_error_1(client, sample_authentication, sample_c
     data = response.get_json()
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
-def test_validate_update_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_update_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,

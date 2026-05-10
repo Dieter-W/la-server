@@ -47,6 +47,7 @@ def _op(
     request_body: bool = False,
     responses: dict | None = None,
 ) -> dict:
+    """Build one OpenAPI ``paths`` operation object (single HTTP method key)."""
     m: dict = {"tags": [tag], "summary": summary}
     if security is not None:
         m["security"] = security
@@ -107,6 +108,7 @@ def build_openapi_dict() -> dict:
     paths: dict[str, dict] = {}
 
     def merge_path(path: str, fragment: dict) -> None:
+        """Merge ``fragment`` (verb → operation) into accumulating ``paths`` map."""
         if path not in paths:
             paths[path] = {}
         for k, v in fragment.items():
@@ -335,6 +337,8 @@ def build_openapi_dict() -> dict:
                 "summary": "Spielstadt config JSON (`village.ini`)",
                 "description": (
                     "Loads **`village.ini`** as JSON (one object per section, string-valued keys). "
+                    "Typical sections include **`general`**, **`currency`**, **`hourly_pay`**, **`village-images`**, "
+                    "and **`village-theme`** (hex UI colors for clients; server does not render them). "
                     "Adds a **`la-server`** object with JWT TTLs, auth groups, and employee-number checksum settings."
                 ),
                 "responses": {
@@ -397,7 +401,10 @@ def build_openapi_dict() -> dict:
             },
             {
                 "name": "Village data",
-                "description": "INI-backed Spielstadt branding; **`/village-data`** adds runtime **`la-server`** metadata.",
+                "description": (
+                    "INI-backed Spielstadt branding (name, currency, images, optional **`village-theme`** palette); "
+                    "**`/village-data`** adds runtime **`la-server`** metadata."
+                ),
             },
         ],
         "paths": paths,
@@ -463,7 +470,9 @@ def build_openapi_dict() -> dict:
                         "description": "One object per **`village.ini`** section (string keys to string values).",
                     },
                     "description": (
-                        "**`village.ini`** as nested maps, plus **`la-server`** injected at runtime. "
+                        "**`village.ini`** as nested maps (string keys and values per section), "
+                        "plus **`la-server`** injected at runtime. "
+                        "Optional **`village-theme`** carries hex colors for client UIs only. "
                         "Responses include an **`ETag`** header; repeat with **`If-None-Match`** for `304 Not Modified`."
                     ),
                 },

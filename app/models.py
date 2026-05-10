@@ -1,83 +1,122 @@
 """SQLAlchemy models for MariaDB."""
 
+from __future__ import annotations
+
 from datetime import datetime, timezone
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import db
 
 
+# ---------------------------------------------------------------------
+# Time helper
+# ---------------------------------------------------------------------
 def utc_now() -> datetime:
     """Return current UTC time as timezone-aware datetime."""
     return datetime.now(timezone.utc)
 
 
+# ---------------------------------------------------------------------
+# Base model
+# ---------------------------------------------------------------------
 class BaseModel(db.Model):
     """Base model with common fields."""
 
     __abstract__ = True
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
-    updated_at = db.Column(
-        db.DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
 
 
+# ---------------------------------------------------------------------
+# Company
+# ---------------------------------------------------------------------
 class Company(BaseModel):
-    """Companies which offer jobs in the Spielstadt"""
+    """Companies which offer jobs in the Spielstadt."""
 
     __tablename__ = "companies"
-    company_name = db.Column(db.String(255), unique=True, nullable=False)
-    jobs_max = db.Column(db.Integer, nullable=False)
-    hourly_pay = db.Column(db.Integer, nullable=False)
-    active = db.Column(db.Boolean, default=True, nullable=False)
-    notes = db.Column(db.Text, nullable=True)
 
-    job_assignments = db.relationship("JobAssignment", back_populates="companies")
+    company_name: Mapped[str] = mapped_column(String(255), unique=True)
+    jobs_max: Mapped[int] = mapped_column(Integer, default=0)
+    hourly_pay: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    job_assignments: Mapped[list[JobAssignment]] = relationship(
+        back_populates="companies",
+    )
 
 
+# ---------------------------------------------------------------------
+# Employee
+# ---------------------------------------------------------------------
 class Employee(BaseModel):
-    """Camp participants (children and staff) at the Spielstadt, stored as Employee rows; soft-delete via `active`."""
+    """Camp participants at the Spielstadt; soft-delete via ``active``."""
 
     __tablename__ = "employees"
 
-    first_name = db.Column(db.String(255), nullable=False)
-    last_name = db.Column(db.String(255), nullable=False)
-    employee_number = db.Column(db.String(16), unique=True, index=True, nullable=False)
-    role = db.Column(db.String(255), nullable=False)
-    active = db.Column(db.Boolean, default=True, nullable=False)
-    notes = db.Column(db.Text, nullable=True)
+    first_name: Mapped[str] = mapped_column(String(255))
+    last_name: Mapped[str] = mapped_column(String(255))
+    employee_number: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    role: Mapped[str] = mapped_column(String(255))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    notes: Mapped[str | None] = mapped_column(Text)
 
-    authentication = db.relationship(
-        "Authentication",
+    authentication: Mapped[Authentication | None] = relationship(
         back_populates="employee",
         uselist=False,
         passive_deletes=True,
     )
-    job_assignments = db.relationship("JobAssignment", back_populates="employees")
+    job_assignments: Mapped[list[JobAssignment]] = relationship(
+        back_populates="employees",
+    )
 
 
+# ---------------------------------------------------------------------
+# Job assignment
+# ---------------------------------------------------------------------
 class JobAssignment(BaseModel):
-    """Links camp participants (`Employee`) to companies for a placement in the Spielstadt."""
+    """Links participants (``Employee``) to companies for a Spielstadt placement."""
 
     __tablename__ = "job_assignments"
-    company_id = db.Column(db.Integer, db.ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False) # fmt: skip
-    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="RESTRICT"), nullable=False)   # fmt: skip
-    notes = db.Column(db.Text, nullable=True)
 
-    companies = db.relationship("Company", back_populates="job_assignments")
-    employees = db.relationship("Employee", back_populates="job_assignments")
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"),
+    )
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="RESTRICT"),
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    companies: Mapped[Company] = relationship(back_populates="job_assignments")
+    employees: Mapped[Employee] = relationship(back_populates="job_assignments")
 
 
+# ---------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------
 class Authentication(BaseModel):
-    """Links camp participants (`Employee`) to a password for authentication."""
+    """Participant login credentials (one row per employee)."""
 
     __tablename__ = "authentications"
-    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="CASCADE"), unique=True, nullable=False, )  # fmt: skip
-    password_hash = db.Column(db.String(255), nullable=False)
-    password_must_change = db.Column(db.Boolean, default=True, nullable=False)
-    auth_group = db.Column(db.String(20), nullable=False, default="employee")
-    notes = db.Column(db.Text, nullable=True)
 
-    employee = db.relationship(
-        "Employee", back_populates="authentication", passive_deletes=True
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="CASCADE"),
+        unique=True,
+    )
+    password_hash: Mapped[str] = mapped_column(String(255))
+    password_must_change: Mapped[bool] = mapped_column(Boolean, default=True)
+    auth_group: Mapped[str] = mapped_column(String(20), default="employee")
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    employee: Mapped[Employee] = relationship(
+        back_populates="authentication",
+        passive_deletes=True,
     )

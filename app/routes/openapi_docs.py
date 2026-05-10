@@ -7,12 +7,18 @@ from app.openapi_spec import build_openapi_dict
 openapi_docs_bp = Blueprint("openapi_docs", __name__)
 
 
+# ---------------------------------------------------------------------
+# OpenAPI JSON
+# ---------------------------------------------------------------------
 @openapi_docs_bp.route("/openapi.json", methods=["GET"])
 def openapi_json():
     """Machine-readable OpenAPI 3.0 schema."""
     return jsonify(build_openapi_dict())
 
 
+# ---------------------------------------------------------------------
+# Swagger UI
+# ---------------------------------------------------------------------
 @openapi_docs_bp.route("/docs", methods=["GET"])
 def swagger_ui():
     """Interactive API explorer; loads spec from ``/api/openapi.json`` on this host."""

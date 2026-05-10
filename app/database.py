@@ -9,6 +9,9 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from app.peak_tracking import PeakCounter
 
 
+# ---------------------------------------------------------------------
+# SQLAlchemy declarative base & global ``db`` proxy
+# ---------------------------------------------------------------------
 class Base(DeclarativeBase):
     """Base class for SQLAlchemy models."""
 
@@ -20,16 +23,26 @@ db = SQLAlchemy(model_class=Base)
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------
+# Connection pool instrumentation
+# ---------------------------------------------------------------------
 def _register_pool_peak_listeners(engine, counter: PeakCounter) -> None:
+    """Instrument pool checkout/checkin events for concurrency diagnostics."""
+
     @event.listens_for(engine.pool, "checkout")
     def _on_pool_checkout(dbapi_conn, connection_record, connection_proxy):
+        """PeakCounter tick when a connection leaves the pool."""
         counter.enter()
 
     @event.listens_for(engine.pool, "checkin")
     def _on_pool_checkin(dbapi_conn, connection_record):
+        """PeakCounter tick when a connection returns to the pool."""
         counter.leave()
 
 
+# ---------------------------------------------------------------------
+# Flask app initialization
+# ---------------------------------------------------------------------
 def init_db(app) -> None:
     """Initialize database with Flask app.
 
@@ -59,4 +72,4 @@ def init_db(app) -> None:
         # Operators may use scripts/create_database.py and adjust models or
         # apply DDL manually in production as they choose.
         db.create_all()
-        logger.info("Database schema ensured (create_all).")
+        logger.debug("Database schema ensured (create_all).")

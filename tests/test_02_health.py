@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from app.routes.health import database_summary
+from app.routes.health import _database_summary
 
 from tests.test_utils import _login_as_admin
 
@@ -10,7 +10,7 @@ from tests.test_utils import _login_as_admin
 # ---------------------------------------------------------------------
 # General endpoint check
 # ---------------------------------------------------------------------
-def test_endpoints(client):
+def test_endpoints_ok(client):
     response = client.get("/api/health")
     if response.status_code != 200:
         print(response.text)
@@ -20,7 +20,7 @@ def test_endpoints(client):
 # ---------------------------------------------------------------------
 # General database check
 # ---------------------------------------------------------------------
-def test_db_connectivity(client):
+def test_db_connectivity_ok(client):
     response = client.get("/api/health/db")
     if response.status_code != 200:
         print(response.text)
@@ -46,7 +46,7 @@ def test_db_connectivity_error_1(client):
 # ---------------------------------------------------------------------
 # Health runtime check
 # ---------------------------------------------------------------------
-def test_health_runtime_shape(client, sample_authentication, sample_employee,): # fmt: skip
+def test_health_runtime_ok(client, sample_authentication, sample_employee,): # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -90,13 +90,13 @@ def test_health_runtime_shape(client, sample_authentication, sample_employee,): 
 # ---------------------------------------------------------------------
 # Database summary check
 # ---------------------------------------------------------------------
-def test_database_summary_redacts_password():
+def test_database_summary_redacts_password_ok():
     secret = "LEAK_TEST_SECRET_12345"
     cfg = {
         "SQLALCHEMY_DATABASE_URI": (
             f"mysql+pymysql://u:{secret}@dbhost.example:3306/mydb"
         )
     }
-    out = database_summary(cfg)
+    out = _database_summary(cfg)
     assert secret not in out["url_redacted"]
     assert secret not in str(out)

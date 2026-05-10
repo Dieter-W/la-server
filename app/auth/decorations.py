@@ -12,14 +12,17 @@ from app.errors import APIError
 # Decorators
 # ---------------------------------------------------------------------
 def admin_required(fn: Callable) -> Callable:
+    """Require JWT with ``auth_group`` ``admin``."""
     return _access_required(auth_groups=["admin"])(fn)
 
 
 def staff_required(fn: Callable) -> Callable:
+    """Require JWT with ``auth_group`` ``admin`` or ``staff``."""
     return _access_required(auth_groups=["admin", "staff"])(fn)
 
 
 def employee_required(fn: Callable) -> Callable:
+    """Require any known participant JWT role (admin, staff, or employee)."""
     return _access_required(auth_groups=["admin", "staff", "employee"])(fn)
 
 
@@ -39,8 +42,11 @@ def _access_required(*, auth_groups: list[str] | None = None) -> Callable:
         allowed = None
 
     def wrapper(func: Callable) -> Callable:
+        """Decorate ``func`` so it runs only after successful JWT checks."""
+
         @wraps(func)
         def decorated_function(*args, **kwargs):
+            """Validate JWT presence and optionally restrict ``auth_group``."""
             verify_jwt_in_request()
             jwt = get_jwt()
             auth_group = jwt.get("auth_group")

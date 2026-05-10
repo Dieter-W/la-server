@@ -9,7 +9,7 @@ from app.models import Company
 # ---------------------------------------------------------------------
 # Companies bulk import
 # ---------------------------------------------------------------------
-def test_bulk_import_companies_create(app, db_session):
+def test_bulk_import_companies_create_ok(app, db_session):
     result = subprocess.run(
         [
             sys.executable,
@@ -28,7 +28,7 @@ def test_bulk_import_companies_create(app, db_session):
 # ---------------------------------------------------------------------
 # Companies bulk update
 # ---------------------------------------------------------------------
-def test_bulk_import_companies_update(app, db_session):
+def test_bulk_import_companies_update_ok(app, db_session):
     result = subprocess.run(
         [
             sys.executable,

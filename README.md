@@ -112,7 +112,7 @@ The options below are for **production** setup only (`--mode init-env` or `provi
 
 ## Village data (`village_data/`)
 
-Before you **run LA-Server**, the camp-specific configuration and branding files must be present in the `village_data/` directory at the **project root** (alongside `main.py`). The repository includes a sample `village_data/` tree you can edit per deployment. Canonical bulk-import examples live under **`data/csv-example/`** in the repo; **`init-env`** copies those CSVs into `village_data/` when the matching filename is not already present there (see setup step 2). If you start from a layout **without** `village_data/`, run **`init-env`** once (`.\scripts\setup.ps1 -Mode init-env` or `./scripts/setup.sh --mode init-env`): it recreates that folder from `data/` as described in setup step 2. The API exposes INI and image paths to clients (e.g. job center apps) so each Spielstadt can show the correct name, currency, and imagery without changing code. Sample CSVs in `village_data/` are only for operators running bulk import; they are not served by the HTTP API.
+Before you **run LA-Server**, the camp-specific configuration and branding files must be present in the `village_data/` directory at the **project root** (alongside `main.py`). **`village_data/` is gitignored**, so a fresh clone does not ship that folder; **`init-env`** creates it and seeds it from the tracked **`data/`** tree when `village_data/` is missing (see setup step 2). Checked-in samples live under **`data/`** (`data/village.ini`, `data/images/`, `data/csv-example/`); **`init-env`** copies CSV templates from `data/csv-example/` into `village_data/` only when the target filename is not already there (see setup step 2). If you already have a local `village_data/` tree, edit it per deployment. The API exposes INI content (including optional **`[village-theme]`** hex colors for client-side UI) and image paths to clients (e.g. job center apps) so each Spielstadt can show the correct name, currency, branding, and imagery without changing code. The tracked sample **`data/village.ini`** includes **`[village-theme]`** you can copy or trim per camp. Sample CSVs in `village_data/` are only for operators running bulk import; they are not served by the HTTP API.
 
 | Path | Role |
 | ---- | ---- |
@@ -125,7 +125,9 @@ Before you **run LA-Server**, the camp-specific configuration and branding files
 
 - **`[general]`** — Display context for the Spielstadt: e.g. `name`, `location`, `language`, `year`.
 - **`[currency]`** — In-game money label: e.g. `name`, `name_short` (values may be quoted in the INI; the server strips optional double quotes).
+- **`[hourly_pay]`** — Village-wide pay tuning: `increase` is an integer added to each company’s stored hourly pay in **`GET /api/companies`** (and single-company) JSON so clients show a uniform bump; other keys (e.g. `tax`) are passed through to clients via **`GET /api/village-data`** if you define them.
 - **`[village-images]`** — Filenames relative to `village_data/`, for example `logo = images/logo.jpg` and `favicon = images/favicon.png`. Missing files or bad paths result in HTTP 404 from the image endpoints.
+- **`[village-theme]`** — Optional UI palette as hex color keys (e.g. `accent`, `on-accent`, `bg`, `surface`, status colors); exposed in **`GET /api/village-data`** for clients that theme from config. On the **same line** as a value, put remarks after **`;`**, not **`#`**, so values like `#2563eb` are not truncated by the INI parser (details in [docs/developer-guide.md](./docs/developer-guide.md) — *Village data*).
 
 Further API detail: [docs/developer-guide.md](./docs/developer-guide.md).
 
@@ -190,7 +192,7 @@ waitress-serve --host=0.0.0.0 --port=5000 --threads=4 main:app
 python ./scripts/bulk_import_companies.py companies.csv
 ```
 
-Example inputs: `village_data/companies_sample.csv`has created. You can use `village_data/companies_sample.csv` as a template for your own file and bulk-import into the database. The same sample also lives under `data/csv-example/companies_sample.csv`.
+Example inputs: `village_data/companies_sample.csv`. You can use `village_data/companies_sample.csv` as a template for your own file and bulk-import into the database. The same sample also lives under `data/csv-example/companies_sample.csv`.
 
 **CSV format:** Comma-separated with a header row. Required columns: `company_name`, `jobs_max`, `hourly_pay`, `active`, `notes`.
 
@@ -212,7 +214,7 @@ The script creates or updates companies (by `company_name`) and logs successes a
 python ./scripts/bulk_import_employees.py employees.csv
 ```
 
-Example inputs: `village_data/employees_sample.csv` has created. You can use `village_data/employees_sample.csv` as a template for your own file and bulk-import everyone into the database. The same sample also lives under `data/csv-example/employees_sample.csv`.
+Example inputs: `village_data/employees_sample.csv`. You can use `village_data/employees_sample.csv` as a template for your own file and bulk-import everyone into the database. The same sample also lives under `data/csv-example/employees_sample.csv`.
 
 The script takes **only** the path to the CSV file. Employee-number checksum validation follows **`VALIDATE_CHECK_SUM`** in `.env` (default `true`; see Optional environment variables above). To disable validation for local testing only, set `VALIDATE_CHECK_SUM=false` in `.env`.
 

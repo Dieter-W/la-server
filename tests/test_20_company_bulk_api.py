@@ -35,7 +35,7 @@ def _nfc(s: str) -> str:
 # ---------------------------------------------------------------------
 # Companies bulk import with API check
 # ---------------------------------------------------------------------
-def test_bulk_import_companies_create(client,): # fmt: skip
+def test_bulk_import_companies_create_ok(client,): # fmt: skip
     # Bulk insert
     result = subprocess.run(
         [
@@ -88,7 +88,7 @@ def test_bulk_import_companies_create(client,): # fmt: skip
 # ---------------------------------------------------------------------
 # Companies bulk update with API check
 # ---------------------------------------------------------------------
-def test_bulk_import_companies_update(client, sample_authentication, sample_employee,): # fmt: skip
+def test_bulk_import_companies_update_ok(client, sample_authentication, sample_employee,): # fmt: skip
     token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
     # Bulk insert
     result = subprocess.run(

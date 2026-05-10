@@ -29,9 +29,9 @@ def _nfc(s: str) -> str:
 
 
 # ---------------------------------------------------------------------
-# validate_create_payload function
+# POST /companies — invalid payload
 # ---------------------------------------------------------------------
-def test_validate_create_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_companies_create_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
 
     response = client.post(
@@ -46,7 +46,7 @@ def test_validate_create_payload_error_1(client, sample_authentication, sample_c
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
-def test_validate_create_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_companies_create_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
 
     response = client.post(
@@ -61,7 +61,7 @@ def test_validate_create_payload_error_2(client, sample_authentication, sample_c
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_companies_create_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
 
     response = client.post(
@@ -76,7 +76,7 @@ def test_validate_create_payload_error_3(client, sample_authentication, sample_c
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_companies_create_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
 
     response = client.post(
@@ -91,7 +91,7 @@ def test_validate_create_payload_error_4(client, sample_authentication, sample_c
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_5(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_companies_create_invalid_payload_error_5(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
 
     response = client.post(
@@ -106,7 +106,7 @@ def test_validate_create_payload_error_5(client, sample_authentication, sample_c
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_6(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_companies_create_invalid_payload_error_6(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
 
     response = client.post(
@@ -121,7 +121,7 @@ def test_validate_create_payload_error_6(client, sample_authentication, sample_c
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_validate_create_payload_error_7(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_companies_create_invalid_payload_error_7(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
 
     response = client.post(
@@ -137,9 +137,9 @@ def test_validate_create_payload_error_7(client, sample_authentication, sample_c
 
 
 # ---------------------------------------------------------------------
-# validate_update_payload function
+# PUT /companies — invalid payload
 # ---------------------------------------------------------------------
-def test_validate_update_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_companies_update_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
 
     company_name = sample_company.company_name

@@ -18,33 +18,49 @@ class Config:
     so tests/scripts can monkeypatch environment variables before app creation.
     """
 
+    # ---------------------------------------------------------------------
+    # Environment parsing helpers
+    # ---------------------------------------------------------------------
     @staticmethod
     def _env_bool(name: str, default: bool = False) -> bool:
+        """Parse TRUTHY/FALSY env string; ``default`` selects the string if unset."""
         val = os.getenv(name, "true" if default else "false")
         return val.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
+    # ---------------------------------------------------------------------
+    # MariaDB connection parameters
+    # ---------------------------------------------------------------------
     @classmethod
     def mariadb_host(cls) -> str:
+        """MariaDB hostname from ``MARIADB_HOST`` (default ``localhost``)."""
         return os.getenv("MARIADB_HOST", "localhost")
 
     @classmethod
     def mariadb_port(cls) -> int:
+        """MariaDB TCP port from ``MARIADB_PORT`` (default ``3306``)."""
         return int(os.getenv("MARIADB_PORT", "3306"))
 
     @classmethod
     def mariadb_user(cls) -> str:
+        """DB user from ``MARIADB_USER`` (default ``root``)."""
         return os.getenv("MARIADB_USER", "root")
 
     @classmethod
     def mariadb_password(cls) -> str:
+        """DB password from ``MARIADB_PASSWORD``."""
         return os.getenv("MARIADB_PASSWORD", "")
 
     @classmethod
     def mariadb_database(cls) -> str:
+        """Application schema name from ``MARIADB_DATABASE``."""
         return os.getenv("MARIADB_DATABASE", "kinderspielstadt")
 
+    # ---------------------------------------------------------------------
+    # SQLAlchemy database URIs
+    # ---------------------------------------------------------------------
     @classmethod
     def sqlalchemy_database_uri(cls) -> str:
+        """SQLAlchemy URI for the app schema (mysql+pymysql)."""
         return (
             "mysql+pymysql://"
             f"{cls.mariadb_user()}:{cls.mariadb_password()}"
@@ -53,21 +69,30 @@ class Config:
 
     @classmethod
     def admin_db_uri(cls) -> str:
+        """SQLAlchemy URI for the ``mysql`` system DB (DDL/bootstrap scripts)."""
         return (
             "mysql+pymysql://"
             f"{cls.mariadb_user()}:{cls.mariadb_password()}"
             f"@{cls.mariadb_host()}:{cls.mariadb_port()}/mysql"
         )
 
+    # ---------------------------------------------------------------------
+    # Logging destinations
+    # ---------------------------------------------------------------------
     @classmethod
     def log_level(cls) -> str:
+        """Root log level name from ``LOG_LEVEL`` (default ``INFO``)."""
         return os.getenv("LOG_LEVEL", "INFO")
 
     @classmethod
     def log_file(cls) -> str | None:
+        """Optional rotating log path from ``LOG_FILE``; empty means stderr-only."""
         path = os.getenv("LOG_FILE", "").strip()
         return path or None
 
+    # ---------------------------------------------------------------------
+    # Flask ``app.config`` mapping
+    # ---------------------------------------------------------------------
     @classmethod
     def get_config(cls) -> dict:
         """Return Flask config mapping computed from current environment."""

@@ -50,3 +50,4 @@ village_data/
 .pytest_cache/
 *.todo
 todo/
+admin-web/

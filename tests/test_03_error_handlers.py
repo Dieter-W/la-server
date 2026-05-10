@@ -3,7 +3,7 @@
 from sqlalchemy.exc import SQLAlchemyError
 
 
-def test_sqlalchemy_error_returns_database_error(app, client):
+def test_sqlalchemy_error_database(app, client):
     """Uncaught SQLAlchemyError is mapped to 500 DATABASE_ERROR without leaking details."""
 
     @app.route("/__test__/sqlalchemy_error", methods=["GET"])
@@ -19,7 +19,7 @@ def test_sqlalchemy_error_returns_database_error(app, client):
     assert "message" not in data
 
 
-def test_sqlalchemy_error_includes_message_in_debug_mode(app, client):
+def test_sqlalchemy_error_message_in_debug_mode(app, client):
     """In DEBUG mode, exception details are included to aid development."""
     app.config["DEBUG"] = True
 
@@ -37,7 +37,7 @@ def test_sqlalchemy_error_includes_message_in_debug_mode(app, client):
     app.config["DEBUG"] = False  # restore
 
 
-def test_unhandled_exception_returns_internal_server_error(app, client):
+def test_unhandled_exception_internal_server_error(app, client):
     """Uncaught non-SQLAlchemy exception is mapped to 500 INTERNAL_SERVER_ERROR without leaking details."""
 
     @app.route("/__test__/runtime_error", methods=["GET"])

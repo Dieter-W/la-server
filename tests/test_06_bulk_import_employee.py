@@ -12,7 +12,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # ---------------------------------------------------------------------
 # Employees bulk import
 # ---------------------------------------------------------------------
-def test_bulk_import_employees_create(app, db_session):
+def test_bulk_import_employees_create_ok(app, db_session):
     result = subprocess.run(
         [
             sys.executable,
@@ -32,7 +32,7 @@ def test_bulk_import_employees_create(app, db_session):
 # ---------------------------------------------------------------------
 # Employees bulk update
 # ---------------------------------------------------------------------
-def test_bulk_import_employees_update(app, db_session):
+def test_bulk_import_employees_update_ok(app, db_session):
     result = subprocess.run(
         [
             sys.executable,

@@ -1,12 +1,14 @@
-"""Utility functions for authentication tests"""
+"""Helpers for JWT login and token fixtures used by API tests."""
 
 from datetime import timedelta
 from flask_jwt_extended import create_access_token, create_refresh_token
 
 # ---------------------------------------------------------------------
-# Login as employee, staff, admin functions
+# Login — employee access token (seeded M00252)
 # ---------------------------------------------------------------------
-def _login_as_employee(client, sample_authentication = None, sample_employee=None,) -> str: # fmt: skip
+def _login_as_employee(client, sample_authentication=None, sample_employee=None) -> str:  # fmt: skip
+    """POST /api/auth/login as seeded employee ``M00252``; return access ``token``."""
+
     response = client.post(
         "/api/auth/login",
         json={"employee_number": "M00252", "password": "Mustermann"},
@@ -23,7 +25,13 @@ def _login_as_employee(client, sample_authentication = None, sample_employee=Non
 
     return data["token"]
 
-def _login_as_staff(client, sample_authentication = None, sample_employee=None,) -> str: # fmt: skip
+
+# ---------------------------------------------------------------------
+# Login — staff access token (seeded A00265)
+# ---------------------------------------------------------------------
+def _login_as_staff(client, sample_authentication=None, sample_employee=None) -> str:  # fmt: skip
+    """POST /api/auth/login as seeded staff ``A00265``; return access ``token``."""
+
     response = client.post(
         "/api/auth/login",
         json={"employee_number": "A00265", "password": "Schmidt"},
@@ -40,7 +48,13 @@ def _login_as_staff(client, sample_authentication = None, sample_employee=None,)
 
     return data["token"]
 
-def _login_as_admin(client, sample_authentication = None, sample_employee=None,) -> str:  # fmt: skip
+
+# ---------------------------------------------------------------------
+# Login — admin access token (seeded P00370)
+# ---------------------------------------------------------------------
+def _login_as_admin(client, sample_authentication=None, sample_employee=None) -> str:  # fmt: skip
+    """POST /api/auth/login as seeded admin ``P00370``; return access ``token``."""
+
     response = client.post(
         "/api/auth/login",
         json={"employee_number": "P00370", "password": "Krause"},
@@ -58,6 +72,9 @@ def _login_as_admin(client, sample_authentication = None, sample_employee=None,)
     return data["token"]
 
 
+# ---------------------------------------------------------------------
+# Login — arbitrary user refresh token
+# ---------------------------------------------------------------------
 def _get_refresh_token(client, employee_number: str, password: str) -> str:
     """Log in and return the refresh token."""
     response = client.post(
@@ -68,6 +85,9 @@ def _get_refresh_token(client, employee_number: str, password: str) -> str:
     return response.get_json()["refresh_token"]
 
 
+# ---------------------------------------------------------------------
+# Fixture — expired access token (auth id 2 / M00252)
+# ---------------------------------------------------------------------
 def _login_as_employee_expired_token(client) -> str:
     """Access token for auth id 2 (M00252) that is already expired."""
     with client.application.app_context():
@@ -81,6 +101,9 @@ def _login_as_employee_expired_token(client) -> str:
         )
 
 
+# ---------------------------------------------------------------------
+# Fixture — expired refresh token (auth id 2 / M00252)
+# ---------------------------------------------------------------------
 def _login_as_employee_expired_refresh_token(client) -> str:
     """Expired refresh token for auth id 2 (M00252)."""
     with client.application.app_context():

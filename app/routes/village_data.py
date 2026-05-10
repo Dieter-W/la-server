@@ -1,6 +1,5 @@
 """Village data CRUD endpoints to give la-clients access to the village data."""
 
-import configparser
 import hashlib
 import json
 import logging
@@ -11,59 +10,16 @@ from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
 from app.auth.utils import AUTH_GROUPS
 from app.errors import APIError
+from app.village_config import _DATA_DIR, load_village_data
 
 village_data_bp = Blueprint("village_data", __name__)
 
 logger = logging.getLogger(__name__)
 
-# Project root (la-server/), not process cwd — same idea as app/config.py for .env.
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-_DATA_DIR = _PROJECT_ROOT / "village_data"
-
-
-# ---------------------------------------------------------------------
-# Externalized Helper functions
-# ---------------------------------------------------------------------
-def get_hourly_pay_increase() -> int:
-    """Return hourly_pay increase from village.ini"""
-    village_data = _load_village_data()
-    if village_data:
-        hourly_pay = village_data.get("hourly_pay")
-        if isinstance(hourly_pay, dict):
-            increase = hourly_pay.get("increase")
-            return int(increase)
-    return 0
-
 
 # ---------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------
-
-_cache = {
-    "data": None,
-    "last_updated": None,
-}
-
-
-def _strip_optional_ini_quotes(value: str) -> str:
-    if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
-        return value[1:-1]
-    return value
-
-
-def _ini_raw_to_dict(raw: str) -> dict:
-    cp = configparser.ConfigParser()
-    try:
-        cp.read_string(raw)
-    except configparser.Error as e:
-        logger.exception("Invalid village.ini")
-        raise APIError("VILLAGE_DATA_INVALID", 500) from e
-    return {
-        section: {k: _strip_optional_ini_quotes(v) for k, v in cp.items(section)}
-        for section in cp.sections()
-    }
-
-
 def _file_etag(path: Path) -> str:
     """Stable ETag from file identity (mtime + size); matches hex style used for village.ini."""
     st = path.stat()
@@ -71,6 +27,7 @@ def _file_etag(path: Path) -> str:
 
 
 def _if_none_match_includes_etag(header_value: str | None, etag: str | None) -> bool:
+    """True when ``If-None-Match`` lists our strong or weak ETag."""
     if not header_value or not etag:
         return False
     for part in header_value.split(","):
@@ -120,28 +77,6 @@ def _village_data_response_etag(payload: dict) -> str:
     return hashlib.md5(canonical.encode("utf-8")).hexdigest()
 
 
-def _load_village_data():
-    """Load village data from the ini file as a nested dict (JSON-serializable)."""
-    global _cache
-
-    village_ini = _DATA_DIR / "village.ini"
-    try:
-        mtime = village_ini.stat().st_mtime
-    except FileNotFoundError:
-        logger.error("Village.ini not found at %s", village_ini)
-        _cache["data"] = None
-        return None
-
-    if _cache["data"] is not None and mtime == _cache["last_updated"]:
-        return _cache["data"]
-
-    with open(village_ini, "r", encoding="utf-8") as f:
-        raw = f.read()
-        _cache["data"] = _ini_raw_to_dict(raw)
-        _cache["last_updated"] = mtime
-        return _cache["data"]
-
-
 def _send_from_directory(directory: Path, relative_path: str):
     """Send a file under directory; relative_path must stay within that root."""
     base = directory.resolve()
@@ -175,7 +110,7 @@ def _send_from_directory(directory: Path, relative_path: str):
 @village_data_bp.route("/village-data", methods=["GET"])
 def get_village_data():
     """List village data."""
-    village_data = _load_village_data()
+    village_data = load_village_data()
     if village_data is None:
         raise APIError("VILLAGE_DATA_NOT_FOUND", 404)
 
@@ -189,12 +124,12 @@ def get_village_data():
 
 
 # ---------------------------------------------------------------------
-# Village Data Get image file API
+# Village Data Get image file API (logo)
 # ---------------------------------------------------------------------
 @village_data_bp.route("/village-data/logo", methods=["GET"])
 def get_village_data_logo():
     """Get the logo image file from the village data."""
-    village_data = _load_village_data()
+    village_data = load_village_data()
     if village_data is None:
         raise APIError("VILLAGE_DATA_NOT_FOUND", 404)
 
@@ -208,12 +143,12 @@ def get_village_data_logo():
 
 
 # ---------------------------------------------------------------------
-# Village Data Get image file API
+# Village Data Get image file API (favicon)
 # ---------------------------------------------------------------------
 @village_data_bp.route("/village-data/favicon", methods=["GET"])
 def get_village_data_favicon():
     """Get the favicon image file from the village data."""
-    village_data = _load_village_data()
+    village_data = load_village_data()
     if village_data is None:
         raise APIError("VILLAGE_DATA_NOT_FOUND", 404)
 

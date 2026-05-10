@@ -79,7 +79,7 @@ def test_village_data_get_ok_ini_file_changes(client):
         "general": {"name": "X"},
         "la-server": {"should_not_appear": "ini-mistake"},
     }
-    with patch.object(village_data_module, "_load_village_data", return_value=fake_ini):
+    with patch.object(village_data_module, "load_village_data", return_value=fake_ini):
         response = client.get("/api/village-data")
     assert response.status_code == 200
     data = response.get_json()
@@ -118,7 +118,7 @@ def test_village_get_logo_ok_etag(client):
 def test_village_get_logo_error_1(client):
     with patch.object(
         village_data_module,
-        "_load_village_data",
+        "load_village_data",
         return_value={"general": {}, "currency": {}, "village-images": {}},
     ):
         response = client.get("/api/village-data/logo")
@@ -159,8 +159,13 @@ def test_village_get_favicon_ok_etag(client):
 def test_village_get_favicon_error_1(client):
     with patch.object(
         village_data_module,
-        "_load_village_data",
-        return_value={"general": {}, "currency": {}, "villageimages": {}},
+        "load_village_data",
+        return_value={
+            "general": {},
+            "currency": {},
+            "village-images": {},
+            "village-theme": {},
+        },
     ):
         response = client.get("/api/village-data/favicon")
     if response.status_code != 404:

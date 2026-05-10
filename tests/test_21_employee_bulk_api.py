@@ -37,7 +37,7 @@ def _nfc(s: str) -> str:
 # ---------------------------------------------------------------------
 # Employees bulk import with API check
 # ---------------------------------------------------------------------
-def test_bulk_import_employees_create(client,): # fmt: skip
+def test_bulk_import_employees_create_ok(client,): # fmt: skip
     # Bulk insert
     result = subprocess.run(
         [
@@ -75,7 +75,7 @@ def test_bulk_import_employees_create(client,): # fmt: skip
 # ---------------------------------------------------------------------
 # Employees bulk update with API check
 # ---------------------------------------------------------------------
-def test_bulk_import_employees_update(client,): # fmt: skip
+def test_bulk_import_employees_update_ok(client,): # fmt: skip
 
     # Bulk insert
     result = subprocess.run(
