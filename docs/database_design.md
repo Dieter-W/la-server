@@ -177,6 +177,7 @@ erDiagram
 - Links one camp participant (`employees` row) to one company row.
 - Foreign keys use **`ON DELETE RESTRICT`**: remove or reassign assignments before deleting a company or camp-participant row at the database level.
 - Multiple `job_assignments` rows per camp participant are allowed over time; the **API** enforces at most one current assignment per camp participant when creating assignments.
+- **`job_assignment_number` is not a stored column.** It is a derived value computed at API serialisation time by `create_job_assignment_number(id)` in [`app/utils.py`](../app/utils.py): an asterisk (`*`) followed by the five-digit zero-padded `id` and two ISO 7064 Mod 97,10 check digits calculated on those digits (e.g. `id` 1 → `*0000197`). The DELETE endpoint path uses this value to identify the row; no separate column is needed.
 
 ### Soft-delete strategy
 

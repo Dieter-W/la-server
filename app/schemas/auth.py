@@ -7,7 +7,7 @@ from typing import Any
 
 from app.auth.utils import verify_access_group
 from app.errors import APIError
-from app.utils import validate_checksum
+from app.utils import validate_employee_number
 
 
 # ---------------------------------------------------------------------
@@ -27,7 +27,7 @@ class AuthenticateRequest:
             val = data.get(field)
             if val is None or (isinstance(val, str) and not val.strip()):
                 raise APIError("REQUIRED_JSON_INPUT_MISSING_OR_EMPTY", 400)
-        valid, err = validate_checksum(data["employee_number"])
+        valid, err = validate_employee_number(data["employee_number"])
         if not valid:
             raise APIError(f"{err}_IN_JSON", 400)
         return cls(
@@ -53,7 +53,7 @@ class SetAuthGroupRequest:
             val = data.get(field)
             if val is None or (isinstance(val, str) and not val.strip()):
                 raise APIError("REQUIRED_JSON_INPUT_MISSING_OR_EMPTY", 400)
-        valid, err = validate_checksum(data["employee_number"])
+        valid, err = validate_employee_number(data["employee_number"])
         if not valid:
             raise APIError(f"{err}_IN_JSON", 400)
         valid, err = verify_access_group(data["auth_group"])
@@ -103,7 +103,7 @@ class ResetPasswordRequest:
         val = data.get("employee_number")
         if val is None or (isinstance(val, str) and not val.strip()):
             raise APIError("REQUIRED_JSON_INPUT_MISSING_OR_EMPTY", 400)
-        valid, err = validate_checksum(data["employee_number"])
+        valid, err = validate_employee_number(data["employee_number"])
         if not valid:
             raise APIError(f"{err}_IN_JSON", 400)
         return cls(employee_number=data["employee_number"])

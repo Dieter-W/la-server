@@ -9,7 +9,7 @@ from app.auth.utils import verify_access_group
 from app.errors import APIError
 from app.models import Employee
 from app.schemas import _UNSET
-from app.utils import validate_checksum
+from app.utils import validate_employee_number
 
 
 # ---------------------------------------------------------------------
@@ -22,7 +22,7 @@ class EmployeeNumberRequest:
     @classmethod
     def from_path(cls, employee_number: str) -> EmployeeNumberRequest:
         """Validate employee_number checksum from URL path parameter."""
-        valid, err = validate_checksum(employee_number)
+        valid, err = validate_employee_number(employee_number)
         if not valid:
             raise APIError(err, 400)
         return cls(employee_number=employee_number)
@@ -84,7 +84,7 @@ class CreateEmployeeRequest:
             if val is None or (isinstance(val, str) and not val.strip()):
                 raise APIError("REQUIRED_JSON_INPUT_MISSING_OR_EMPTY", 400)
 
-        valid, err = validate_checksum(data["employee_number"])
+        valid, err = validate_employee_number(data["employee_number"])
         if not valid:
             raise APIError(f"{err}_IN_JSON", 400)
 
@@ -124,7 +124,7 @@ class UpdateEmployeeRequest:
             raise APIError("REQUEST_BODY_MUST_BE_A_JSON_OBJECT", 400)
         employee_number = _UNSET
         if "employee_number" in data:
-            valid, err = validate_checksum(data["employee_number"])
+            valid, err = validate_employee_number(data["employee_number"])
             if not valid:
                 raise APIError(f"{err}_IN_JSON", 400)
             employee_number = data["employee_number"].strip()

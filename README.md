@@ -249,35 +249,35 @@ In the table, **Authorization** is shorthand for:
 
 If an admin changes another person’s access (`POST /api/auth/set-auth-group`), that person should **sign in again** so the app remembers the new permissions.
 
-| Method | Path                                     | Summary                                     | Authorization                    |
-| ------ | ---------------------------------------- | ------------------------------------------- | -------------------------------- |
-| GET    | `/api/health`                            | Liveness                                    | public                           |
-| GET    | `/api/health/db`                         | Database connectivity                       | public                           |
-| GET    | `/api/health/runtime`                    | Pool, peaks, redacted DB (no customer data) | admin required                   |
-| POST   | `/api/auth/login`                        | Sign in                                     | public                           |
-| POST   | `/api/auth/set-auth-group`               | Change another user’s permission level      | admin required                   |
-| GET    | `/api/auth/me`                           | Current employee profile                    | employee or higher               |
-| POST   | `/api/auth/password/set-password`        | Change password                             | employee or higher               |
-| POST   | `/api/auth/password/reset-password`      | Reset password to initial value             | staff or higher                  |
-| POST   | `/api/auth/refresh`                      | New access token                            | employee or higher               |
-| POST   | `/api/auth/logout`                       | Logout                                      | employee or higher               |
-| GET    | `/api/companies`                         | List companies                              | public                           |
-| GET    | `/api/companies/<company_name>`          | List one company                            | public                           |
-| POST   | `/api/companies`                         | Create company                              | admin required                   |
-| PUT    | `/api/companies/<company_name>`          | Update company                              | admin required                   |
-| DELETE | `/api/companies/<company_name>`          | Delete company                              | admin required                   |
-| GET    | `/api/employees`                         | List employees                              | public                           |
-| GET    | `/api/employees/<employee_number>`       | List one employee                           | public                           |
-| POST   | `/api/employees`                         | Create employee                             | admin required                   |
-| PUT    | `/api/employees/<employee_number>`       | Update employee                             | admin required                   |
-| DELETE | `/api/employees/<employee_number>`       | Soft or hard delete employee                | admin required                   |
-| GET    | `/api/job-assignments`                   | List job assignments                        | public                           |
-| POST   | `/api/job-assignments`                   | Create job assignment                       | employee or higher               |
-| DELETE | `/api/job-assignments/<employee_number>` | Remove assignment for employee              | employee or higher               |
-| POST   | `/api/job-assignments/reset`             | Reset assignments (optional filter)         | admin required                   |
-| GET    | `/api/village-data`                      | Spielstadt config JSON (`village.ini`)      | public                           |
-| GET    | `/api/village-data/logo`                 | Logo image (path from INI)                  | public                           |
-| GET    | `/api/village-data/favicon`              | Favicon image (path from INI)               | public                           |
+| Method | Path                                           | Summary                                     | Authorization                    |
+| ------ | ---------------------------------------------- | ------------------------------------------- | -------------------------------- |
+| GET    | `/api/health`                                  | Liveness                                    | public                           |
+| GET    | `/api/health/db`                               | Database connectivity                       | public                           |
+| GET    | `/api/health/runtime`                          | Pool, peaks, redacted DB (no customer data) | admin required                   |
+| POST   | `/api/auth/login`                              | Sign in                                     | public                           |
+| POST   | `/api/auth/set-auth-group`                     | Change another user’s permission level      | admin required                   |
+| GET    | `/api/auth/me`                                 | Current employee profile                    | employee or higher               |
+| POST   | `/api/auth/password/set-password`              | Change password                             | employee or higher               |
+| POST   | `/api/auth/password/reset-password`            | Reset password to initial value             | staff or higher                  |
+| POST   | `/api/auth/refresh`                            | New access token                            | employee or higher               |
+| POST   | `/api/auth/logout`                             | Logout                                      | employee or higher               |
+| GET    | `/api/companies`                               | List companies                              | public                           |
+| GET    | `/api/companies/<company_name>`                | List one company                            | public                           |
+| POST   | `/api/companies`                               | Create company                              | admin required                   |
+| PUT    | `/api/companies/<company_name>`                | Update company                              | admin required                   |
+| DELETE | `/api/companies/<company_name>`                | Delete company                              | admin required                   |
+| GET    | `/api/employees`                               | List employees                              | public                           |
+| GET    | `/api/employees/<employee_number>`             | List one employee                           | public                           |
+| POST   | `/api/employees`                               | Create employee                             | admin required                   |
+| PUT    | `/api/employees/<employee_number>`             | Update employee                             | admin required                   |
+| DELETE | `/api/employees/<employee_number>`             | Soft or hard delete employee                | admin required                   |
+| GET    | `/api/job-assignments`                         | List job assignments                        | public                           |
+| POST   | `/api/job-assignments`                         | Create job assignment                       | employee or higher               |
+| DELETE | `/api/job-assignments/<job_assignment_number>` | Remove assignment by assignment number      | employee or higher               |
+| POST   | `/api/job-assignments/reset`                   | Reset assignments (optional filter)         | admin required                   |
+| GET    | `/api/village-data`                            | Spielstadt config JSON (`village.ini`)      | public                           |
+| GET    | `/api/village-data/logo`                       | Logo image (path from INI)                  | public                           |
+| GET    | `/api/village-data/favicon`                    | Favicon image (path from INI)               | public                           |
 
 
 ### API examples

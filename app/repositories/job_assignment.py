@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.orm import joinedload
 
 from app.models import JobAssignment
 from app.repositories.base import BaseRepository
@@ -21,6 +22,15 @@ class JobAssignmentRepository(BaseRepository[JobAssignment]):
         """Assignment for one employee, or None."""
         stmt = select(JobAssignment).where(JobAssignment.employee_id == employee_id)
         return self.db.scalars(stmt).first()
+
+    def get_by_id(self, job_assignment_id: int) -> JobAssignment | None:
+        """One assignment row by primary key, or None (employee row eager-loaded)."""
+        stmt = (
+            select(JobAssignment)
+            .where(JobAssignment.id == job_assignment_id)
+            .options(joinedload(JobAssignment.employees))
+        )
+        return self.db.scalars(stmt).unique().first()
 
     # ---------------------------------------------------------------------
     # Counts

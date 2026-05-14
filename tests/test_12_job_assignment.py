@@ -2,6 +2,8 @@
 
 import unicodedata
 
+from app.utils import create_job_assignment_number
+
 from tests.test_utils import _login_as_admin, _login_as_employee
 
 # from urllib.parse import quote
@@ -227,6 +229,14 @@ def test_job_assignments_create_ok(client, sample_authentication, sample_company
     if response.status_code != 201:
         print(response.text)
     assert response.status_code == 201
+    data = response.get_json()
+    assert data["job_assignment_number"] == create_job_assignment_number(3)
+    assert data["id"] == 3
+    # assert data["company_id"] == sample_company.id
+    # assert data["employee_id"] == sample_employee.id
+    # assert data["notes"] == "Created by create test"
+    assert data["created_at"] is not None
+    assert data["updated_at"] is not None
 
     response = client.get("/api/job-assignments")
     assert response.status_code == 200
@@ -346,9 +356,9 @@ def test_job_assignments_create_error_6(client, sample_authentication, sample_co
 def test_job_assignments_delete_ok(client, sample_authentication, sample_company,  sample_employee, sample_job_assignment,): # fmt: skip
     token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
 
-    employee_number = "M00155"
+    job_assignment_number = create_job_assignment_number(sample_job_assignment.id)
     response = client.delete(
-        f"/api/job-assignments/{employee_number}",
+        f"/api/job-assignments/{job_assignment_number}",
         headers={"Authorization": f"Bearer {token}"},
     )
     if response.status_code != 200:
@@ -361,50 +371,51 @@ def test_job_assignments_delete_ok(client, sample_authentication, sample_company
 def test_job_assignments_delete_error_1(client, sample_authentication, sample_employee):
     token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
 
-    employee_number = "Wrong"
+    job_assignment_number = "Wrong"
     response = client.delete(
-        f"/api/job-assignments/{employee_number}",
+        f"/api/job-assignments/{job_assignment_number}",
         headers={"Authorization": f"Bearer {token}"},
     )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
     data = response.get_json()
-    assert data["error"] == "EMPLOYEE_NUMBER_WRONG"
+    assert data["error"] == "JOB_ASSIGNMENT_NUMBER_WRONG"
 
 
 def test_job_assignments_delete_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
     token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
 
-    employee_number = "TEST00753"
+    job_assignment_number = "*0000000"
     response = client.delete(
-        f"/api/job-assignments/{employee_number}",
+        f"/api/job-assignments/{job_assignment_number}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "JOB_ASSIGNMENT_NUMBER_WRONG"
+
+
+def test_job_assignments_delete_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
+    job_assignment_number = create_job_assignment_number(99999)
+    response = client.delete(
+        f"/api/job-assignments/{job_assignment_number}",
         headers={"Authorization": f"Bearer {token}"},
     )
     if response.status_code != 404:
         print(response.text)
     assert response.status_code == 404
     data = response.get_json()
-    assert data["error"] == "EMPLOYEE_NOT_FOUND"
+    assert data["error"] == "JOB_ASSIGNMENT_NOT_FOUND"
 
-
-def test_job_assignments_delete_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
-
-    employee_number = "A00265"
-    response = client.delete(
-        f"/api/job-assignments/{employee_number}",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    if response.status_code != 400:
-        print(response.text)
-    assert response.status_code == 400
-    data = response.get_json()
-    assert data["error"] == "NO_JOB_ASSIGNED"
-
-    # ---------------------------------------------------------------------
-    # Reset job_assignment API
-    # ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# Reset job_assignment API
+# ---------------------------------------------------------------------
+def test_job_assignments_reset_ok(client, sample_authentication, sample_company,  sample_employee, sample_job_assignment,): # fmt: skip
     token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
 
     response = client.post(

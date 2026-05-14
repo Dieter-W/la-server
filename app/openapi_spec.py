@@ -3,6 +3,10 @@
 import tomllib
 from pathlib import Path
 
+# ---------------------------------------------------------------------
+# Project version
+# ---------------------------------------------------------------------
+
 
 def _read_project_version() -> str:
     """Read the canonical version from pyproject.toml."""
@@ -14,6 +18,10 @@ def _read_project_version() -> str:
     except Exception:
         return "unknown"
 
+
+# ---------------------------------------------------------------------
+# Static OpenAPI document fragments
+# ---------------------------------------------------------------------
 
 API_TITLE = "LA-Server API"
 API_DESCRIPTION = (
@@ -37,6 +45,28 @@ _RESPONSES_DEFAULT = {
 }
 
 
+# ---------------------------------------------------------------------
+# Helper: build a $ref content block
+# ---------------------------------------------------------------------
+
+
+def _schema_ref(name: str) -> dict:
+    return {"$ref": f"#/components/schemas/{name}"}
+
+
+def _content_block(schema_name: str) -> dict:
+    return {"application/json": {"schema": _schema_ref(schema_name)}}
+
+
+def _response_200(schema_name: str, description: str = "OK") -> dict:
+    return {"description": description, "content": _content_block(schema_name)}
+
+
+# ---------------------------------------------------------------------
+# Single-operation path fragments
+# ---------------------------------------------------------------------
+
+
 def _op(
     method: str,
     summary: str,
@@ -44,26 +74,39 @@ def _op(
     tag: str,
     security: list | None = None,
     parameters: list | None = None,
-    request_body: bool = False,
+    request_schema: str | None = None,
+    response_schema: str | None = None,
     responses: dict | None = None,
 ) -> dict:
-    """Build one OpenAPI ``paths`` operation object (single HTTP method key)."""
+    """Build one OpenAPI ``paths`` operation object (single HTTP method key).
+
+    ``request_schema``  – component schema name for the JSON request body.
+    ``response_schema`` – component schema name for the 200 JSON response body.
+    ``responses``       – overrides the entire responses block when provided.
+    """
     m: dict = {"tags": [tag], "summary": summary}
     if security is not None:
         m["security"] = security
     if parameters:
         m["parameters"] = parameters
-    if request_body:
+    if request_schema is not None:
         m["requestBody"] = {
             "required": True,
-            "content": {
-                "application/json": {
-                    "schema": {"type": "object", "additionalProperties": True}
-                }
-            },
+            "content": _content_block(request_schema),
         }
-    m["responses"] = responses or {"200": {"description": "OK"}}
+    if responses is not None:
+        m["responses"] = responses
+    else:
+        ok: dict = {"description": "OK"}
+        if response_schema is not None:
+            ok["content"] = _content_block(response_schema)
+        m["responses"] = {"200": ok}
     return {method: m}
+
+
+# ---------------------------------------------------------------------
+# Full document assembly
+# ---------------------------------------------------------------------
 
 
 def build_openapi_dict() -> dict:
@@ -84,6 +127,15 @@ def build_openapi_dict() -> dict:
             "required": True,
             "schema": {"type": "string"},
             "description": "Participant employee number (ISO 7064 Mod 97,10 when checksum validation is on).",
+        }
+    ]
+    parameters_job_assignment_number = [
+        {
+            "name": "job_assignment_number",
+            "in": "path",
+            "required": True,
+            "schema": {"type": "string"},
+            "description": "Job assignment number (ISO 7064 Mod 97,10 when checksum validation is on).",
         }
     ]
     query_active = [
@@ -135,9 +187,10 @@ def build_openapi_dict() -> dict:
             "Sign in; returns JWT `token`",
             tag="Authentication",
             security=[],
-            request_body=True,
+            request_schema="LoginRequest",
+            response_schema="LoginResponse",
             responses={
-                "200": {"description": "Authenticated"},
+                "200": _response_200("LoginResponse", "Authenticated"),
                 **{
                     k: v
                     for k, v in _RESPONSES_DEFAULT.items()
@@ -148,16 +201,23 @@ def build_openapi_dict() -> dict:
     )
     merge_path(
         "/api/auth/me",
-        _op("get", "Current employee profile", tag="Authentication", security=_BEARER),
+        _op(
+            "get",
+            "Current employee profile",
+            tag="Authentication",
+            security=_BEARER,
+            response_schema="EmployeeResponse",
+        ),
     )
     merge_path(
         "/api/auth/set-auth-group",
         _op(
             "post",
-            "Set another user’s `auth_group` (admin)",
+            "Set another user's `auth_group` (admin)",
             tag="Authentication",
             security=_BEARER,
-            request_body=True,
+            request_schema="SetAuthGroupRequest",
+            response_schema="SetAuthGroupResponse",
         ),
     )
     merge_path(
@@ -167,7 +227,7 @@ def build_openapi_dict() -> dict:
             "Change own password",
             tag="Authentication",
             security=_BEARER,
-            request_body=True,
+            request_schema="SetPasswordRequest",
         ),
     )
     merge_path(
@@ -177,12 +237,18 @@ def build_openapi_dict() -> dict:
             "Reset participant password (staff or admin)",
             tag="Authentication",
             security=_BEARER,
-            request_body=True,
+            request_schema="ResetPasswordRequest",
         ),
     )
     merge_path(
         "/api/auth/refresh",
-        _op("post", "Issue a new JWT", tag="Authentication", security=_BEARER),
+        _op(
+            "post",
+            "Issue a new JWT",
+            tag="Authentication",
+            security=_BEARER,
+            response_schema="RefreshResponse",
+        ),
     )
     merge_path(
         "/api/auth/logout",
@@ -198,13 +264,15 @@ def build_openapi_dict() -> dict:
                 "List companies",
                 tag="Companies",
                 parameters=query_active,
+                response_schema="CompanyListResponse",
             ),
             **_op(
                 "post",
                 "Create company",
                 tag="Companies",
                 security=_BEARER,
-                request_body=True,
+                request_schema="CreateCompanyRequest",
+                response_schema="CompanyResponse",
             ),
         },
     )
@@ -216,6 +284,7 @@ def build_openapi_dict() -> dict:
                 "Get one company",
                 tag="Companies",
                 parameters=parameters_company_name,
+                response_schema="CompanyResponse",
             ),
             **_op(
                 "put",
@@ -223,7 +292,8 @@ def build_openapi_dict() -> dict:
                 tag="Companies",
                 security=_BEARER,
                 parameters=parameters_company_name,
-                request_body=True,
+                request_schema="UpdateCompanyRequest",
+                response_schema="CompanyResponse",
             ),
             **_op(
                 "delete",
@@ -244,13 +314,15 @@ def build_openapi_dict() -> dict:
                 "List employees",
                 tag="Employees",
                 parameters=query_active,
+                response_schema="EmployeeListResponse",
             ),
             **_op(
                 "post",
                 "Create employee (and authentication row)",
                 tag="Employees",
                 security=_BEARER,
-                request_body=True,
+                request_schema="CreateEmployeeRequest",
+                response_schema="EmployeeResponse",
             ),
         },
     )
@@ -262,6 +334,7 @@ def build_openapi_dict() -> dict:
                 "Get one employee",
                 tag="Employees",
                 parameters=parameters_employee_number,
+                response_schema="EmployeeResponse",
             ),
             **_op(
                 "put",
@@ -269,7 +342,8 @@ def build_openapi_dict() -> dict:
                 tag="Employees",
                 security=_BEARER,
                 parameters=parameters_employee_number,
-                request_body=True,
+                request_schema="UpdateEmployeeRequest",
+                response_schema="EmployeeResponse",
             ),
             **_op(
                 "delete",
@@ -285,24 +359,30 @@ def build_openapi_dict() -> dict:
     merge_path(
         "/api/job-assignments",
         {
-            **_op("get", "List job assignments", tag="Job assignments"),
+            **_op(
+                "get",
+                "List job assignments",
+                tag="Job assignments",
+                response_schema="JobAssignmentListResponse",
+            ),
             **_op(
                 "post",
                 "Create job assignment",
                 tag="Job assignments",
                 security=_BEARER,
-                request_body=True,
+                request_schema="CreateJobAssignmentRequest",
+                response_schema="JobAssignmentResponse",
             ),
         },
     )
     merge_path(
-        "/api/job-assignments/{employee_number}",
+        "/api/job-assignments/{job_assignment_number}",
         _op(
             "delete",
             "Remove assignment for employee",
             tag="Job assignments",
             security=_BEARER,
-            parameters=parameters_employee_number,
+            parameters=parameters_job_assignment_number,
         ),
     )
     merge_path(
@@ -314,14 +394,7 @@ def build_openapi_dict() -> dict:
                 "security": _BEARER,
                 "requestBody": {
                     "required": False,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "properties": {"company_name": {"type": "string"}},
-                            }
-                        }
-                    },
+                    "content": _content_block("ResetJobAssignmentRequest"),
                 },
                 "responses": {"200": {"description": "OK"}},
             }
@@ -381,7 +454,7 @@ def build_openapi_dict() -> dict:
         "servers": [
             {
                 "url": "/",
-                "description": "Use the same host and port as this server (adjust in Swagger UI “Try it out” if needed).",
+                "description": 'Use the same host and port as this server (adjust in Swagger UI "Try it out" if needed).',
             }
         ],
         "tags": [
@@ -417,6 +490,464 @@ def build_openapi_dict() -> dict:
                 }
             },
             "schemas": {
+                # ----------------------------------------------------------
+                # Auth — request schemas
+                # ----------------------------------------------------------
+                "LoginRequest": {
+                    "type": "object",
+                    "required": ["employee_number", "password"],
+                    "properties": {
+                        "employee_number": {
+                            "type": "string",
+                            "description": "Participant employee number.",
+                            "example": "P00370",
+                        },
+                        "password": {
+                            "type": "string",
+                            "description": "Account password.",
+                            "example": "secret123",
+                        },
+                    },
+                },
+                "SetAuthGroupRequest": {
+                    "type": "object",
+                    "required": ["employee_number", "auth_group"],
+                    "properties": {
+                        "employee_number": {
+                            "type": "string",
+                            "description": "Target participant employee number.",
+                            "example": "P00370",
+                        },
+                        "auth_group": {
+                            "type": "string",
+                            "description": "New auth group (e.g. `participant`, `staff`, `admin`).",
+                            "example": "staff",
+                        },
+                    },
+                },
+                "SetPasswordRequest": {
+                    "type": "object",
+                    "required": ["old_password", "new_password"],
+                    "properties": {
+                        "old_password": {
+                            "type": "string",
+                            "description": "Current password for verification.",
+                            "example": "oldSecret",
+                        },
+                        "new_password": {
+                            "type": "string",
+                            "description": "Desired new password.",
+                            "example": "newSecret42",
+                        },
+                    },
+                },
+                "ResetPasswordRequest": {
+                    "type": "object",
+                    "required": ["employee_number"],
+                    "properties": {
+                        "employee_number": {
+                            "type": "string",
+                            "description": "Participant whose password should be reset.",
+                            "example": "P00370",
+                        },
+                    },
+                },
+                # ----------------------------------------------------------
+                # Companies — request schemas
+                # ----------------------------------------------------------
+                "CreateCompanyRequest": {
+                    "type": "object",
+                    "required": ["company_name", "jobs_max", "hourly_pay"],
+                    "properties": {
+                        "company_name": {
+                            "type": "string",
+                            "description": "Unique company name.",
+                            "example": "Bank",
+                        },
+                        "jobs_max": {
+                            "type": "integer",
+                            "description": "Maximum number of simultaneous job slots.",
+                            "example": 5,
+                        },
+                        "hourly_pay": {
+                            "type": "number",
+                            "description": "Base hourly pay in village currency.",
+                            "example": 12.50,
+                        },
+                        "active": {
+                            "type": "boolean",
+                            "description": "Whether the company is active (default `true`).",
+                            "example": True,
+                        },
+                        "notes": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": "Optional free-text notes.",
+                            "example": "Opens at 9 am.",
+                        },
+                    },
+                },
+                "UpdateCompanyRequest": {
+                    "type": "object",
+                    "description": "Partial update — include only the fields you want to change.",
+                    "properties": {
+                        "company_name": {
+                            "type": "string",
+                            "description": "New company name.",
+                            "example": "Sparkasse",
+                        },
+                        "jobs_max": {
+                            "type": "integer",
+                            "description": "New maximum job slots.",
+                            "example": 8,
+                        },
+                        "hourly_pay": {
+                            "type": "number",
+                            "description": "New hourly pay.",
+                            "example": 15.00,
+                        },
+                        "active": {
+                            "type": "boolean",
+                            "description": "Activate or deactivate the company.",
+                            "example": False,
+                        },
+                        "notes": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": "Updated notes (send `null` to clear).",
+                            "example": "Closed on Wednesdays.",
+                        },
+                    },
+                },
+                # ----------------------------------------------------------
+                # Employees — request schemas
+                # ----------------------------------------------------------
+                "CreateEmployeeRequest": {
+                    "type": "object",
+                    "required": [
+                        "first_name",
+                        "last_name",
+                        "employee_number",
+                        "role",
+                        "auth_group",
+                    ],
+                    "properties": {
+                        "first_name": {
+                            "type": "string",
+                            "description": "Participant first name.",
+                            "example": "Max",
+                        },
+                        "last_name": {
+                            "type": "string",
+                            "description": "Participant last name.",
+                            "example": "Mustermann",
+                        },
+                        "employee_number": {
+                            "type": "string",
+                            "description": "Unique employee number (ISO 7064 Mod 97,10 checksum when validation is on).",
+                            "example": "P00370",
+                        },
+                        "role": {
+                            "type": "string",
+                            "description": "Job role description.",
+                            "example": "Kassierer",
+                        },
+                        "auth_group": {
+                            "type": "string",
+                            "description": "Auth group (e.g. `participant`, `staff`, `admin`).",
+                            "example": "participant",
+                        },
+                        "active": {
+                            "type": "boolean",
+                            "description": "Whether the employee is active (default `true`).",
+                            "example": True,
+                        },
+                        "notes": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": "Optional free-text notes.",
+                            "example": None,
+                        },
+                    },
+                },
+                "UpdateEmployeeRequest": {
+                    "type": "object",
+                    "description": "Partial update — include only the fields you want to change.",
+                    "properties": {
+                        "first_name": {"type": "string", "example": "Maximilian"},
+                        "last_name": {"type": "string", "example": "Muster"},
+                        "employee_number": {
+                            "type": "string",
+                            "description": "New employee number (checksum-validated).",
+                            "example": "M00252",
+                        },
+                        "role": {"type": "string", "example": "Filialleiter"},
+                        "active": {"type": "boolean", "example": False},
+                        "notes": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": "Updated notes (send `null` to clear).",
+                            "example": "Transferred to Bäckerei.",
+                        },
+                    },
+                },
+                # ----------------------------------------------------------
+                # Job assignments — request schemas
+                # ----------------------------------------------------------
+                "CreateJobAssignmentRequest": {
+                    "type": "object",
+                    "required": ["company_name", "employee_number"],
+                    "properties": {
+                        "company_name": {
+                            "type": "string",
+                            "description": "Exact company name as stored.",
+                            "example": "Bank",
+                        },
+                        "employee_number": {
+                            "type": "string",
+                            "description": "Participant employee number.",
+                            "example": "P00370",
+                        },
+                    },
+                },
+                "ResetJobAssignmentRequest": {
+                    "type": "object",
+                    "description": "Omit body (or send `{}`) to reset all assignments. Provide `company_name` to scope the reset.",
+                    "properties": {
+                        "company_name": {
+                            "type": "string",
+                            "description": "Limit reset to this company only.",
+                            "example": "Bank",
+                        },
+                    },
+                },
+                # ----------------------------------------------------------
+                # Auth — response schemas
+                # ----------------------------------------------------------
+                "LoginResponse": {
+                    "type": "object",
+                    "required": [
+                        "message",
+                        "token",
+                        "refresh_token",
+                        "auth_group",
+                        "password_must_change",
+                    ],
+                    "properties": {
+                        "message": {"type": "string", "example": "Login successful."},
+                        "token": {
+                            "type": "string",
+                            "description": "Short-lived JWT access token.",
+                            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        },
+                        "refresh_token": {
+                            "type": "string",
+                            "description": "Long-lived JWT refresh token.",
+                            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        },
+                        "auth_group": {
+                            "type": "string",
+                            "description": "Auth group of the authenticated user.",
+                            "example": "participant",
+                        },
+                        "password_must_change": {
+                            "type": "boolean",
+                            "description": "`true` when the user must change their password on next action.",
+                            "example": False,
+                        },
+                    },
+                },
+                "SetAuthGroupResponse": {
+                    "type": "object",
+                    "required": ["message", "auth_group", "employee_number"],
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "example": "Auth group updated.",
+                        },
+                        "auth_group": {"type": "string", "example": "staff"},
+                        "employee_number": {
+                            "type": "string",
+                            "example": "P00370",
+                        },
+                    },
+                },
+                "RefreshResponse": {
+                    "type": "object",
+                    "required": ["message", "token", "employee_number"],
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "example": "Token refreshed.",
+                        },
+                        "token": {
+                            "type": "string",
+                            "description": "New short-lived JWT access token.",
+                            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        },
+                        "employee_number": {
+                            "type": "string",
+                            "example": "P00370",
+                        },
+                    },
+                },
+                # ----------------------------------------------------------
+                # Companies — response schemas
+                # ----------------------------------------------------------
+                "CompanyResponse": {
+                    "type": "object",
+                    "required": [
+                        "id",
+                        "company_name",
+                        "jobs",
+                        "hourly_pay",
+                        "active",
+                        "notes",
+                        "created_at",
+                        "updated_at",
+                    ],
+                    "properties": {
+                        "id": {"type": "integer", "example": 3},
+                        "company_name": {"type": "string", "example": "Bank"},
+                        "jobs": {
+                            "type": "object",
+                            "required": ["available", "max"],
+                            "properties": {
+                                "available": {
+                                    "type": "integer",
+                                    "description": "Free job slots (max − assigned).",
+                                    "example": 3,
+                                },
+                                "max": {
+                                    "type": "integer",
+                                    "description": "Total job slots.",
+                                    "example": 5,
+                                },
+                            },
+                        },
+                        "hourly_pay": {
+                            "type": "number",
+                            "description": "Effective hourly pay (base + village bonus).",
+                            "example": 14.50,
+                        },
+                        "active": {"type": "boolean", "example": True},
+                        "notes": {"type": "string", "nullable": True, "example": None},
+                        "created_at": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": "ISO 8601 creation timestamp.",
+                            "example": "2026-05-14T08:00:00",
+                        },
+                        "updated_at": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": "ISO 8601 last-update timestamp.",
+                            "example": "2026-05-14T09:15:00",
+                        },
+                    },
+                },
+                "CompanyListResponse": {
+                    "type": "array",
+                    "items": _schema_ref("CompanyResponse"),
+                },
+                # ----------------------------------------------------------
+                # Employees — response schemas
+                # ----------------------------------------------------------
+                "EmployeeResponse": {
+                    "type": "object",
+                    "required": [
+                        "id",
+                        "first_name",
+                        "last_name",
+                        "employee_number",
+                        "role",
+                        "company",
+                        "active",
+                        "notes",
+                        "created_at",
+                        "updated_at",
+                    ],
+                    "properties": {
+                        "id": {"type": "integer", "example": 7},
+                        "first_name": {"type": "string", "example": "Max"},
+                        "last_name": {"type": "string", "example": "Mustermann"},
+                        "employee_number": {
+                            "type": "string",
+                            "example": "P00370",
+                        },
+                        "role": {"type": "string", "example": "Kassierer"},
+                        "company": {
+                            "type": "string",
+                            "description": "Company name of current assignment, or empty string.",
+                            "example": "Bank",
+                        },
+                        "active": {"type": "boolean", "example": True},
+                        "notes": {"type": "string", "nullable": True, "example": None},
+                        "created_at": {
+                            "type": "string",
+                            "nullable": True,
+                            "example": "2026-05-14T08:00:00",
+                        },
+                        "updated_at": {
+                            "type": "string",
+                            "nullable": True,
+                            "example": "2026-05-14T09:15:00",
+                        },
+                        "auth_group": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": "Present on `/auth/me` and admin endpoints; omitted otherwise.",
+                            "example": "participant",
+                        },
+                    },
+                },
+                "EmployeeListResponse": {
+                    "type": "array",
+                    "items": _schema_ref("EmployeeResponse"),
+                },
+                # ----------------------------------------------------------
+                # Job assignments — response schemas
+                # ----------------------------------------------------------
+                "JobAssignmentResponse": {
+                    "type": "object",
+                    "required": [
+                        "id",
+                        "company_id",
+                        "employee_id",
+                        "job_assignment_number",
+                        "notes",
+                        "created_at",
+                        "updated_at",
+                    ],
+                    "properties": {
+                        "id": {"type": "integer", "example": 12},
+                        "company_id": {"type": "integer", "example": 3},
+                        "employee_id": {"type": "integer", "example": 7},
+                        "job_assignment_number": {
+                            "type": "string",
+                            "description": "Derived wire-format assignment number (ISO 7064 Mod 97,10 checksum).",
+                            "example": "*0001263",
+                        },
+                        "notes": {"type": "string", "nullable": True, "example": None},
+                        "created_at": {
+                            "type": "string",
+                            "nullable": True,
+                            "example": "2026-05-14T08:30:00",
+                        },
+                        "updated_at": {
+                            "type": "string",
+                            "nullable": True,
+                            "example": "2026-05-14T08:30:00",
+                        },
+                    },
+                },
+                "JobAssignmentListResponse": {
+                    "type": "array",
+                    "items": _schema_ref("JobAssignmentResponse"),
+                },
+                # ----------------------------------------------------------
+                # Village data — response schemas
+                # ----------------------------------------------------------
                 "LAServerRuntime": {
                     "type": "object",
                     "description": (
@@ -476,6 +1007,9 @@ def build_openapi_dict() -> dict:
                         "Responses include an **`ETag`** header; repeat with **`If-None-Match`** for `304 Not Modified`."
                     ),
                 },
+                # ----------------------------------------------------------
+                # Shared error schema
+                # ----------------------------------------------------------
                 "ErrorBody": {
                     "type": "object",
                     "properties": {

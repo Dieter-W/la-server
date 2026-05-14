@@ -146,37 +146,37 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 
 **List endpoints (no pagination):** `GET /api/companies`, `GET /api/employees`, and `GET /api/job-assignments` return the **full** result set in one response (no `limit`/`offset`). Plan accordingly for large datasets or future API versions.
 
-| Method | Path                                     | Summary                                     | Authorization                    |
-| ------ | ---------------------------------------- | ------------------------------------------- | -------------------------------- |
-| GET    | `/api/health`                            | Liveness                                    | public                           |
-| GET    | `/api/health/db`                         | Database connectivity                       | public                           |
-| GET    | `/api/health/runtime`                    | Pool, peaks, redacted DB (no customer data) | admin required                   |
-| POST   | `/api/auth/login`                        | Sign in                                     | public                           |
-| GET    | `/api/auth/me`                           | Current employee profile                    | employee or higher               |
-| POST   | `/api/auth/set-auth-group`               | Change another user’s permission level      | admin required                   |
-| POST   | `/api/auth/password/set-password`        | Change password                             | employee or higher               |
-| POST   | `/api/auth/password/reset-password`      | Reset password to initial value             | staff or higher                  |
-| POST   | `/api/auth/refresh`                      | Refresh session token                       | employee or higher               |
-| POST   | `/api/auth/logout`                       | Logout                                      | employee or higher               |
-| GET    | `/api/companies`                         | List companies                              | public                           |
-| GET    | `/api/companies/<company_name>`          | List one company                            | public                           |
-| POST   | `/api/companies`                         | Create company                              | admin required                   |
-| PUT    | `/api/companies/<company_name>`          | Update company                              | admin required                   |
-| DELETE | `/api/companies/<company_name>`          | Delete company                              | admin required                   |
-| GET    | `/api/employees`                         | List employees                              | public                           |
-| GET    | `/api/employees/<employee_number>`       | List one employee                           | public                           |
-| POST   | `/api/employees`                         | Create employee                             | admin required                   |
-| PUT    | `/api/employees/<employee_number>`       | Update employee                             | admin required                   |
-| DELETE | `/api/employees/<employee_number>`       | Soft or hard delete employee                | admin required                   |
-| GET    | `/api/job-assignments`                   | List job assignments                        | public                           |
-| POST   | `/api/job-assignments`                   | Create job assignment                       | employee or higher               |
-| DELETE | `/api/job-assignments/<employee_number>` | Remove assignment for employee              | employee or higher               |
-| POST   | `/api/job-assignments/reset`             | Reset assignments (optional filter)         | admin required                   |
-| GET    | `/api/village-data`                      | Spielstadt config JSON (`village.ini`)      | public                           |
-| GET    | `/api/village-data/logo`                 | Logo image (path from INI)                  | public                           |
-| GET    | `/api/village-data/favicon`              | Favicon image (path from INI)               | public                           |
-| GET    | `/api/openapi.json`                       | OpenAPI 3.0 schema (machine-readable)      | public                           |
-| GET    | `/api/docs`                               | Swagger UI (interactive explorer)         | public                           |
+| Method | Path                                           | Summary                                     | Authorization                    |
+| ------ | ---------------------------------------------- | ------------------------------------------- | -------------------------------- |
+| GET    | `/api/health`                                  | Liveness                                    | public                           |
+| GET    | `/api/health/db`                               | Database connectivity                       | public                           |
+| GET    | `/api/health/runtime`                          | Pool, peaks, redacted DB (no customer data) | admin required                   |
+| POST   | `/api/auth/login`                              | Sign in                                     | public                           |
+| GET    | `/api/auth/me`                                 | Current employee profile                    | employee or higher               |
+| POST   | `/api/auth/set-auth-group`                     | Change another user’s permission level      | admin required                   |
+| POST   | `/api/auth/password/set-password`              | Change password                             | employee or higher               |
+| POST   | `/api/auth/password/reset-password`            | Reset password to initial value             | staff or higher                  |
+| POST   | `/api/auth/refresh`                            | Refresh session token                       | employee or higher               |
+| POST   | `/api/auth/logout`                             | Logout                                      | employee or higher               |
+| GET    | `/api/companies`                               | List companies                              | public                           |
+| GET    | `/api/companies/<company_name>`                | List one company                            | public                           |
+| POST   | `/api/companies`                               | Create company                              | admin required                   |
+| PUT    | `/api/companies/<company_name>`                | Update company                              | admin required                   |
+| DELETE | `/api/companies/<company_name>`                | Delete company                              | admin required                   |
+| GET    | `/api/employees`                               | List employees                              | public                           |
+| GET    | `/api/employees/<employee_number>`             | List one employee                           | public                           |
+| POST   | `/api/employees`                               | Create employee                             | admin required                   |
+| PUT    | `/api/employees/<employee_number>`             | Update employee                             | admin required                   |
+| DELETE | `/api/employees/<employee_number>`             | Soft or hard delete employee                | admin required                   |
+| GET    | `/api/job-assignments`                         | List job assignments                        | public                           |
+| POST   | `/api/job-assignments`                         | Create job assignment                       | employee or higher               |
+| DELETE | `/api/job-assignments/<job_assignment_number>` | Remove assignment by assignment number      | employee or higher               |
+| POST   | `/api/job-assignments/reset`                   | Reset assignments (optional filter)         | admin required                   |
+| GET    | `/api/village-data`                            | Spielstadt config JSON (`village.ini`)      | public                           |
+| GET    | `/api/village-data/logo`                       | Logo image (path from INI)                  | public                           |
+| GET    | `/api/village-data/favicon`                    | Favicon image (path from INI)               | public                           |
+| GET    | `/api/openapi.json`                            | OpenAPI 3.0 schema (machine-readable)       | public                           |
+| GET    | `/api/docs`                                    | Swagger UI (interactive explorer)           | public                           |
 
 
 ## OpenAPI / Swagger
@@ -1478,6 +1478,7 @@ None.
   "job_assignments": [
     {
       "id": 1,
+      "job_assignment_number": "*0000195",
       "company_id": 1,
       "employee_id": 2,
       "notes": null,
@@ -1486,6 +1487,7 @@ None.
     },
     {
       "id": 2,
+      "job_assignment_number": "*0000292",
       "company_id": 1,
       "employee_id": 3,
       "notes": null,
@@ -1496,6 +1498,8 @@ None.
   "count": 2
 }
 ```
+
+Each assignment includes `job_assignment_number`: a `*` prefix, the five-digit zero-padded assignment `id`, and two ISO 7064 mod 97–10 check digits computed on those five digits only. Real responses use values generated by the API for each row.
 
 **HTTP status codes**
 
@@ -1545,6 +1549,7 @@ curl -s -X POST http://localhost:5000/api/job-assignments \
 ```json
 {
   "id": 1,
+  "job_assignment_number": "*0000195",
   "company_id": 1,
   "employee_id": 2,
   "notes": null,
@@ -1552,6 +1557,8 @@ curl -s -X POST http://localhost:5000/api/job-assignments \
   "updated_at": "2026-01-15T10:00:00+00:00"
 }
 ```
+
+Same `job_assignment_number` wire format as in the list response (`*` + padded id + check digits on the id digits only).
 
 **HTTP status codes**
 
@@ -1565,29 +1572,29 @@ curl -s -X POST http://localhost:5000/api/job-assignments \
 
 ---
 
-### Remove job assignment - /api/job-assignments/<employee_number>
+### Remove job assignment - /api/job-assignments/<job_assignment_number>
 
 **Explanation**
-Removes the job assignment for the given camp participant’s `employee_number` (at most one row per participant in normal operation). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
+Deletes the job assignment identified by `job_assignment_number`. The path string must match the wire format (`*` + five zero-padded id digits + ISO 7064 Mod 97,10 check digits on those five digits); checksum validation is **always** applied on this route (unlike some participant-number flows, it is not affected by `VALIDATE_CHECK_SUM`). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters** (path)
 
 
-| Name              | Required | Description                         |
-| ----------------- | -------- | ----------------------------------- |
-| `employee_number` | Yes      | Camp participant whose assignment to remove |
+| Name                    | Required | Description                                      |
+| ----------------------- | -------- | ------------------------------------------------ |
+| `job_assignment_number` | Yes      | Assignment identifier as returned by list/create |
 
 
 **Endpoint sample**
 
 ```http
-DELETE /api/job-assignments/M00155 HTTP/1.1
+DELETE /api/job-assignments/<job_assignment_number> HTTP/1.1
 Host: localhost:5000
 Authorization: Bearer <jwt-access-token>
 ```
 
 ```bash
-curl -s -X DELETE "http://localhost:5000/api/job-assignments/M00155" \
+curl -s -X DELETE "http://localhost:5000/api/job-assignments/<job_assignment_number>" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -1608,9 +1615,9 @@ None.
 | Code | Meaning |
 | ---- | ------- |
 | 200  | `{"message": "job deleted"}` |
-| 400  | Error: `{"error": "EMPLOYEE_NUMBER_WRONG"}` or `{"error": "NO_JOB_ASSIGNED"}` |
+| 400  | Error: `{"error": "JOB_ASSIGNMENT_NUMBER_WRONG"}` (malformed wire format or failed checksum) |
 | 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not signed in as employee, staff, or admin) |
-| 404  | Error: `{"error": "EMPLOYEE_NOT_FOUND"}` |
+| 404  | Error: `{"error": "JOB_ASSIGNMENT_NOT_FOUND"}` (valid format but no matching assignment row) |
 
 
 ---
@@ -1618,7 +1625,7 @@ None.
 ### Reset job assignments - /api/job-assignments/reset
 
 **Explanation**
-Deletes job assignments. With an empty or omitted body, deletes **all** assignments. With `{"company_name": "..."}`, deletes only assignments for that company (company must exist). **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
+Deletes job assignments. With an empty or omitted body, deletes **all** assignments. With `{"company_name": "..."}`, deletes only assignments for that company (company must exist). On success the response is always **200** with `{"message": "reset successful", "count": N}` where **`N`** is the number of rows deleted; **`N` may be `0`** when there were no matching assignments (for example an empty table on reset-all, or the named company currently has no assignments). **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters**
 None (optional JSON body).
@@ -1658,12 +1665,14 @@ curl -s -X POST http://localhost:5000/api/job-assignments/reset \
 }
 ```
 
+The same shape applies when nothing was deleted: `"count": 0` and **200** (there is no separate “nothing to reset” error for this endpoint).
+
 **HTTP status codes**
 
 
 | Code | Meaning |
 | ---- | ------- |
-| 200  | Reset completed (`count` may be 0) |
+| 200  | Success: `{"message": "reset successful", "count": N}` — **`N` may be `0`** when no rows matched (still a successful reset). |
 | 400  | Error: `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}` or `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}` when the JSON body is invalid or `company_name` is empty (non-empty body must include a non-blank `company_name`) |
 | 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
 | 404  | Error: `{"error": "COMPANY_NOT_FOUND"}` when filtering by an unknown `company_name` |

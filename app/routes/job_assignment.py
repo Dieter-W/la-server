@@ -41,13 +41,13 @@ def create_job_assignment():
 # ---------------------------------------------------------------------
 # Job Assignment Delete API
 # ---------------------------------------------------------------------
-@job_assignment_bp.route("/job-assignments/<string:employee_number>", methods=["DELETE"])  # fmt: skip
+@job_assignment_bp.route("/job-assignments/<string:job_assignment_number>", methods=["DELETE"])  # fmt: skip
 @employee_required
-def delete_job_assignment(employee_number: str):
+def delete_job_assignment(job_assignment_number: str):
     """Delete a job assignment."""
-    path_req = DeleteJobAssignmentRequest.from_path(employee_number)
+    path_req = DeleteJobAssignmentRequest.from_path(job_assignment_number)
     with g.db.begin():
-        JobAssignmentService(g.db).delete_assignment(path_req.employee_number)
+        JobAssignmentService(g.db).delete_assignment(path_req.job_assignment_id)
     return jsonify({"message": "job deleted"}), 200
 
 

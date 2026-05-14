@@ -77,23 +77,20 @@ class JobAssignmentService:
     # ---------------------------------------------------------------------
     # Job assignments — delete one
     # ---------------------------------------------------------------------
-    def delete_assignment(self, employee_number: str) -> None:
-        """Drop the single assignment for this employee number."""
-        result = self.employee_repo.get_with_company(employee_number)
-        if result is None:
-            raise APIError("EMPLOYEE_NOT_FOUND", 404)
-        emp, _ = result
-
-        job = self.repo.get_by_employee_id(emp.id)
+    def delete_assignment(self, job_assignment_id: int) -> None:
+        """Drop one assignment row by primary key."""
+        job = self.repo.get_by_id(job_assignment_id)
         if job is None:
-            raise APIError("NO_JOB_ASSIGNED", 400)
+            raise APIError("JOB_ASSIGNMENT_NOT_FOUND", 404)
+
+        emp = job.employees
+        employee_number = emp.employee_number if emp is not None else None
 
         self.repo.delete(job)
-        # codeql[py/clear-text-logging-sensitive-data]
         logger.debug(
             "Job assignment deleted id=%s employee_id=%s employee_number=%s",
             job.id,
-            emp.id,
+            job.employee_id,
             employee_number,
         )
 
