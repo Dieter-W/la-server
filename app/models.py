@@ -65,6 +65,8 @@ class Employee(BaseModel):
     first_name: Mapped[str] = mapped_column(String(255))
     last_name: Mapped[str] = mapped_column(String(255))
     employee_number: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    age: Mapped[int] = mapped_column(Integer)
+    can_leave_alone: Mapped[bool] = mapped_column(Boolean, default=True)
     role: Mapped[str] = mapped_column(String(255))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     notes: Mapped[str | None] = mapped_column(Text)

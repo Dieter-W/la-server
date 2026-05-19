@@ -424,6 +424,8 @@ def test_me_as_admin_ok(client, sample_authentication, sample_company, sample_em
     assert data["first_name"] == sample_employee.first_name
     assert data["last_name"] == sample_employee.last_name
     assert data["employee_number"] == sample_employee.employee_number
+    assert data["age"] == sample_employee.age
+    assert data["can_leave_alone"] == sample_employee.can_leave_alone
     assert data["role"] == sample_employee.role
     assert data["active"] is sample_employee.active
     assert data["notes"] == sample_employee.notes

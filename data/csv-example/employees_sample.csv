@@ -1,6 +1,7 @@
-first_name,last_name,employee_number,role,active,auth_group,notes
-Max,Mustermann,M00155,Kind,false,Employee,Works weekends
-Monika,Mustermann,M00252,Kind,true,Employee,
-Anna,Schmidt,A00265,Helferin,true,Staff,
-Peter,Krause,P00370,Leiter,true,Admin,Team lead
+first_name,last_name,employee_number,role,age,can_leave_alone,active,auth_group,notes
+Max,Mustermann,M00155,Kind,7,yes,false,Employee,Works weekends
+Monika,Mustermann,M00252,Kind,12,,true,Employee,
+Anna,Schmidt,A00265,Helferin,28,,true,Staff,
+Peter,Krause,P00370,Leiter,40,,,Admin,Team lead
+,,,,,,,
 ,,,,,

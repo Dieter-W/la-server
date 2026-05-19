@@ -27,6 +27,8 @@ REQUIRED_COLUMNS = (
     "first_name",
     "last_name",
     "employee_number",
+    "age",
+    "can_leave_alone",
     "role",
     "active",
     "auth_group",
@@ -34,11 +36,37 @@ REQUIRED_COLUMNS = (
 )
 
 
-def _parse_active(value: str) -> bool:
-    """Parse active field from CSV (true/false, 1/0, yes/no)."""
+def _parse_csv_bool(value) -> bool:
+    """Parse a boolean-like CSV cell.
+
+    Truthy: ``true``, ``1``, ``yes``. Falsy: ``false``, ``0``, ``no`` (case-insensitive).
+    Empty / missing defaults to ``True``. Any other non-empty text is treated as falsy.
+    """
     if value is None or value == "":
         return True
-    return str(value).strip().lower() in ("true", "1", "yes")
+    s = str(value).strip().lower()
+    if s in ("false", "0", "no"):
+        return False
+    if s in ("true", "1", "yes"):
+        return True
+    return False
+
+
+def _parse_age(raw, row_num: int) -> int | None:
+    """Parse participant age as a non-negative int; prints and returns None on failure."""
+    s = (raw or "").strip()
+    if not s:
+        print(f"  Row {row_num}: SKIP - missing or empty age")
+        return None
+    try:
+        n = int(s, 10)
+    except ValueError:
+        print(f"  Row {row_num}: SKIP - age must be an integer, got {raw!r}")
+        return None
+    if n < 0:
+        print(f"  Row {row_num}: SKIP - age must be non-negative, got {n}")
+        return None
+    return n
 
 
 def _is_blank_csv_row(row: dict) -> bool:
@@ -72,14 +100,15 @@ def import_row(session, row: dict, row_num: int) -> bool:
 
     first_name = (row.get("first_name") or "").strip()
     last_name = (row.get("last_name") or "").strip()
+    age = _parse_age(row.get("age"), row_num)
+    can_leave_alone = _parse_csv_bool(row.get("can_leave_alone", "true"))
     role = (row.get("role") or "").strip()
     if not first_name or not last_name or not role:
         print(
             f"  Row {row_num}: SKIP - missing required field (first_name, last_name, or role)"
         )
         return False
-
-    active = _parse_active(row.get("active", "true"))
+    active = _parse_csv_bool(row.get("active", "true"))
     notes = (row.get("notes") or "").strip() or None
     auth_group, auth_err = _parse_auth_group(row.get("auth_group"))
     if auth_err:
@@ -93,6 +122,8 @@ def import_row(session, row: dict, row_num: int) -> bool:
         emp = existing
         emp.first_name = first_name
         emp.last_name = last_name
+        emp.age = age
+        emp.can_leave_alone = can_leave_alone
         emp.role = role
         emp.active = active
         emp.notes = notes
@@ -105,6 +136,8 @@ def import_row(session, row: dict, row_num: int) -> bool:
             first_name=first_name,
             last_name=last_name,
             employee_number=employee_number,
+            age=age,
+            can_leave_alone=can_leave_alone,
             role=role,
             active=active,
             notes=notes,
@@ -118,7 +151,6 @@ def import_row(session, row: dict, row_num: int) -> bool:
         action = "CREATED"
 
     session.commit()
-    # codeql[py/clear-text-logging-sensitive-data]
     print(f"  Row {row_num}: {action} - {employee_number}")
     return True
 

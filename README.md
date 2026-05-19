@@ -221,18 +221,22 @@ The script takes **only** the path to the CSV file. Employee-number checksum val
 **Note:**
 It's useful to use employee numbers with checksums, otherwise a typo can refer to a different camp participant. A full explanation of how to create employee numbers with checksums in Excel is in `[./docs/employee-numbers.md](./docs/employee-numbers.md)`.
 
-**CSV format:** Comma-separated with a header row. Required columns: `first_name`, `last_name`, `employee_number`, `role`, `active`, `auth_group`, `notes`. Empty rows are skipped (including a trailing spreadsheet row).
+**CSV format:** Comma-separated with a header row. Required columns: `first_name`, `last_name`, `employee_number`, `age`, `can_leave_alone`, `role`, `active`, `auth_group`, `notes`. Empty rows are skipped (including a trailing spreadsheet row).
+
+- **`age`** — Whole number (years). Must be present on every non-empty row; negative values and non-numeric text are rejected.
+- **`can_leave_alone`** — Boolean-like cell, same rules as **`active`**: `true` / `false`, `1` / `0`, `yes` / `no` (case-insensitive). An empty cell defaults to **true** (participant may leave alone).
+- **`active`** — Same as **`can_leave_alone`**: `true` / `false`, `1` / `0`, `yes` / `no` (case-insensitive); empty defaults to **true**.
 
 `auth_group` must be one of `employee`, `staff`, or `admin`.
 
 Templates ship in **`data/csv-example/employees_sample.csv`** (and **init-env** places a copy in `village_data/` when that file is not already there). Example excerpt:
 
 ```csv
-first_name,last_name,employee_number,role,active,auth_group,notes
-Max,Mustermann,M00155,Kind,false,Employee,Works weekends
-Monika,Mustermann,M00252,Kind,true,Employee,
-Anna,Schmidt,A00265,Helferin,true,Staff,
-Peter,Krause,P00370,Leiter,true,Admin,Team lead
+first_name,last_name,employee_number,role,age,can_leave_alone,active,auth_group,notes
+Max,Mustermann,M00155,Kind,7,no,no,Employee,Works weekends
+Monika,Mustermann,M00252,Kind,12,,yes,Employee,
+Anna,Schmidt,A00265,Helferin,28,,yes,Staff,
+Peter,Krause,P00370,Leiter,40,,,Admin,Team lead
 ```
 
 The script creates or updates camp participants one row per `employee_number`—and logs successes and errors to stdout. It exits with a non-zero code if any row fails to import.

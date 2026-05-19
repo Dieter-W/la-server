@@ -6,6 +6,8 @@ payload_create = {
     "first_name": "Test",
     "last_name": "Created-User",
     "employee_number": "TEST00753",
+    "age": 21,
+    "can_leave_alone": True,
     "role": "Tester",
     "active": True,
     "notes": "Created by create test",
@@ -16,6 +18,8 @@ payload_put = {
     "first_name": "Test",
     "last_name": "Created-User",
     "employee_number": "TEST00753",
+    "age": 22,
+    "can_leave_alone": True,
     "role": "Tester",
     "active": True,
     "notes": "Updated by test",
@@ -300,6 +304,7 @@ def test_employees_create_invalid_payload_error_12(client, sample_authentication
             "first_name": "TEST",
             "last_name": "TEST",
             "employee_number": "Wrong",
+            "age": 21,
             "role": "Test",
             "auth_group": "TEST",
         },
@@ -325,6 +330,7 @@ def test_employees_create_invalid_payload_error_13(client, sample_authentication
             "first_name": "TEST",
             "last_name": "TEST",
             "employee_number": "TEST00753",
+            "age": 21,
             "role": "Test",
             "auth_group": "Wrong",
         },
@@ -334,6 +340,138 @@ def test_employees_create_invalid_payload_error_13(client, sample_authentication
     assert response.status_code == 400
     data = response.get_json()
     assert data["error"] == "INVALID_AUTH_GROUP_IN_JSON"
+
+
+def test_employees_create_invalid_payload_error_14(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    response = client.post(
+        "/api/employees",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "first_name": "TEST",
+            "last_name": "TEST",
+            "employee_number": "TEST00753",
+            "age": True,
+            "role": "Test",
+            "auth_group": "employee",
+        },
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_AGE_IN_JSON"
+
+
+def test_employees_create_invalid_payload_error_15(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    response = client.post(
+        "/api/employees",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "first_name": "TEST",
+            "last_name": "TEST",
+            "employee_number": "TEST00753",
+            "age": -1,
+            "role": "Test",
+            "auth_group": "employee",
+        },
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_AGE_IN_JSON"
+
+
+def test_employees_create_invalid_payload_error_16(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    response = client.post(
+        "/api/employees",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "first_name": "TEST",
+            "last_name": "TEST",
+            "employee_number": "TEST00753",
+            "age": "not-a-number",
+            "role": "Test",
+            "auth_group": "employee",
+        },
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_AGE_IN_JSON"
+
+
+def test_employees_create_invalid_payload_error_17(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    response = client.post(
+        "/api/employees",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "first_name": "TEST",
+            "last_name": "TEST",
+            "employee_number": "TEST00753",
+            "age": 21,
+            "role": "Test",
+            "auth_group": "employee",
+            "can_leave_alone": "maybe",
+        },
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_JSON_BOOLEAN_IN_JSON"
+
+
+def test_employees_create_invalid_payload_error_18(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    response = client.post(
+        "/api/employees",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "first_name": "TEST",
+            "last_name": "TEST",
+            "employee_number": "TEST00753",
+            "age": 21,
+            "role": "Test",
+            "auth_group": "employee",
+            "active": 2,
+        },
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_JSON_BOOLEAN_IN_JSON"
 
 
 # ---------------------------------------------------------------------
@@ -380,6 +518,46 @@ def test_employees_update_invalid_payload_error_2(client, sample_authentication,
     assert data["error"] == "EMPLOYEE_NUMBER_WRONG_IN_JSON"
 
 
+def test_employees_update_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    employee_number = sample_employee.employee_number
+    response = client.put(
+        f"/api/employees/{employee_number}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"age": True},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_AGE_IN_JSON"
+
+
+def test_employees_update_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    employee_number = sample_employee.employee_number
+    response = client.put(
+        f"/api/employees/{employee_number}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"can_leave_alone": 2},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_JSON_BOOLEAN_IN_JSON"
+
+
 # ---------------------------------------------------------------------
 # Employees  Get-all API
 # ---------------------------------------------------------------------
@@ -406,6 +584,14 @@ def test_employees_query_all_employees(client, sample_company, sample_employee, 
     )
     assert any(
         employee_data["employee_number"] == sample_employee.employee_number
+        for employee_data in data["employees"]
+    )
+    assert any(
+        employee_data["age"] == sample_employee.age
+        for employee_data in data["employees"]
+    )
+    assert any(
+        employee_data["can_leave_alone"] is sample_employee.can_leave_alone
         for employee_data in data["employees"]
     )
     assert any(
@@ -470,10 +656,12 @@ def test_employees_query(client, sample_company, sample_employee, sample_job_ass
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 10
+    assert len(data) == 12
     assert data["first_name"] == sample_employee.first_name
     assert data["last_name"] == sample_employee.last_name
     assert data["employee_number"] == sample_employee.employee_number
+    assert data["age"] == sample_employee.age
+    assert data["can_leave_alone"] is sample_employee.can_leave_alone
     assert data["role"] == sample_employee.role
     assert data["active"] is sample_employee.active
     assert data["notes"] == sample_employee.notes
@@ -527,6 +715,8 @@ def test_employees_create(client, sample_authentication, sample_company, sample_
     assert response.status_code == 201
     created = response.get_json()
     assert created["auth_group"] == payload_create["auth_group"]
+    assert created["age"] == payload_create["age"]
+    assert created["can_leave_alone"] is payload_create["can_leave_alone"]
 
     response = client.get("/api/employees")
     if response.status_code != 200:
@@ -547,6 +737,37 @@ def test_employees_create(client, sample_authentication, sample_company, sample_
     assert data["token"] is not None
     assert data["auth_group"] == "employee"
     assert data["password_must_change"] is True
+
+
+def test_employees_create_json_age_string_integer(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    response = client.post(
+        "/api/employees",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "first_name": "String",
+            "last_name": "Age",
+            "employee_number": "TEMP00987",
+            "age": "19",
+            "can_leave_alone": 0,
+            "role": "Tester",
+            "active": "yes",
+            "notes": "age as JSON string; bool-like fields",
+            "auth_group": "employee",
+        },
+    )
+    if response.status_code != 201:
+        print(response.text)
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data["age"] == 19
+    assert data["can_leave_alone"] is False
+    assert data["active"] is True
 
 
 def test_employees_create_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
@@ -593,11 +814,12 @@ def test_employees_update(client, sample_authentication, sample_company, sample_
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 10
+    assert len(data) == 12
     assert data["first_name"] == payload_put["first_name"]
     assert data["last_name"] == payload_put["last_name"]
     assert data["employee_number"] == payload_put["employee_number"]
-    assert data["role"] == payload_put["role"]
+    assert data["age"] == payload_put["age"]
+    assert data["can_leave_alone"] is payload_put["can_leave_alone"]
     assert data["role"] == payload_put["role"]
     assert data["active"] is payload_put["active"]
     assert data["notes"] == payload_put["notes"]
@@ -608,8 +830,29 @@ def test_employees_update(client, sample_authentication, sample_company, sample_
     assert response2.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
-    assert len(data2) == 10
+    assert len(data2) == 12
     assert data2["employee_number"] == payload_put["employee_number"]
+
+
+def test_employees_update_partial_json_active_false(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+    token = _login_as_admin(
+        client,
+        sample_authentication,
+        sample_employee,
+    )
+
+    employee_number = sample_employee.employee_number
+    response = client.put(
+        f"/api/employees/{employee_number}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"active": False},
+    )
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["active"] is False
+    assert data["employee_number"] == employee_number
 
 
 def test_employees_update_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
@@ -693,10 +936,12 @@ def test_employees_delete_soft(client, sample_authentication, sample_company, sa
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 10
+    assert len(data) == 12
     assert data["first_name"] == sample_employee.first_name
     assert data["last_name"] == sample_employee.last_name
     assert data["employee_number"] == sample_employee.employee_number
+    assert data["age"] == sample_employee.age
+    assert data["can_leave_alone"] is sample_employee.can_leave_alone
     assert data["role"] == sample_employee.role
     assert data["active"] is not sample_employee.active
     assert data["notes"] == sample_employee.notes

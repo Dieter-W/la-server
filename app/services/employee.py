@@ -56,6 +56,8 @@ class EmployeeService:
             first_name=req.first_name,
             last_name=req.last_name,
             employee_number=req.employee_number,
+            age=req.age,
+            can_leave_alone=req.can_leave_alone,
             role=req.role,
             active=req.active,
             notes=req.notes,
@@ -92,6 +94,10 @@ class EmployeeService:
             emp.last_name = req.last_name
         if "employee_number" in req:
             emp.employee_number = req.employee_number
+        if "age" in req:
+            emp.age = req.age
+        if "can_leave_alone" in req:
+            emp.can_leave_alone = req.can_leave_alone
         if "role" in req:
             emp.role = req.role
         if "active" in req:

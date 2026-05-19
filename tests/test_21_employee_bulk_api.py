@@ -16,6 +16,8 @@ employee_check = {
     "last_name": "Krause",
     "employee_number": "P00370",
     "role": "Leiter",
+    "age": 40,
+    "can_leave_alone": True,
     "active": True,
     "notes": "Team lead",
 }
@@ -67,6 +69,8 @@ def test_bulk_import_employees_create_ok(client,): # fmt: skip
     peter = by_number[employee_check["employee_number"]]
     assert _nfc(peter["first_name"]) == _nfc(employee_check["first_name"])
     assert _nfc(peter["last_name"]) == _nfc(employee_check["last_name"])
+    assert peter["age"] == employee_check["age"]
+    assert peter["can_leave_alone"] is employee_check["can_leave_alone"]
     assert _nfc(peter["role"]) == _nfc(employee_check["role"])
     assert peter["active"] is employee_check["active"]
     assert peter["notes"] == employee_check["notes"]
@@ -109,7 +113,7 @@ def test_bulk_import_employees_update_ok(client,): # fmt: skip
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 10
+    assert len(data) == 12
     assert _nfc(data["first_name"]) == _nfc(payload_put["first_name"])
     assert _nfc(data["last_name"]) == _nfc(payload_put["last_name"])
     assert _nfc(data["role"]) == _nfc(payload_put["role"])
@@ -138,10 +142,12 @@ def test_bulk_import_employees_update_ok(client,): # fmt: skip
     assert response2.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
-    assert len(data2) == 10
+    assert len(data2) == 12
     assert _nfc(data2["first_name"]) == _nfc(employee_check["first_name"])
     assert _nfc(data2["last_name"]) == _nfc(employee_check["last_name"])
     assert data2["employee_number"] == employee_check["employee_number"]
+    assert data2["age"] == employee_check["age"]
+    assert data2["can_leave_alone"] is employee_check["can_leave_alone"]
     assert _nfc(data2["role"]) == _nfc(employee_check["role"])
     assert data2["active"] == employee_check["active"]
     assert _nfc(data2["notes"]) == _nfc(employee_check["notes"])

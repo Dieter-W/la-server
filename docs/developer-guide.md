@@ -105,6 +105,8 @@ curl -s http://localhost:5000/api/auth/me \
   "first_name": "Ada",
   "last_name": "Example",
   "employee_number": "M00155",
+  "age": 10,
+  "can_leave_alone": true,
   "role": "participant",
   "company": "Example Co",
   "active": true,
@@ -121,7 +123,7 @@ curl -s http://localhost:5000/api/auth/me \
 - Database constraint issues may return `**409`** with `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` (duplicate / unique violation) or `{"error": "CONSTRAINT_VIOLATION", "message": "Delete failed, because related entries in JobAssignment table"}` (delete blocked by related rows), as implemented in [`app/errors.py`](../app/errors.py).
 - Uncaught DB errors: `**500**` with `DATABASE_ERROR`. Unhandled exceptions: `**500**` with `INTERNAL_SERVER_ERROR`, per [`app/errors.py`](../app/errors.py). For both, a **`message`** field is included in the JSON **only when** server **`DEBUG`** is enabled (otherwise the body is just `{"error": "<CODE>"}`).
 
-**Common error codes** include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, `BAD_CREDENTIALS`, `FORBIDDEN_WRONG_AUTH_GROUP`, `OLD_PASSWORD_IS_INCORRECT`, `AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`, and variants with `_IN_JSON` where applicable.
+**Common error codes** include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `INVALID_AGE_IN_JSON`, `INVALID_JSON_BOOLEAN_IN_JSON`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, `BAD_CREDENTIALS`, `FORBIDDEN_WRONG_AUTH_GROUP`, `OLD_PASSWORD_IS_INCORRECT`, `AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`, and variants with `_IN_JSON` where applicable.
 
 JWT responses from Flask-JWT-Extended include a `message` next to `error` where applicable; see [`app/__init__.py`](../app/__init__.py). **HTTP mapping:** missing `Authorization` / Bearer → **`401`** `AUTHORIZATION_REQUIRED`; expired JWT → **`401`** `EXPIRED_TOKEN`; malformed or invalid Bearer / wrong token type for the loader → **`422`** `INVALID_TOKEN`.
 
@@ -466,6 +468,8 @@ None.
 | `first_name`        | string  | |
 | `last_name`         | string  | |
 | `employee_number`   | string  | |
+| `age`               | integer | Age in whole years. |
+| `can_leave_alone`   | boolean | Whether the participant may leave the camp alone. |
 | `role`              | string  | Camp role (e.g. participant); distinct from JWT `auth_group`. |
 | `company`           | string  | Company name (empty string if none resolved from job assignment join). |
 | `active`            | boolean | |
@@ -482,6 +486,8 @@ Example:
   "first_name": "Ada",
   "last_name": "Example",
   "employee_number": "M00155",
+  "age": 10,
+  "can_leave_alone": true,
   "role": "participant",
   "company": "Example Co",
   "active": true,
@@ -1128,6 +1134,8 @@ None.
       "first_name": "Max",
       "last_name": "Mustermann",
       "employee_number": "M00155",
+      "age": 35,
+      "can_leave_alone": false,
       "role": "Betreuer",
       "company": "Bank",
       "active": true,
@@ -1140,6 +1148,8 @@ None.
       "first_name": "Anna",
       "last_name": "Schmidt",
       "employee_number": "A0265",
+      "age": 28,
+      "can_leave_alone": true,
       "role": "Helferin",
       "company": "",
       "active": true,
@@ -1197,6 +1207,8 @@ None.
   "first_name": "Max",
   "last_name": "Mustermann",
   "employee_number": "M00155",
+  "age": 35,
+  "can_leave_alone": false,
   "role": "Betreuer",
   "company": "Bank",
   "active": true,
@@ -1239,7 +1251,7 @@ Authorization: Bearer <jwt-access-token>
 curl -s -X POST http://localhost:5000/api/employees \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"first_name":"Max","last_name":"Mustermann","employee_number":"M00155","role":"Betreuer","auth_group":"staff"}'
+  -d '{"first_name":"Max","last_name":"Mustermann","employee_number":"M00155","age":16,"role":"Betreuer","auth_group":"staff","can_leave_alone":false}'
 ```
 
 **JSON request**
@@ -1250,9 +1262,11 @@ curl -s -X POST http://localhost:5000/api/employees \
 | `first_name`      | Yes      |                               |
 | `last_name`       | Yes      |                               |
 | `employee_number` | Yes      | Unique; checksum when enabled |
+| `age`             | Yes      | Integer age in whole years. |
+| `can_leave_alone` | No       | Default `true`. JSON boolean, or `0`/`1`, or `true`/`false`/`yes`/`no` strings. |
 | `role`            | Yes      | Descriptive camp role (not app permission) |
 | `auth_group`      | Yes      | App permission: `employee`, `staff`, or `admin` |
-| `active`          | No       | Default `true` (optional)     |
+| `active`          | No       | Default `true`. Same boolean coercion as `can_leave_alone`. |
 | `notes`           | No       | Notes (optional)              |
 
 
@@ -1263,6 +1277,8 @@ Example:
   "first_name": "Max",
   "last_name": "Mustermann",
   "employee_number": "M00155",
+  "age": 16,
+  "can_leave_alone": false,
   "role": "Betreuer",
   "auth_group": "staff",
   "active": true,
@@ -1278,6 +1294,8 @@ Example:
   "first_name": "Max",
   "last_name": "Mustermann",
   "employee_number": "M00155",
+  "age": 16,
+  "can_leave_alone": false,
   "role": "Betreuer",
   "company": "",
   "active": true,
@@ -1294,7 +1312,7 @@ Example:
 | Code | Meaning                                      |
 | ---- | -------------------------------------------- |
 | 201  | Created                                      |
-| 400  | Error: validation may return `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}`, `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}`, `{"error": "EMPLOYEE_NUMBER_WRONG_IN_JSON"}`, or `{"error": "INVALID_AUTH_GROUP_IN_JSON"}` |
+| 400  | Error: validation may return `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}`, `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}`, `{"error": "INVALID_AGE_IN_JSON"}`, `{"error": "INVALID_JSON_BOOLEAN_IN_JSON"}`, `{"error": "EMPLOYEE_NUMBER_WRONG_IN_JSON"}`, or `{"error": "INVALID_AUTH_GROUP_IN_JSON"}` |
 | 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
 | 409  | Error: `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` |
 
@@ -1337,6 +1355,8 @@ curl -s -X PUT "http://localhost:5000/api/employees/M00155" \
 | `first_name`      | No       | Omit or set to update         |
 | `last_name`       | No       | Omit or set to update         |
 | `employee_number` | No       | New value if renumbering; checksum when enabled |
+| `age`             | No       | When present: integer age in whole years. Do not send a JSON boolean for `age`. |
+| `can_leave_alone` | No       | Same boolean coercion as on create. |
 | `role`            | No       | Omit or set to update         |
 | `active`          | No       | Omit or set to update         |
 | `notes`           | No       | Omit or set to update         |
@@ -1346,6 +1366,8 @@ curl -s -X PUT "http://localhost:5000/api/employees/M00155" \
   "first_name": "Max",
   "last_name": "Mustermann",
   "employee_number": "M00155",
+  "age": 17,
+  "can_leave_alone": true,
   "role": "Leiter",
   "active": true,
   "notes": "Note"
@@ -1361,7 +1383,7 @@ Same shape as `GET` one employee (updated row).
 | Code | Meaning                                                   |
 | ---- | --------------------------------------------------------- |
 | 200  | OK                                                        |
-| 400  | Error: `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}`, or `{"error": "EMPLOYEE_NUMBER_WRONG_IN_JSON"}` / `{"error": "EMPLOYEE_NUMBER_WRONG"}` |
+| 400  | Error: `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}`, `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}`, `{"error": "INVALID_AGE_IN_JSON"}`, `{"error": "INVALID_JSON_BOOLEAN_IN_JSON"}`, or `{"error": "EMPLOYEE_NUMBER_WRONG_IN_JSON"}` / `{"error": "EMPLOYEE_NUMBER_WRONG"}` |
 | 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
 | 404  | Error: `{"error": "EMPLOYEE_NOT_FOUND"}`                         |
 | 409  | Error: `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` |
@@ -1416,6 +1438,8 @@ None.
   "first_name": "Max",
   "last_name": "Mustermann",
   "employee_number": "M00155",
+  "age": 35,
+  "can_leave_alone": false,
   "role": "Betreuer",
   "company": "",
   "active": false,

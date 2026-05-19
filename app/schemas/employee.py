@@ -12,6 +12,42 @@ from app.schemas import _UNSET
 from app.utils import validate_employee_number
 
 
+def _parse_age_from_json(raw: Any) -> tuple[bool, int | None, str]:
+    """Parse age: ``(True, age, "")`` on success; ``(False, None, "INVALID_AGE")`` on failure.
+
+    Caller raises ``APIError(f"{token}_IN_JSON")``. After create's required-field loop, ``age`` is present.
+    """
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return False, None, "INVALID_AGE"
+    if isinstance(raw, bool):
+        return False, None, "INVALID_AGE"
+    try:
+        age = int(raw)
+    except TypeError, ValueError:
+        return False, None, "INVALID_AGE"
+    if age < 0:
+        return False, None, "INVALID_AGE"
+    return True, age, ""
+
+
+def _parse_bool_from_json(raw: Any) -> tuple[bool, bool | None, str]:
+    """Parse boolean-like JSON: ``(True, value, "")`` on success; else ``(False, None, "INVALID_JSON_BOOLEAN")``."""
+    if isinstance(raw, bool):
+        return True, raw, ""
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        if raw == 1:
+            return True, True, ""
+        if raw == 0:
+            return True, False, ""
+    if isinstance(raw, str):
+        s = raw.strip().lower()
+        if s in ("true", "1", "yes"):
+            return True, True, ""
+        if s in ("false", "0", "no"):
+            return True, False, ""
+    return False, None, "INVALID_JSON_BOOLEAN"
+
+
 # ---------------------------------------------------------------------
 # Employees — path parameter request
 # ---------------------------------------------------------------------
@@ -63,8 +99,10 @@ class CreateEmployeeRequest:
     first_name: str
     last_name: str
     employee_number: str
+    age: int
     role: str
     auth_group: str
+    can_leave_alone: bool = True
     active: bool = True
     notes: str | None = None
 
@@ -77,6 +115,7 @@ class CreateEmployeeRequest:
             "first_name",
             "last_name",
             "employee_number",
+            "age",
             "role",
             "auth_group",
         ):
@@ -92,13 +131,33 @@ class CreateEmployeeRequest:
         if not valid:
             raise APIError(f"{err}_IN_JSON", 400)
 
+        valid, age, err = _parse_age_from_json(data["age"])
+        if not valid:
+            raise APIError(f"{err}_IN_JSON", 400)
+
+        if "can_leave_alone" in data:
+            valid, can_leave_alone, err = _parse_bool_from_json(data["can_leave_alone"])
+            if not valid:
+                raise APIError(f"{err}_IN_JSON", 400)
+        else:
+            can_leave_alone = True
+
+        if "active" in data:
+            valid, active, err = _parse_bool_from_json(data["active"])
+            if not valid:
+                raise APIError(f"{err}_IN_JSON", 400)
+        else:
+            active = True
+
         return cls(
             first_name=data["first_name"].strip(),
             last_name=data["last_name"].strip(),
             employee_number=data["employee_number"].strip(),
+            age=age,
+            can_leave_alone=can_leave_alone,
             role=data["role"].strip(),
             auth_group=data["auth_group"].strip().lower(),
-            active=data.get("active", True),
+            active=active,
             notes=data.get("notes") or None,
         )
 
@@ -113,6 +172,8 @@ class UpdateEmployeeRequest:
     first_name: Any = _UNSET  # str when present
     last_name: Any = _UNSET  # str when present
     employee_number: Any = _UNSET  # str when present (checksum-validated)
+    age: Any = _UNSET  # int when present
+    can_leave_alone: Any = _UNSET  # bool when present
     role: Any = _UNSET  # str when present
     active: Any = _UNSET  # bool when present
     notes: Any = _UNSET  # str | None when present
@@ -122,18 +183,40 @@ class UpdateEmployeeRequest:
         """Build partial-update DTO; validates new employee_number if given."""
         if not data or not isinstance(data, dict):
             raise APIError("REQUEST_BODY_MUST_BE_A_JSON_OBJECT", 400)
+
         employee_number = _UNSET
         if "employee_number" in data:
             valid, err = validate_employee_number(data["employee_number"])
             if not valid:
                 raise APIError(f"{err}_IN_JSON", 400)
             employee_number = data["employee_number"].strip()
+
+        age = _UNSET
+        if "age" in data:
+            valid, age, err = _parse_age_from_json(data["age"])
+            if not valid:
+                raise APIError(f"{err}_IN_JSON", 400)
+
+        can_leave_alone = _UNSET
+        if "can_leave_alone" in data:
+            valid, can_leave_alone, err = _parse_bool_from_json(data["can_leave_alone"])
+            if not valid:
+                raise APIError(f"{err}_IN_JSON", 400)
+
+        active = _UNSET
+        if "active" in data:
+            valid, active, err = _parse_bool_from_json(data["active"])
+            if not valid:
+                raise APIError(f"{err}_IN_JSON", 400)
+
         return cls(
             first_name=data["first_name"].strip() if "first_name" in data else _UNSET,
             last_name=data["last_name"].strip() if "last_name" in data else _UNSET,
             employee_number=employee_number,
+            age=age,
+            can_leave_alone=can_leave_alone,
             role=data["role"].strip() if "role" in data else _UNSET,
-            active=bool(data["active"]) if "active" in data else _UNSET,
+            active=active,
             notes=(data.get("notes") or None) if "notes" in data else _UNSET,
         )
 
@@ -151,6 +234,8 @@ class EmployeeResponse:
     first_name: str
     last_name: str
     employee_number: str
+    age: int
+    can_leave_alone: bool
     role: str
     company: str
     active: bool
@@ -167,6 +252,8 @@ class EmployeeResponse:
             first_name=emp.first_name,
             last_name=emp.last_name,
             employee_number=emp.employee_number,
+            age=emp.age,
+            can_leave_alone=emp.can_leave_alone,
             role=emp.role,
             company=company_name or "",
             active=emp.active,
@@ -183,6 +270,8 @@ class EmployeeResponse:
             "first_name": self.first_name,
             "last_name": self.last_name,
             "employee_number": self.employee_number,
+            "age": self.age,
+            "can_leave_alone": self.can_leave_alone,
             "role": self.role,
             "company": self.company,
             "active": self.active,

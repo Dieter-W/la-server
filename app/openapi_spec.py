@@ -628,6 +628,7 @@ def build_openapi_dict() -> dict:
                         "first_name",
                         "last_name",
                         "employee_number",
+                        "age",
                         "role",
                         "auth_group",
                     ],
@@ -646,6 +647,17 @@ def build_openapi_dict() -> dict:
                             "type": "string",
                             "description": "Unique employee number (ISO 7064 Mod 97,10 checksum when validation is on).",
                             "example": "P00370",
+                        },
+                        "age": {
+                            "type": "integer",
+                            "description": "Participant age in whole years (non-negative).",
+                            "example": 10,
+                            "minimum": 0,
+                        },
+                        "can_leave_alone": {
+                            "type": "boolean",
+                            "description": "Whether the participant may leave the camp alone (default `true`).",
+                            "example": True,
                         },
                         "role": {
                             "type": "string",
@@ -681,6 +693,13 @@ def build_openapi_dict() -> dict:
                             "description": "New employee number (checksum-validated).",
                             "example": "M00252",
                         },
+                        "age": {
+                            "type": "integer",
+                            "description": "Age in whole years (non-negative).",
+                            "example": 12,
+                            "minimum": 0,
+                        },
+                        "can_leave_alone": {"type": "boolean", "example": False},
                         "role": {"type": "string", "example": "Filialleiter"},
                         "active": {"type": "boolean", "example": False},
                         "notes": {
@@ -860,6 +879,8 @@ def build_openapi_dict() -> dict:
                         "first_name",
                         "last_name",
                         "employee_number",
+                        "age",
+                        "can_leave_alone",
                         "role",
                         "company",
                         "active",
@@ -874,6 +895,17 @@ def build_openapi_dict() -> dict:
                         "employee_number": {
                             "type": "string",
                             "example": "P00370",
+                        },
+                        "age": {
+                            "type": "integer",
+                            "description": "Participant age in whole years.",
+                            "example": 10,
+                            "minimum": 0,
+                        },
+                        "can_leave_alone": {
+                            "type": "boolean",
+                            "description": "Whether the participant may leave the camp alone.",
+                            "example": True,
                         },
                         "role": {"type": "string", "example": "Kassierer"},
                         "company": {
