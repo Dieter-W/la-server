@@ -22,6 +22,7 @@ All concrete tables inherit from `BaseModel` (`__abstract__ = True`):
 | `employees`        | `Employee`       | Camp participants in the Spielstadt (children and staff; each has an `employee_number`) |
 | `authentications`  | `Authentication` | Optional 1:1 login profile per camp participant: password hash, forced password change flag, app permission group |
 | `job_assignments`  | `JobAssignment`  | Links one camp participant (`employees` row) to one company for a placement |
+| `part_times`       | `PartTime`       | Optional part-time slots per camp participant (0..n rows; see [design decisions](#part-time-design-decisions)) |
 
 ---
 
@@ -56,7 +57,7 @@ All concrete tables inherit from `BaseModel` (`__abstract__ = True`):
 
 **Indexes:** primary key on `id`; unique index on `employee_number`.
 
-**ORM:** `Employee.authentication` is an optional **one-to-one** to [`Authentication`](#authentications) (`uselist=False`; `passive_deletes=True` so the ORM relies on DB `ON DELETE CASCADE` when a participant row is removed).
+**ORM:** `Employee.authentication` is an optional **one-to-one** to [`Authentication`](#authentications) (`uselist=False`; `passive_deletes=True` so the ORM relies on DB `ON DELETE CASCADE` when a participant row is removed). `Employee.part_times` is an optional **one-to-many** to [`part_times`](#part_times); an empty collection means full-time work — see [Part-time design decisions](#part-time-design-decisions).
 
 Checksum validation for `employee_number` (ISO 7064 Mod 97,10) is **not** enforced in the database; it is applied in the HTTP API and bulk import when `VALIDATE_CHECK_SUM` is enabled. See [Employee numbers and check digits](./employee-numbers.md).
 
@@ -95,6 +96,40 @@ Checksum validation for `employee_number` (ISO 7064 Mod 97,10) is **not** enforc
 **Indexes:** primary key on `id`; foreign keys on `company_id` and `employee_id`.
 
 **ORM:** `JobAssignment` exposes `companies` → `Company` and `employees` → `Employee` (`back_populates` with `Company.job_assignments` and `Employee.job_assignments`). The attribute names are plural on the assignment side for historical reasons.
+
+---
+
+## `part_times`
+
+| Column        | Type        | Constraints / default                          |
+|---------------|-------------|------------------------------------------------|
+| `id`          | integer     | PK (from `BaseModel`)                          |
+| `employee_id` | integer     | `NOT NULL`, FK → `employees.id`, `ON DELETE CASCADE` |
+| `workday`     | `String(20)` | `NOT NULL`                                    |
+| `shift`       | `String(20)` | `NOT NULL`, default `all_day`                 |
+| `notes`       | `Text`      | nullable                                       |
+| `created_at`, `updated_at` | datetime (tz) | from `BaseModel`                    |
+
+**Indexes:** primary key on `id`; foreign key on `employee_id`; unique constraint on (`employee_id`, `workday`) — at most one part-time row per camp participant per weekday.
+
+**ORM:** `PartTime.employee` ↔ `Employee.part_times` (collection; may be empty).
+
+**Application values for `workday`:** `monday` … `sunday` (enforced in the API; not an enum in the database). See [`app/schemas/employee.py`](../app/schemas/employee.py) (`PartTimeWorkday`, `verify_part_time_workday`).
+
+**Application values for `shift`:** `all_day`, `morning`, and `afternoon` (enforced in the API; not an enum in the database). Clients can read the allowed lists from `GET /api/village-data` under `la-server.part_time_workdays` and `la-server.part_time_shifts`.
+
+**ORM:** `Employee.part_times` may be empty. No related rows means the participant is treated as working **full time** on every day (see [design decisions](#part-time-design-decisions)).
+
+### Part-time design decisions {#part-time-design-decisions}
+
+These rules describe how clients and the API should interpret storage; they are **not** enforced by MariaDB constraints beyond `NOT NULL` on `workday` when a row exists.
+
+1. **No `part_times` rows → full time.** If a camp participant has no linked `part_times` records, they work **full time** (normal camp week). The table is **optional**; nothing on `employees` flags “part-time” explicitly.
+2. **Row with only a workday (`shift` = `all_day`) → full day on that weekday.** If a row exists and `shift` is `all_day` (the column default), the participant works Spielstadt jobs for the **entire** day named in `workday` (e.g. `workday` = `friday` → present all day Friday). In practice the row “only specifies a day”; `shift` does not need to be sent on create when the default applies.
+3. **Row with `shift` = `morning` or `afternoon` → one shift on that weekday.** On `workday`, the participant works only in that **shift** (`morning` or `afternoon`), not the full day.
+4. **`workday` is required on every `part_times` row.** Each stored record must name exactly one weekday (`monday` … `sunday`). `shift` is also required (`NOT NULL`); use `all_day` when the whole day applies.
+
+A participant may have **multiple** `part_times` rows (e.g. three rows for three part-time weekdays). The database enforces **at most one row per (`employee_id`, `workday`)** — you cannot store two different shifts for the same weekday in separate rows; pick `morning`, `afternoon`, or `all_day` for that day. Days without a row are not part of the part-time schedule (interpret together with rule 1: no rows at all means full time everywhere).
 
 ---
 
@@ -141,9 +176,19 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
+    part_times {
+        int id PK
+        int employee_id FK
+        string workday
+        string shift
+        text notes
+        datetime created_at
+        datetime updated_at
+    }
     companies ||--o{ job_assignments : company_id
     employees ||--o{ job_assignments : employee_id
     employees ||--o| authentications : employee_id
+    employees ||--o{ part_times : employee_id
 ```
 
 ---
@@ -171,6 +216,13 @@ erDiagram
 - `password_must_change`: when `true`, clients should drive the user through the documented **set-password** flow after login. The login API surfaces this flag in its JSON.
 - `auth_group` is the **application permission** tier (`employee` / `staff` / `admin`), distinct from the descriptive camp **`role`** string on `employees`.
 - **Initial password (not a separate column):** on **`POST /api/employees`**, CSV bulk import, and staff **`POST /api/auth/password/reset-password`**, the server sets `password_hash` from a hash of that participant’s **`employees.last_name`** (trimmed) and sets `password_must_change` to `true`. See the README [Initial password](../README.md#initial-password) section and [developer-guide.md](./developer-guide.md).
+
+### Part-time (`part_times`)
+
+- **`Employee.part_times` may be empty.** No rows: participant works **full time**. One or more rows: each defines part-time on one `workday`, scoped by `shift` — see [Part-time design decisions](#part-time-design-decisions).
+- Multiple rows per `employees.id` are allowed (e.g. Monday, Wednesday, Friday). Unique on (`employee_id`, `workday`). **`ON DELETE CASCADE`:** if a camp participant row is removed, all their part-time rows are removed with it.
+- `workday` (`NOT NULL`): the weekday the part-time pattern applies to (`monday` … `sunday`).
+- `shift` (`NOT NULL`, default `all_day`): `all_day` = works the full day on `workday`; `morning` or `afternoon` = works only that shift on `workday`.
 
 ### Job assignment (`job_assignments`)
 

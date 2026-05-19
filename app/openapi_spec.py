@@ -887,6 +887,7 @@ def build_openapi_dict() -> dict:
                         "notes",
                         "created_at",
                         "updated_at",
+                        "full_time",
                     ],
                     "properties": {
                         "id": {"type": "integer", "example": 7},
@@ -914,6 +915,14 @@ def build_openapi_dict() -> dict:
                             "example": "Bank",
                         },
                         "active": {"type": "boolean", "example": True},
+                        "full_time": {
+                            "type": "boolean",
+                            "description": (
+                                "True when the participant has no `part_times` rows "
+                                "(full-time week); false when at least one part-time slot exists."
+                            ),
+                            "example": True,
+                        },
                         "notes": {"type": "string", "nullable": True, "example": None},
                         "created_at": {
                             "type": "string",
@@ -988,6 +997,8 @@ def build_openapi_dict() -> dict:
                     ),
                     "required": [
                         "auth_groups",
+                        "part_time_shifts",
+                        "part_time_workdays",
                         "validate_employee_number_checksum",
                         "employee_number_checksum_algorithm",
                         "jwt_access_ttl_minutes",
@@ -998,6 +1009,16 @@ def build_openapi_dict() -> dict:
                             "type": "array",
                             "items": {"type": "string"},
                             "description": "Allowed JWT `auth_group` values.",
+                        },
+                        "part_time_shifts": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Allowed `part_times.shift` values.",
+                        },
+                        "part_time_workdays": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Allowed `part_times.workday` values.",
                         },
                         "validate_employee_number_checksum": {
                             "type": "boolean",

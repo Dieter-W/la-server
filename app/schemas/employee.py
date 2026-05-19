@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any
 
 from app.auth.utils import verify_access_group
@@ -10,6 +11,59 @@ from app.errors import APIError
 from app.models import Employee
 from app.schemas import _UNSET
 from app.utils import validate_employee_number
+
+
+# ---------------------------------------------------------------------
+# Part-time (employee extension; no separate blueprint)
+# ---------------------------------------------------------------------
+class PartTimeShift(StrEnum):
+    """When on a workday the participant is on part-time."""
+
+    ALL_DAY = "all_day"
+    MORNING = "morning"
+    AFTERNOON = "afternoon"
+
+
+class PartTimeWorkday(StrEnum):
+    """Weekday for a part-time record."""
+
+    MONDAY = "monday"
+    TUESDAY = "tuesday"
+    WEDNESDAY = "wednesday"
+    THURSDAY = "thursday"
+    FRIDAY = "friday"
+    SATURDAY = "saturday"
+    SUNDAY = "sunday"
+
+
+PART_TIME_SHIFTS = [s.value for s in PartTimeShift]
+PART_TIME_WORKDAYS = [d.value for d in PartTimeWorkday]
+
+
+def verify_part_time_shift(shift: str) -> tuple[bool, str | None]:
+    """Verify if the part-time shift is valid (case-insensitive)."""
+    if shift.strip().lower() not in PART_TIME_SHIFTS:
+        return False, "INVALID_PART_TIME_SHIFT"
+
+    return True, None
+
+
+def verify_part_time_workday(workday: str) -> tuple[bool, str | None]:
+    """Verify if the part-time workday is valid (case-insensitive)."""
+    if workday.strip().lower() not in PART_TIME_WORKDAYS:
+        return False, "INVALID_PART_TIME_WORKDAY"
+
+    return True, None
+
+
+def employee_is_full_time(emp: Employee) -> bool:
+    """True when the participant has no ``part_times`` rows (see database design)."""
+    return len(emp.part_times) == 0
+
+
+# ---------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------
 
 
 def _parse_age_from_json(raw: Any) -> tuple[bool, int | None, str]:
@@ -242,6 +296,7 @@ class EmployeeResponse:
     notes: str | None
     created_at: str | None
     updated_at: str | None
+    full_time: bool
     auth_group: str | None = None
 
     @classmethod
@@ -260,6 +315,7 @@ class EmployeeResponse:
             notes=emp.notes,
             created_at=emp.created_at.isoformat() if emp.created_at else None,
             updated_at=emp.updated_at.isoformat() if emp.updated_at else None,
+            full_time=employee_is_full_time(emp),
             auth_group=auth_group,
         )
 
@@ -278,6 +334,7 @@ class EmployeeResponse:
             "notes": self.notes,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "full_time": self.full_time,
         }
         if self.auth_group is not None:
             result["auth_group"] = self.auth_group

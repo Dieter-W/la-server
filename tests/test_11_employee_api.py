@@ -609,6 +609,9 @@ def test_employees_query_all_employees(client, sample_company, sample_employee, 
     assert any(
         employee_data["company"] == "Bauhof" for employee_data in data["employees"]
     )
+    assert all(
+        employee_data["full_time"] is True for employee_data in data["employees"]
+    )
 
 
 def test_employees_query_all_true(client, sample_employee):
@@ -656,7 +659,8 @@ def test_employees_query(client, sample_company, sample_employee, sample_job_ass
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 12
+    assert len(data) == 13
+    assert data["full_time"] is True
     assert data["first_name"] == sample_employee.first_name
     assert data["last_name"] == sample_employee.last_name
     assert data["employee_number"] == sample_employee.employee_number
@@ -814,7 +818,7 @@ def test_employees_update(client, sample_authentication, sample_company, sample_
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 12
+    assert len(data) == 13
     assert data["first_name"] == payload_put["first_name"]
     assert data["last_name"] == payload_put["last_name"]
     assert data["employee_number"] == payload_put["employee_number"]
@@ -830,7 +834,7 @@ def test_employees_update(client, sample_authentication, sample_company, sample_
     assert response2.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
-    assert len(data2) == 12
+    assert len(data2) == 13
     assert data2["employee_number"] == payload_put["employee_number"]
 
 
@@ -936,7 +940,7 @@ def test_employees_delete_soft(client, sample_authentication, sample_company, sa
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 12
+    assert len(data) == 13
     assert data["first_name"] == sample_employee.first_name
     assert data["last_name"] == sample_employee.last_name
     assert data["employee_number"] == sample_employee.employee_number
@@ -1036,3 +1040,36 @@ def test_employees_delete_error_3(client, sample_authentication, sample_company,
         data["message"]
         == "Delete failed, because related entries in JobAssignment table"
     )
+
+
+# ---------------------------------------------------------------------
+# Employees — full_time (part_times)
+# ---------------------------------------------------------------------
+def test_employees_full_time_false_when_part_times_exist(
+    client,
+    app,
+    sample_authentication,
+    sample_company,
+    sample_employee,
+    sample_job_assignment,
+):
+    from app.models import PartTime
+
+    with app.app_context():
+        session = app.SessionLocal()
+        session.add(PartTime(employee_id=2, workday="monday", shift="morning"))
+        session.commit()
+        session.close()
+
+    response = client.get("/api/employees/M00252")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    assert response.get_json()["full_time"] is False
+
+    response = client.get("/api/employees")
+    assert response.status_code == 200
+    monika = next(
+        e for e in response.get_json()["employees"] if e["employee_number"] == "M00252"
+    )
+    assert monika["full_time"] is False

@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import db
@@ -32,6 +40,29 @@ class BaseModel(db.Model):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+
+# ---------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------
+class Authentication(BaseModel):
+    """Participant login credentials (one row per employee)."""
+
+    __tablename__ = "authentications"
+
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="CASCADE"),
+        unique=True,
+    )
+    password_hash: Mapped[str] = mapped_column(String(255))
+    password_must_change: Mapped[bool] = mapped_column(Boolean, default=True)
+    auth_group: Mapped[str] = mapped_column(String(20), default="employee")
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    employee: Mapped[Employee] = relationship(
+        back_populates="authentication",
+        passive_deletes=True,
     )
 
 
@@ -79,6 +110,10 @@ class Employee(BaseModel):
     job_assignments: Mapped[list[JobAssignment]] = relationship(
         back_populates="employees",
     )
+    part_times: Mapped[list[PartTime]] = relationship(
+        back_populates="employee",
+        passive_deletes=True,
+    )
 
 
 # ---------------------------------------------------------------------
@@ -102,23 +137,29 @@ class JobAssignment(BaseModel):
 
 
 # ---------------------------------------------------------------------
-# Authentication
+# Part-time
 # ---------------------------------------------------------------------
-class Authentication(BaseModel):
-    """Participant login credentials (one row per employee)."""
+class PartTime(BaseModel):
+    """Part-time schedule slot for one weekday (and optional shift)."""
 
-    __tablename__ = "authentications"
+    __tablename__ = "part_times"
+    __table_args__ = (
+        UniqueConstraint(
+            "employee_id",
+            "workday",
+            name="uq_part_times_employee_workday",
+        ),
+    )
 
     employee_id: Mapped[int] = mapped_column(
         ForeignKey("employees.id", ondelete="CASCADE"),
-        unique=True,
     )
-    password_hash: Mapped[str] = mapped_column(String(255))
-    password_must_change: Mapped[bool] = mapped_column(Boolean, default=True)
-    auth_group: Mapped[str] = mapped_column(String(20), default="employee")
+    workday: Mapped[str] = mapped_column(String(20))
+    shift: Mapped[str] = mapped_column(String(20), default="all_day")
+
     notes: Mapped[str | None] = mapped_column(Text)
 
     employee: Mapped[Employee] = relationship(
-        back_populates="authentication",
+        back_populates="part_times",
         passive_deletes=True,
     )

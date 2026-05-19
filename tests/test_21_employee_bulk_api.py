@@ -113,7 +113,7 @@ def test_bulk_import_employees_update_ok(client,): # fmt: skip
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 12
+    assert len(data) == 13
     assert _nfc(data["first_name"]) == _nfc(payload_put["first_name"])
     assert _nfc(data["last_name"]) == _nfc(payload_put["last_name"])
     assert _nfc(data["role"]) == _nfc(payload_put["role"])
@@ -142,7 +142,7 @@ def test_bulk_import_employees_update_ok(client,): # fmt: skip
     assert response2.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
-    assert len(data2) == 12
+    assert len(data2) == 13
     assert _nfc(data2["first_name"]) == _nfc(employee_check["first_name"])
     assert _nfc(data2["last_name"]) == _nfc(employee_check["last_name"])
     assert data2["employee_number"] == employee_check["employee_number"]

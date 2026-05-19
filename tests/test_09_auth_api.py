@@ -393,6 +393,7 @@ def test_me_as_employee_ok(client, sample_authentication, sample_company, sample
     data = response.get_json()
     assert data["employee_number"] == "M00252"
     assert data["auth_group"] == "employee"
+    assert data["full_time"] is True
 
 
 def test_me_as_staff_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip

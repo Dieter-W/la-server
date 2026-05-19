@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 from app.auth.utils import AUTH_GROUPS
+from app.schemas.employee import PART_TIME_SHIFTS, PART_TIME_WORKDAYS
 from app.routes import village_data as village_data_module
 
 
@@ -45,6 +46,8 @@ def test_village_data_get_ok_la_server(client):
     assert "la-server" in data
     ls = data["la-server"]
     assert ls["auth_groups"] == AUTH_GROUPS
+    assert ls["part_time_shifts"] == PART_TIME_SHIFTS
+    assert ls["part_time_workdays"] == PART_TIME_WORKDAYS
     assert isinstance(ls["validate_employee_number_checksum"], bool)
     if ls["validate_employee_number_checksum"]:
         assert ls["employee_number_checksum_algorithm"] == "ISO_7064_MOD_97_10"
@@ -85,6 +88,8 @@ def test_village_data_get_ok_ini_file_changes(client):
     data = response.get_json()
     assert "should_not_appear" not in data["la-server"]
     assert data["la-server"]["auth_groups"] == AUTH_GROUPS
+    assert data["la-server"]["part_time_shifts"] == PART_TIME_SHIFTS
+    assert data["la-server"]["part_time_workdays"] == PART_TIME_WORKDAYS
 
 
 # ---------------------------------------------------------------------

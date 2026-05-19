@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sqlalchemy import distinct, func, select
+from sqlalchemy.orm import selectinload
 
 from app.models import Company, Employee, JobAssignment
 from app.repositories.base import BaseRepository
@@ -18,6 +19,7 @@ class EmployeeRepository(BaseRepository[Employee]):
         """Employees with company name from current assignment; optional active filter."""
         stmt = (
             select(Employee, Company.company_name.label("company_name"))
+            .options(selectinload(Employee.part_times))
             .outerjoin(Employee.job_assignments)
             .outerjoin(JobAssignment.companies)
             .order_by(Employee.employee_number)
@@ -52,6 +54,7 @@ class EmployeeRepository(BaseRepository[Employee]):
         """One employee by number plus company name, or None if missing."""
         stmt = (
             select(Employee, Company.company_name.label("company_name"))
+            .options(selectinload(Employee.part_times))
             .outerjoin(Employee.job_assignments)
             .outerjoin(JobAssignment.companies)
             .where(Employee.employee_number == employee_number)
