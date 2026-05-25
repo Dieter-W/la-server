@@ -479,9 +479,9 @@ None.
 | `notes`             | string or null | |
 | `created_at`        | string or null | ISO 8601 timestamp. |
 | `updated_at`        | string or null | ISO 8601 timestamp. |
-| `full_time`         | boolean | `true` when the participant has no part-time rows; `false` when at least one `part_times` record exists. |
-| `workday`           | string or null | Contextual part-time weekday label: **`today`**, a weekday slug (`monday` … `sunday`), or **`null`** when no slot applies for the context day (see [Part-time context on employee responses](#part-time-context-on-employee-responses)). |
-| `shift`             | string or null | Part-time shift on the context **`workday`**: **`all-day`**, **`morning`**, or **`afternoon`**. **`null`** when **`workday`** is **`null`**. |
+| `full_time`         | boolean | `true` when the participant has no part-time rows — they work **Monday through Sunday** (every day of the camp week), same **calendar coverage** as a stored **`all-week`** row but modelled as zero rows with **`shift`: `all-day`**, not as part-time data. `false` when at least one `part_times` record exists (part-time schedule; may cover only some days, e.g. **`weekdays`** Mon–Fri). |
+| `workday`           | string or null | Contextual weekday label: **`today`**, a weekday slug (`monday` … `sunday`), or **`null`** when a **part-time** participant has no slot for the context day. When **`full_time`** is **`true`**, always the context label (see [Part-time context on employee responses](#part-time-context-on-employee-responses)). |
+| `shift`             | string or null | Shift on the context **`workday`**: **`all-day`**, **`morning`**, or **`afternoon`**. When **`full_time`** is **`true`**, always **`all-day`**. **`null`** when **`workday`** is **`null`**. Use **`full_time`** to tell full-time **`all-day`** from a part-time row stored as **`all-day`**. |
 | `auth_group`        | string  | `employee`, `staff`, or `admin` from the JWT. |
 
 Example:
@@ -1112,7 +1112,7 @@ Employee list, get-one, and **`GET /api/auth/me`** responses include **`full_tim
 
 **Camp timezone:** **`general.timezone`** in **`village_data/village.ini`** (IANA name, e.g. `Europe/Berlin`) defines which calendar day is **“today”** for the camp. The server reads it via **`get_camp_timezone()`** ([`app/village_config.py`](../app/village_config.py)); missing or invalid values fall back to **`Europe/Berlin`**. The same key appears under **`general`** in **`GET /api/village-data`**.
 
-**Response labels** (when a matching part-time slot exists for the context weekday):
+**Response labels** (full-time participants, or when a matching part-time slot exists for the context weekday):
 
 | List `workday` query | Context weekday | Example `workday` in JSON |
 | -------------------- | --------------- | ------------------------- |
@@ -1120,9 +1120,13 @@ Employee list, get-one, and **`GET /api/auth/me`** responses include **`full_tim
 | **`today`** | Calendar today in camp TZ | **`today`** |
 | **`tuesday`** (any weekday slug) | That weekday | **`tuesday`** |
 
-**Get one** and **`GET /api/auth/me`** always use **calendar today** in camp timezone → **`today`** or **`null`**, regardless of list filters.
+**Get one** and **`GET /api/auth/me`** always use **calendar today** in camp timezone → **`today`** when the participant works that day (full-time or matching part-time slot), or **`null`** when part-time with no slot today — regardless of list filters.
 
-**Full-time participants** (no `part_times` rows): **`full_time`** is **`true`**; **`workday`** and **`shift`** are **`null`**.
+**Full-time participants** (no `part_times` rows): **`full_time`** is **`true`** — they work **every calendar day Mon–Sun** (same day span as **`all-week`**, but **not** stored as a part-time row). **`workday`** is the context label (**`today`** on get-one / **`/api/auth/me`**, or the list context weekday), **`shift`** is always **`all-day`**. Do **not** confuse with **`weekdays`** (Mon–Fri only).
+
+**`null`** on **`workday`** / **`shift`** means **part-time but not scheduled on the context day** — not full-time.
+
+**Client usage:** **`workday !== null`** means the participant works on the context day (full-time or part-time). Use **`full_time`** for schedule type; use **`shift`** for display (`morning`, `afternoon`, or `all-day`).
 
 **List filters** on **`GET /api/employees`**:
 
@@ -1131,6 +1135,8 @@ Employee list, get-one, and **`GET /api/auth/me`** responses include **`full_tim
 | **`workday`** | **`all`** | **`all`**: no part-time filter; each row’s **`workday`** / **`shift`** describe the slot for calendar **today**. **`today`**: only participants with an effective part-time slot today (including via **`weekdays`** or **`all-week`**). A calendar slug (`monday` … `sunday`): filter to that day using the same precedence as slot lookup; row labels use the same slug. **`weekdays`** and **`all-week`** are **not** valid filter values → **`400`**. |
 | **`shift`** | omitted | Optional when **`workday`** ≠ **`all`**: **`all-day`**, **`morning`**, or **`afternoon`**. Ignored when **`workday=all`**. |
 | **`active`** | unchanged | Same as before. |
+
+**List filter vs response:** **`?workday=today`** and weekday filters match only participants with **`part_times`** rows (full-time staff have none, so they are **excluded** from filtered lists). With default **`workday=all`**, full-time rows still appear and show contextual **`workday`** / **`all-day`** **`shift`**.
 
 Allowed **list-filter** weekday values are calendar slugs plus **`all`** and **`today`**. Allowed **stored** workday values (including aggregates) are listed under **`la-server.part_time_workdays`** on **`GET /api/village-data`**. Invalid list **`workday`** → **`400`** **`INVALID_PART_TIME_WORKDAY`**; invalid **`shift`** → **`400`** **`INVALID_PART_TIME_SHIFT`**.
 
@@ -1150,19 +1156,20 @@ Staff enter **stored** `part_times` rows (including aggregate slugs). Precedence
 | **`all-week` (stored slug)** | **Monday through Sunday** — every calendar day |
 | **`all-day` (shift slug)** | Full day on the matched day — analogous to how aggregate slugs span multiple days |
 | **`workday=all` (list query only)** | Do not filter by part-time day — **never stored** |
+| **`full_time` (API field)** | **Monday through Sunday** — zero `part_times` rows; works every day of the camp week. Same calendar coverage as **`all-week`**, but authoritative via **`full_time`: `true`**, not a stored aggregate. |
 
 When someone works the **same shift on many days**, you can store **one aggregate row** instead of repeating five or seven calendar-day rows.
 
 | Plain language | Stored row |
 | -------------- | ---------- |
-| “Morning every school day (Mon–Fri)” | `{ "workday": "weekdays", "shift": "morning" }` |
+| “Morning every weekday (Mon–Fri)” | `{ "workday": "weekdays", "shift": "morning" }` |
 | “Morning every day of the camp week” | `{ "workday": "all-week", "shift": "morning" }` |
 
 **`weekdays`** means Monday through Friday only (*Werktage*). **`all-week`** means every day Mon–Sun.
 
 #### Full-time vs aggregate + `all-day` (design rule 7)
 
-**Full-time = zero rows.** A participant who works the full camp week has **no** `part_times` rows at all (`full_time`: **`true`**, **`workday`**: **`null`**, **`shift`**: **`null`** in employee JSON).
+**Full-time = zero rows.** A participant who works the **full camp week (Monday through Sunday)** has **no** `part_times` rows at all (`full_time`: **`true`**, **`workday`**: context label such as **`today`**, **`shift`**: **`all-day`** in employee JSON). That is the same **Mon–Sun** calendar span as **`all-week`**, but full-time is expressed by **deleting all part-time rows**, not by storing `{ "workday": "all-week", … }`. **`full_time`** remains the authoritative flag — do not infer full-time from **`shift: "all-day"`** alone (part-time calendar rows can also use that shift).
 
 **Do not** model full-time with an aggregate row:
 
@@ -1309,8 +1316,8 @@ None.
       "created_at": "2026-01-15T10:00:00+00:00",
       "updated_at": "2026-01-15T10:00:00+00:00",
       "full_time": true,
-      "workday": null,
-      "shift": null
+      "workday": "today",
+      "shift": "all-day"
     }
   ],
   "count": 2

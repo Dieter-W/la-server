@@ -167,10 +167,11 @@ def build_openapi_dict() -> dict:
                 "Part-time list filter and response context (default **`all`**). "
                 "Calendar slugs and query-only **`all`** / **`today`** only — aggregate stored slugs "
                 "**`weekdays`** and **`all-week`** are **not** valid here (→ `400` **`INVALID_PART_TIME_WORKDAY`**). "
-                "**`all`**: no part-time filter; each row's **`workday`** / **`shift`** describe the slot for "
+                "**`all`**: no part-time filter; each row's **`workday`** / **`shift`** describe the context day — "
+                "full-time participants show **`today`** / **`all-day`**; part-time rows show the matching slot for "
                 "**calendar today** in the camp timezone (`general.timezone` in **`village.ini`**, echoed as "
                 "**`la-server.camp_timezone`**). **`today`**: only participants with a matching part-time slot for "
-                "today's weekday in that timezone; row labels use **`today`**. "
+                "today's weekday in that timezone (full-time staff excluded); row labels use **`today`**. "
                 "A weekday slug (**`monday`** … **`sunday`**): filter to that calendar day (including aggregate "
                 "fallback rules) and label rows with that slug. "
                 "See [developer-guide.md](docs/developer-guide.md#aggregate-part-time-patterns)."
@@ -972,8 +973,12 @@ def build_openapi_dict() -> dict:
                         "full_time": {
                             "type": "boolean",
                             "description": (
-                                "True when the participant has no `part_times` rows "
-                                "(full-time week); false when at least one part-time slot exists."
+                                "True when the participant has no `part_times` rows — they work "
+                                "Monday through Sunday (every camp day), same calendar coverage as a stored "
+                                "`all-week` row but modelled as zero rows with `shift`: `all-day`. "
+                                "False when at least one part-time slot exists (may cover only some days, "
+                                "e.g. `weekdays` Mon–Fri). Authoritative for distinguishing full-time "
+                                "`all-day` from a part-time row stored as `all-day`."
                             ),
                             "example": True,
                         },
@@ -982,15 +987,19 @@ def build_openapi_dict() -> dict:
                             "nullable": True,
                             "enum": [*PART_TIME_API_WORKDAY_LABELS, None],
                             "description": (
-                                "Contextual part-time weekday label for the response — never a stored aggregate "
+                                "Contextual weekday label for the response — never a stored aggregate "
                                 "slug (**`weekdays`**, **`all-week`**). "
+                                "**Full-time** (`full_time`: true): always the context label (e.g. **`today`** on "
+                                "get-one / **`GET /api/auth/me`**). "
                                 "**List** (`GET /api/employees`): depends on the **`workday`** query — with default "
-                                "**`all`**, calendar **today** in **`la-server.camp_timezone`** → **`today`** when a "
-                                "matching slot exists; with **`workday=tuesday`**, **`tuesday`** when a slot exists. "
+                                "**`all`**, calendar **today** in **`la-server.camp_timezone`** → **`today`**; "
+                                "with **`workday=tuesday`**, **`tuesday`**. "
                                 "**Single** (`GET /api/employees/{employee_number}`) and **`GET /api/auth/me`**: "
-                                "calendar today in camp timezone → **`today`** when a slot exists (ignores list query). "
-                                "**`null`** when the participant is full-time or has no "
-                                "`part_times` row for the context weekday. "
+                                "calendar today in camp timezone → **`today`** when working that day (ignores list "
+                                "query). "
+                                "**Part-time**: **`null`** when no `part_times` row applies for the context weekday. "
+                                "List **`?workday=`** filters match part-time slots only; full-time rows are excluded "
+                                "from filtered lists but show contextual labels when **`workday=all`**. "
                                 "Aggregate patterns are listed under **`la-server.part_time_workdays`** for storage "
                                 "only; see [developer-guide.md](docs/developer-guide.md#aggregate-part-time-patterns) "
                                 "and [database_design.md](docs/database_design.md#aggregate-workdays-weekdays-all-week)."
@@ -1001,10 +1010,11 @@ def build_openapi_dict() -> dict:
                             "type": "string",
                             "nullable": True,
                             "description": (
-                                "Part-time shift on the context **`workday`**: **`all-day`**, "
-                                "**`morning`**, or **`afternoon`**. **`null`** when **`workday`** is **`null`**."
+                                "Shift on the context **`workday`**: **`all-day`**, **`morning`**, or "
+                                "**`afternoon`**. When **`full_time`** is **`true`**, always **`all-day`**. "
+                                "**`null`** when **`workday`** is **`null`** (part-time, not scheduled on context day)."
                             ),
-                            "example": "morning",
+                            "example": "all-day",
                         },
                         "notes": {"type": "string", "nullable": True, "example": None},
                         "created_at": {

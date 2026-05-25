@@ -671,8 +671,8 @@ def test_employees_query(client, sample_company, sample_employee, sample_job_ass
     assert data["notes"] == sample_employee.notes
     assert data["company"] == "Bauhof"
     assert data["full_time"] is True
-    assert data["workday"] is None
-    assert data["shift"] is None
+    assert data["workday"] == "today"
+    assert data["shift"] == "all-day"
 
 
 def test_employees_query_error_1(client, sample_employee):
@@ -801,8 +801,8 @@ def test_employees_update(client, sample_authentication, sample_company, sample_
     assert data["notes"] == payload_put["notes"]
     assert data["company"] == "Bauhof"
     assert data["full_time"] is True
-    assert data["workday"] is None
-    assert data["shift"] is None
+    assert data["workday"] == "today"
+    assert data["shift"] == "all-day"
 
     employee_number = payload_put["employee_number"]
     response2 = client.get(f"/api/employees/{employee_number}")
@@ -905,8 +905,8 @@ def test_employees_delete_soft(client, sample_authentication, sample_company, sa
     assert data["notes"] == sample_employee.notes
     assert data["company"] == "Bauhof"
     assert data["full_time"] is True
-    assert data["workday"] is None
-    assert data["shift"] is None
+    assert data["workday"] == "today"
+    assert data["shift"] == "all-day"
 
     response = client.get(f"/api/employees/{employee_number}")
     assert response.status_code == 200

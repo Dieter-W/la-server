@@ -120,8 +120,8 @@ def test_bulk_import_employees_update_ok(client,): # fmt: skip
     assert data["active"] is payload_put["active"]
     assert _nfc(data["notes"]) == _nfc(payload_put["notes"])
     assert data["full_time"] is True
-    assert data["workday"] is None
-    assert data["shift"] is None
+    assert data["workday"] == "today"
+    assert data["shift"] == "all-day"
 
     # In place update, with original data
     result = subprocess.run(
@@ -155,8 +155,8 @@ def test_bulk_import_employees_update_ok(client,): # fmt: skip
     assert data2["active"] == employee_check["active"]
     assert _nfc(data2["notes"]) == _nfc(employee_check["notes"])
     assert data2["full_time"] is True
-    assert data2["workday"] is None
-    assert data2["shift"] is None
+    assert data2["workday"] == "today"
+    assert data2["shift"] == "all-day"
 
     # Check if we still have 4 records
     response = client.get("/api/employees")

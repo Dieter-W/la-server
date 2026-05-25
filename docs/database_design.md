@@ -115,12 +115,12 @@ Checksum validation for `employee_number` (ISO 7064 Mod 97,10) is **not** enforc
 **Indexes:** primary key on `id`; foreign key on `employee_id`; unique constraint on (`employee_id`, `workday`) — at most one part-time row per camp participant per stored `workday` key (calendar day or aggregate).
 
 **ORM:** `PartTime.employee` ↔ `Employee.part_times` (collection; may be empty).
+`Employee.part_times` may be empty. No related rows means the participant is treated as working **full time** on every day (see [design decisions](#part-time-design-decisions)).
 
 **Application values for `workday` (stored):** `monday` … `sunday`, plus aggregate slugs **`weekdays`** (Mon–Fri) and **`all-week`** (Mon–Sun). Enforced in the API; not an enum in the database. See [`app/schemas/employee.py`](../app/schemas/employee.py) (`PartTimeWorkday`, `PART_TIME_STORED_WORKDAYS`, `verify_part_time_stored_workday`). List query filters accept calendar slugs only — see [Aggregate workdays](#aggregate-workdays-weekdays-all-week).
 
 **Application values for `shift`:** `all-day`, `morning`, and `afternoon` (enforced in the API; not an enum in the database). The same slugs are stored in `part_times.shift`, returned in JSON employee responses, and accepted on list query filters. Clients can read the allowed values from `GET /api/village-data` under `la-server.part_time_workdays` and `la-server.part_time_shifts`.
 
-**ORM:** `Employee.part_times` may be empty. No related rows means the participant is treated as working **full time** on every day (see [design decisions](#part-time-design-decisions)).
 
 ### Part-time design decisions {#part-time-design-decisions}
 
@@ -153,7 +153,7 @@ Aggregate slugs replace duplicate calendar-day rows when the same shift repeats 
 | `{ workday: "weekdays", shift: "morning" }` | Five rows (`monday` … `friday`, each `morning`) |
 | `{ workday: "all-week", shift: "morning" }` | Seven rows (`monday` … `sunday`, each `morning`) |
 
-**Why they exist:** without aggregates, a participant who works mornings every school day needs five identical rows; a seven-day camp pattern needs seven. One aggregate row expresses the same schedule and stays consistent when edited.
+**Why they exist:** without aggregates, a participant who works mornings every weekday (Mon–Fri) needs five identical rows; a seven-day camp pattern needs seven. One aggregate row expresses the same schedule and stays consistent when edited.
 
 #### Terminology
 
@@ -170,7 +170,7 @@ Aggregate slugs replace duplicate calendar-day rows when the same shift repeats 
 
 | Slug | Scope | Typical use |
 |------|-------|-------------|
-| **`weekdays`** | Mon–Fri | “Morning every school day”; weekends off |
+| **`weekdays`** | Mon–Fri | “Morning every weekday”; weekends off |
 | **`all-week`** | Mon–Sun | Seven-day camp; same shift every day including Sat/Sun |
 
 **Does not apply on Saturday/Sunday:** a **`weekdays`** row never matches Saturday or Sunday — enforced by [`is_weekdays_calendar_day()`](../app/schemas/employee.py) in slot resolution and list SQL. On those days, only a **calendar-day row** for that day or an **`all-week`** row can supply a slot.

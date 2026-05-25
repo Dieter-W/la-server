@@ -241,12 +241,13 @@ def employee_context_workday_and_shift(
 ) -> tuple[str | None, str | None]:
     """API ``workday`` / ``shift`` for one employee and a context weekday.
 
-    Returns ``(response_label, shift)`` when a ``part_times`` row exists for
-    ``lookup_workday``; otherwise ``(None, None)``. Full-time employees always get ``(None, None)``.
+    Full-time employees (no ``part_times`` rows) get ``(response_label, "all-day")``.
+    Part-time employees get ``(response_label, shift)`` when a row exists for
+    ``lookup_workday``; otherwise ``(None, None)``.
     The ``workday`` label is never a stored aggregate slug (``weekdays``, ``all-week``).
     """
     if employee_is_full_time(emp):
-        return None, None
+        return project_api_workday_label(response_label), PartTimeShift.ALL_DAY.value
     pt = resolve_part_time_slot(emp.part_times, lookup_workday)
     if pt is not None:
         return project_api_workday_label(response_label), pt.shift

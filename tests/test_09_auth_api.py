@@ -394,6 +394,8 @@ def test_me_as_employee_ok(client, sample_authentication, sample_company, sample
     assert data["employee_number"] == "M00252"
     assert data["auth_group"] == "employee"
     assert data["full_time"] is True
+    assert data["workday"] == "today"
+    assert data["shift"] == "all-day"
 
 
 def test_me_as_staff_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
@@ -433,6 +435,9 @@ def test_me_as_admin_ok(client, sample_authentication, sample_company, sample_em
     assert data["auth_group"] == "admin"
     assert data["company"] == "Bauhof"
     assert data["auth_group"] == "admin"
+    assert data["full_time"] is True
+    assert data["workday"] == "today"
+    assert data["shift"] == "all-day"
 
 def test_me_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
