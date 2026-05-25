@@ -13,6 +13,7 @@ from app.repositories.employee import EmployeeRepository
 from app.schemas.employee import (
     CreateEmployeeRequest,
     EmployeeResponse,
+    ListEmployeesQuery,
     UpdateEmployeeRequest,
 )
 
@@ -27,12 +28,26 @@ class EmployeeService:
     # ---------------------------------------------------------------------
     # Employees — list
     # ---------------------------------------------------------------------
-    def list_employees(self, active: bool | None) -> tuple[list[EmployeeResponse], int]:
+    def list_employees(
+        self, query: ListEmployeesQuery
+    ) -> tuple[list[EmployeeResponse], int]:
         """List rows with resolved company column and distinct-headcount."""
-        rows = self.repo.list_with_company(active)
-        count = self.repo.count(active)
+        filter_workday = query.workday_context.filter_workday
+        rows = self.repo.list_with_company(
+            query.active,
+            workday_filter=filter_workday,
+            shift=query.shift,
+        )
+        count = self.repo.count(
+            query.active,
+            workday_filter=filter_workday,
+            shift=query.shift,
+        )
         responses = [
-            EmployeeResponse.from_orm(emp, company_name) for emp, company_name in rows
+            EmployeeResponse.from_orm(
+                emp, company_name, workday_context=query.workday_context
+            )
+            for emp, company_name in rows
         ]
         return responses, count
 

@@ -113,6 +113,9 @@ curl -s http://localhost:5000/api/auth/me \
   "notes": null,
   "created_at": "2025-06-01T10:00:00",
   "updated_at": "2025-06-01T10:00:00",
+  "full_time": false,
+  "workday": "today",
+  "shift": "morning",
   "auth_group": "employee"
 }
 ```
@@ -123,7 +126,7 @@ curl -s http://localhost:5000/api/auth/me \
 - Database constraint issues may return `**409`** with `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` (duplicate / unique violation) or `{"error": "CONSTRAINT_VIOLATION", "message": "Delete failed, because related entries in JobAssignment table"}` (delete blocked by related rows), as implemented in [`app/errors.py`](../app/errors.py).
 - Uncaught DB errors: `**500**` with `DATABASE_ERROR`. Unhandled exceptions: `**500**` with `INTERNAL_SERVER_ERROR`, per [`app/errors.py`](../app/errors.py). For both, a **`message`** field is included in the JSON **only when** server **`DEBUG`** is enabled (otherwise the body is just `{"error": "<CODE>"}`).
 
-**Common error codes** include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `INVALID_AGE_IN_JSON`, `INVALID_JSON_BOOLEAN_IN_JSON`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, `BAD_CREDENTIALS`, `FORBIDDEN_WRONG_AUTH_GROUP`, `OLD_PASSWORD_IS_INCORRECT`, `AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`, and variants with `_IN_JSON` where applicable.
+**Common error codes** include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `INVALID_AGE_IN_JSON`, `INVALID_JSON_BOOLEAN_IN_JSON`, `INVALID_PART_TIME_WORKDAY`, `INVALID_PART_TIME_SHIFT`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, `BAD_CREDENTIALS`, `FORBIDDEN_WRONG_AUTH_GROUP`, `OLD_PASSWORD_IS_INCORRECT`, `AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`, and variants with `_IN_JSON` where applicable.
 
 JWT responses from Flask-JWT-Extended include a `message` next to `error` where applicable; see [`app/__init__.py`](../app/__init__.py). **HTTP mapping:** missing `Authorization` / Bearer → **`401`** `AUTHORIZATION_REQUIRED`; expired JWT → **`401`** `EXPIRED_TOKEN`; malformed or invalid Bearer / wrong token type for the loader → **`422`** `INVALID_TOKEN`.
 
@@ -476,6 +479,9 @@ None.
 | `notes`             | string or null | |
 | `created_at`        | string or null | ISO 8601 timestamp. |
 | `updated_at`        | string or null | ISO 8601 timestamp. |
+| `full_time`         | boolean | `true` when the participant has no part-time rows; `false` when at least one `part_times` record exists. |
+| `workday`           | string or null | Contextual part-time weekday label: **`today`**, a weekday slug (`monday` … `sunday`), or **`null`** when no slot applies for the context day (see [Part-time context on employee responses](#part-time-context-on-employee-responses)). |
+| `shift`             | string or null | Part-time shift on the context **`workday`**: **`all-day`**, **`morning`**, or **`afternoon`**. **`null`** when **`workday`** is **`null`**. |
 | `auth_group`        | string  | `employee`, `staff`, or `admin` from the JWT. |
 
 Example:
@@ -494,6 +500,9 @@ Example:
   "notes": null,
   "created_at": "2025-06-01T10:00:00",
   "updated_at": "2025-06-01T10:00:00",
+  "full_time": false,
+  "workday": "today",
+  "shift": "morning",
   "auth_group": "employee"
 }
 ```
@@ -1095,43 +1104,78 @@ None.
 
 In domain language, each row is a **camp participant** (child or staff). The API keeps the historical names *employee* / `employee_number`.
 
+<a id="part-time-context-on-employee-responses"></a>
+
+### Part-time context on employee responses
+
+Employee list, get-one, and **`GET /api/auth/me`** responses include **`full_time`**, **`workday`**, and **`shift`**. These are **derived** from optional **`part_times`** database rows (see [database_design.md](./database_design.md#part_times)), not separate columns on the employee.
+
+**Camp timezone:** **`general.timezone`** in **`village_data/village.ini`** (IANA name, e.g. `Europe/Berlin`) defines which calendar day is **“today”** for the camp. The server reads it via **`get_camp_timezone()`** ([`app/village_config.py`](../app/village_config.py)); missing or invalid values fall back to **`Europe/Berlin`**. The same key appears under **`general`** in **`GET /api/village-data`**.
+
+**Response labels** (when a matching part-time slot exists for the context weekday):
+
+| List `workday` query | Context weekday | Example `workday` in JSON |
+| -------------------- | --------------- | ------------------------- |
+| omitted or **`all`** (default) | Calendar today in camp TZ | **`today`** |
+| **`today`** | Calendar today in camp TZ | **`today`** |
+| **`tuesday`** (any weekday slug) | That weekday | **`tuesday`** |
+
+**Get one** and **`GET /api/auth/me`** always use **calendar today** in camp timezone → **`today`** or **`null`**, regardless of list filters.
+
+**Full-time participants** (no `part_times` rows): **`full_time`** is **`true`**; **`workday`** and **`shift`** are **`null`**.
+
+**List filters** on **`GET /api/employees`**:
+
+| Query param | Default | Effect |
+| ----------- | ------- | ------ |
+| **`workday`** | **`all`** | **`all`**: no part-time filter; each row’s **`workday`** / **`shift`** describe the slot for calendar **today**. **`today`**: only participants with a part-time row for today’s weekday. A weekday slug (`monday` … `sunday`): filter to that day; row labels use the same slug. |
+| **`shift`** | omitted | Optional when **`workday`** ≠ **`all`**: **`all-day`**, **`morning`**, or **`afternoon`**. Ignored when **`workday=all`**. |
+| **`active`** | unchanged | Same as before. |
+
+Allowed weekday and shift values are listed under **`la-server.part_time_workdays`** and **`la-server.part_time_shifts`** on **`GET /api/village-data`**. Invalid **`workday`** → **`400`** **`INVALID_PART_TIME_WORKDAY`**; invalid **`shift`** → **`400`** **`INVALID_PART_TIME_SHIFT`**.
+
+---
+
 ### List employees - /api/employees
 
 **Explanation**
-Lists employees (camp participants), optionally filtered by `active`.
+Lists employees (camp participants), optionally filtered by **`active`**, **`workday`**, and **`shift`**. Each element includes contextual **`full_time`**, **`workday`**, and **`shift`** (see [Part-time context on employee responses](#part-time-context-on-employee-responses)).
 
 **Parameters** (query)
 
 
-| Name     | Required | Description                                                                      |
-| -------- | -------- | -------------------------------------------------------------------------------- |
-| `active` | No       | Same semantics as companies: `true`/`1`/`yes`, `false`/`0`/`no`, or omit for all |
+| Name       | Required | Description                                                                                                      |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `active`   | No       | Same semantics as companies: `true`/`1`/`yes`, `false`/`0`/`no`, or omit for all                               |
+| `workday`  | No       | Default **`all`**. **`all`**, **`today`**, or a weekday slug (`monday` … `sunday`). Filters part-time rows when not **`all`**. |
+| `shift`    | No       | When **`workday`** is not **`all`**: optional **`all-day`**, **`morning`**, or **`afternoon`**. Ignored for **`workday=all`**. |
 
 
 **Endpoint sample**
 
 ```http
-GET /api/employees?active=true HTTP/1.1
+GET /api/employees?active=true&workday=today HTTP/1.1
 Host: localhost:5000
 ```
 
 ```bash
 curl -s "http://localhost:5000/api/employees"
 curl -s "http://localhost:5000/api/employees?active=true"
-curl -s "http://localhost:5000/api/employees?active=false"
+curl -s "http://localhost:5000/api/employees?workday=tuesday"
+curl -s "http://localhost:5000/api/employees?workday=tuesday&shift=afternoon"
 ```
 
 **JSON request**
 None.
 
-**JSON response** (example)
+**JSON response** (example — assumes calendar **Monday** in camp timezone; Monika has a Monday morning slot; Anna is full-time)
 
 ```json
 {
   "employees": [
     {
       "id": 1,
-      "first_name": "Max",
+      "first_name": "Monika",
       "last_name": "Mustermann",
       "employee_number": "M00155",
       "age": 35,
@@ -1141,7 +1185,10 @@ None.
       "active": true,
       "notes": null,
       "created_at": "2026-01-15T10:00:00+00:00",
-      "updated_at": "2026-01-15T10:00:00+00:00"
+      "updated_at": "2026-01-15T10:00:00+00:00",
+      "full_time": false,
+      "workday": "today",
+      "shift": "morning"
     },
     {
       "id": 2,
@@ -1155,7 +1202,10 @@ None.
       "active": true,
       "notes": null,
       "created_at": "2026-01-15T10:00:00+00:00",
-      "updated_at": "2026-01-15T10:00:00+00:00"
+      "updated_at": "2026-01-15T10:00:00+00:00",
+      "full_time": true,
+      "workday": null,
+      "shift": null
     }
   ],
   "count": 2
@@ -1167,7 +1217,8 @@ None.
 
 | Code | Meaning |
 | ---- | ------- |
-| 200  | OK      |
+| 200  | OK |
+| 400  | `{"error": "INVALID_PART_TIME_WORKDAY"}` or `{"error": "INVALID_PART_TIME_SHIFT"}` |
 
 
 ---
@@ -1175,7 +1226,7 @@ None.
 ### Get employee - /api/employees/<employee_number>
 
 **Explanation**
-Returns one camp participant by `employee_number` (one employee record). Checksum validated when `VALIDATE_CHECK_SUM` is enabled.
+Returns one camp participant by `employee_number` (one employee record). Checksum validated when `VALIDATE_CHECK_SUM` is enabled. **`workday`** and **`shift`** use **calendar today** in camp timezone (see [Part-time context on employee responses](#part-time-context-on-employee-responses)).
 
 **Parameters** (path)
 
@@ -1214,7 +1265,10 @@ None.
   "active": true,
   "notes": null,
   "created_at": "2026-01-15T10:00:00+00:00",
-  "updated_at": "2026-01-15T10:00:00+00:00"
+  "updated_at": "2026-01-15T10:00:00+00:00",
+  "full_time": false,
+  "workday": "today",
+  "shift": "morning"
 }
 ```
 
@@ -1582,7 +1636,7 @@ curl -s -X POST http://localhost:5000/api/job-assignments \
 }
 ```
 
-Same `job_assignment_number` wire format as in the list response (`*` + padded id + check digits on the id digits only).
+Same `job_assignment_number` assignment number format as in the list response (`*` + padded id + check digits on the id digits only).
 
 **HTTP status codes**
 
@@ -1599,7 +1653,7 @@ Same `job_assignment_number` wire format as in the list response (`*` + padded i
 ### Remove job assignment - /api/job-assignments/<job_assignment_number>
 
 **Explanation**
-Deletes the job assignment identified by `job_assignment_number`. The path string must match the wire format (`*` + five zero-padded id digits + ISO 7064 Mod 97,10 check digits on those five digits); checksum validation is **always** applied on this route (unlike some participant-number flows, it is not affected by `VALIDATE_CHECK_SUM`). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
+Deletes the job assignment identified by `job_assignment_number`. The path string must match the assignment number format (`*` + five zero-padded id digits + ISO 7064 Mod 97,10 check digits on those five digits); checksum validation is **always** applied on this route (unlike some participant-number flows, it is not affected by `VALIDATE_CHECK_SUM`). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters** (path)
 
@@ -1639,7 +1693,7 @@ None.
 | Code | Meaning |
 | ---- | ------- |
 | 200  | `{"message": "job deleted"}` |
-| 400  | Error: `{"error": "JOB_ASSIGNMENT_NUMBER_WRONG"}` (malformed wire format or failed checksum) |
+| 400  | Error: `{"error": "JOB_ASSIGNMENT_NUMBER_WRONG"}` (malformed assignment number format or failed checksum) |
 | 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not signed in as employee, staff, or admin) |
 | 404  | Error: `{"error": "JOB_ASSIGNMENT_NOT_FOUND"}` (valid format but no matching assignment row) |
 
@@ -1711,7 +1765,9 @@ Camp-specific **name**, **currency** labels, optional **`[village-theme]`** UI p
 
 **`[village-theme]`:** Optional section for **client apps only**. Keys are typically CSS-style hex colors (`accent`, `on-accent`, status pairs such as `ok` / `ok-bg`). LA-Server does **not** apply these colors to HTTP responses; it only passes them through under the JSON key **`village-theme`** (matching the INI section name). Omit the section if a deployment does not need themed UIs. A full sample lives in the repo’s **`data/village.ini`**.
 
-**Runtime-only `la-server`:** The response always includes a top-level **`la-server`** object built by the server (auth groups, whether employee-number checksum validation is enabled, JWT TTL hints in **minutes** for access and refresh, etc.). When checksum validation is off, **`employee_number_checksum_algorithm`** is JSON **`null`**. It is **not** read from `village.ini` and must **not** be configured via a `[la-server]` section in the INI; if that section appears in the file, the server **overwrites** it in the JSON so the payload matches real server behavior.
+**Runtime-only `la-server`:** The response always includes a top-level **`la-server`** object built by the server (auth groups, part-time enum lists, whether employee-number checksum validation is enabled, JWT TTL hints in **minutes** for access and refresh, etc.). When checksum validation is off, **`employee_number_checksum_algorithm`** is JSON **`null`**. It is **not** read from `village.ini` and must **not** be configured via a `[la-server]` section in the INI; if that section appears in the file, the server **overwrites** it in the JSON so the payload matches real server behavior.
+
+**Camp calendar:** **`general.timezone`** in the INI (also echoed under **`general`** in this JSON) is the IANA time zone the server uses for **`workday=today`** on employee lists and for **`workday`: `"today"`** on employee responses. See [Part-time context on employee responses](#part-time-context-on-employee-responses).
 
 **Caching:** The **INI-derived** keys are cached in memory until **`village_data/village.ini`** changes (file modification time). The **`ETag`** on **`GET /api/village-data`** is an MD5 hex digest of a **canonical JSON serialization** of the **entire** object returned to the client (all INI sections **plus** the **`la-server`** block). That way, changes from environment or app config (for example checksum validation) update **`ETag`** even when `village.ini` is unchanged. Send **`If-None-Match`** (quoted, comma-separated, or weak `W/"..."` forms are accepted) to receive **`304 Not Modified`** with an **empty body** when the represented body is unchanged.
 
@@ -1749,6 +1805,7 @@ None.
     "name": "Kinderspielstadt Los Ämmerles",
     "location": "Ammerbuch",
     "language": "de",
+    "timezone": "Europe/Berlin",
     "year": "2026"
   },
   "currency": {
@@ -1780,6 +1837,8 @@ None.
   },
   "la-server": {
     "auth_groups": ["employee", "staff", "admin"],
+    "part_time_shifts": ["all-day", "morning", "afternoon"],
+    "part_time_workdays": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
     "validate_employee_number_checksum": true,
     "employee_number_checksum_algorithm": "ISO_7064_MOD_97_10",
     "jwt_access_ttl_minutes": 15,
@@ -1950,7 +2009,7 @@ Create **`.env`** with **`.\scripts\setup.ps1 -Mode init-env`** or **`./scripts/
 
 ## Spielstadt assets (`village_data/`)
 
-Client-visible **branding and config** are not stored in MariaDB; they come from **`village_data/village.ini`** and static files under **`village_data/`** (see **Village data** in the [README](../README.md)). After **`init-env`**, adjust **`village.ini`** and images for your environment; the running server reloads from disk when **`village.ini`**’s modification time changes (in-process cache).
+Client-visible **branding and config** are not stored in MariaDB; they come from **`village_data/village.ini`** and static files under **`village_data/`** (see **Village data** in the [README](../README.md)). After **`init-env`**, adjust **`village.ini`** and images for your environment; the running server reloads from disk when **`village.ini`**’s modification time changes (in-process cache). Set **`general.timezone`** to the camp’s IANA time zone — employee **`workday=today`** and contextual **`workday`** / **`shift`** fields depend on it ([`get_camp_timezone()`](../app/village_config.py), [Part-time context on employee responses](#part-time-context-on-employee-responses) in this guide).
 
 ## Day-to-day commands
 

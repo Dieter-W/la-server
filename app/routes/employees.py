@@ -24,7 +24,7 @@ def list_employees():
     q = ListEmployeesQuery.from_query(request.args)
     with g.db.begin():
         service = EmployeeService(g.db)
-        employees, count = service.list_employees(q.active)
+        employees, count = service.list_employees(q)
     return jsonify({"employees": [e.to_dict() for e in employees], "count": count}), 200
 
 

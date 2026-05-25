@@ -123,7 +123,7 @@ Before you **run LA-Server**, the camp-specific configuration and branding files
 
 ### `village.ini` sections
 
-- **`[general]`** — Display context for the Spielstadt: e.g. `name`, `location`, `language`, `year`.
+- **`[general]`** — Display context for the Spielstadt: e.g. `name`, `location`, `language`, `year`, `timezone`. Use an [IANA time zone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) (the **TZ identifier** column, such as `Europe/Berlin`) — the same identifiers Python [`zoneinfo`](https://docs.python.org/3/library/zoneinfo.html) accepts. It defines which calendar day is **“today”** for the camp (e.g. employee list `workday=today` and per-employee `workday` / `shift` fields when those API features are enabled).
 - **`[currency]`** — In-game money label: e.g. `name`, `name_short` (values may be quoted in the INI; the server strips optional double quotes).
 - **`[hourly_pay]`** — Village-wide pay tuning: `increase` is an integer added to each company’s stored hourly pay in **`GET /api/companies`** (and single-company) JSON so clients show a uniform bump; other keys (e.g. `tax`) are passed through to clients via **`GET /api/village-data`** if you define them.
 - **`[village-images]`** — Filenames relative to `village_data/`, for example `logo = images/logo.jpg` and `favicon = images/favicon.png`. Missing files or bad paths result in HTTP 404 from the image endpoints.

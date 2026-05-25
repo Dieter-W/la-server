@@ -147,6 +147,52 @@ def build_openapi_dict() -> dict:
             "description": "Filter: `true`/`1`/`yes`, `false`/`0`/`no`, or omit for all.",
         }
     ]
+    query_employee_list = query_active + [
+        {
+            "name": "workday",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "type": "string",
+                "default": "all",
+                "enum": [
+                    "all",
+                    "today",
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday",
+                    "sunday",
+                ],
+            },
+            "description": (
+                "Part-time list filter and response context (default **`all`**). "
+                "**`all`**: no part-time filter; each row's **`workday`** / **`shift`** describe the slot for "
+                "**calendar today** in the camp timezone (`general.timezone` in **`village.ini`**, echoed as "
+                "**`la-server.camp_timezone`**). **`today`**: only participants with a **`part_times`** row for "
+                "today's weekday in that timezone; row labels use **`today`**. "
+                "A weekday slug (**`monday`** … **`sunday`**): filter to that day and label rows with that slug. "
+                "Invalid values → `400` **`INVALID_PART_TIME_WORKDAY`**."
+            ),
+        },
+        {
+            "name": "shift",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "type": "string",
+                "enum": ["all-day", "morning", "afternoon"],
+            },
+            "description": (
+                "Optional part-time shift filter when **`workday`** is not **`all`**. "
+                "Accepted values: **`all-day`**, **`morning`**, **`afternoon`** "
+                "(same as **`la-server.part_time_shifts`** in `/api/village-data`). "
+                "Ignored when **`workday=all`**. Invalid values → `400` **`INVALID_PART_TIME_SHIFT`**."
+            ),
+        },
+    ]
     query_hard_delete = [
         {
             "name": "hard",
@@ -313,7 +359,7 @@ def build_openapi_dict() -> dict:
                 "get",
                 "List employees",
                 tag="Employees",
-                parameters=query_active,
+                parameters=query_employee_list,
                 response_schema="EmployeeListResponse",
             ),
             **_op(
@@ -412,7 +458,8 @@ def build_openapi_dict() -> dict:
                     "Loads **`village.ini`** as JSON (one object per section, string-valued keys). "
                     "Typical sections include **`general`**, **`currency`**, **`hourly_pay`**, **`village-images`**, "
                     "and **`village-theme`** (hex UI colors for clients; server does not render them). "
-                    "Adds a **`la-server`** object with JWT TTLs, auth groups, and employee-number checksum settings."
+                    "Adds a **`la-server`** object with JWT TTLs, auth groups, part-time enums, camp timezone, "
+                    "and employee-number checksum settings."
                 ),
                 "responses": {
                     "200": {
@@ -467,7 +514,13 @@ def build_openapi_dict() -> dict:
                 "description": "JWT sign-in, profile, passwords, refresh, logout",
             },
             {"name": "Companies", "description": "Job-center companies"},
-            {"name": "Employees", "description": "Camp participants (employees)"},
+            {
+                "name": "Employees",
+                "description": (
+                    "Camp participants (employees). List supports **`workday`** / **`shift`** filters; "
+                    "responses include contextual **`workday`** / **`shift`** (see **`EmployeeResponse`**)."
+                ),
+            },
             {
                 "name": "Job assignments",
                 "description": "Participant–company placements",
@@ -888,6 +941,8 @@ def build_openapi_dict() -> dict:
                         "created_at",
                         "updated_at",
                         "full_time",
+                        "workday",
+                        "shift",
                     ],
                     "properties": {
                         "id": {"type": "integer", "example": 7},
@@ -922,6 +977,30 @@ def build_openapi_dict() -> dict:
                                 "(full-time week); false when at least one part-time slot exists."
                             ),
                             "example": True,
+                        },
+                        "workday": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": (
+                                "Contextual part-time weekday label for the response. "
+                                "**List** (`GET /api/employees`): depends on the **`workday`** query — with default "
+                                "**`all`**, calendar **today** in **`la-server.camp_timezone`** → **`today`** when a "
+                                "matching slot exists; with **`workday=tuesday`**, **`tuesday`** when a slot exists. "
+                                "**Single** (`GET /api/employees/{employee_number}`) and **`GET /api/auth/me`**: "
+                                "calendar today in camp timezone → **`today`** when a slot exists (ignores list query). "
+                                "**`null`** when the participant is full-time or has no "
+                                "`part_times` row for the context weekday."
+                            ),
+                            "example": "today",
+                        },
+                        "shift": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": (
+                                "Part-time shift on the context **`workday`**: **`all-day`**, "
+                                "**`morning`**, or **`afternoon`**. **`null`** when **`workday`** is **`null`**."
+                            ),
+                            "example": "morning",
                         },
                         "notes": {"type": "string", "nullable": True, "example": None},
                         "created_at": {
@@ -966,7 +1045,7 @@ def build_openapi_dict() -> dict:
                         "employee_id": {"type": "integer", "example": 7},
                         "job_assignment_number": {
                             "type": "string",
-                            "description": "Derived wire-format assignment number (ISO 7064 Mod 97,10 checksum).",
+                            "description": "Derived assignment number (ISO 7064 Mod 97,10 checksum).",
                             "example": "*0001263",
                         },
                         "notes": {"type": "string", "nullable": True, "example": None},
@@ -1013,7 +1092,11 @@ def build_openapi_dict() -> dict:
                         "part_time_shifts": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "Allowed `part_times.shift` values.",
+                            "description": (
+                                "Allowed `?shift=` values for the employee list endpoint "
+                                "(**`all-day`**, **`morning`**, **`afternoon`**). "
+                                "Same slugs as stored in `part_times.shift`."
+                            ),
                         },
                         "part_time_workdays": {
                             "type": "array",
@@ -1039,6 +1122,16 @@ def build_openapi_dict() -> dict:
                             "type": "integer",
                             "description": "Refresh JWT lifetime in minutes from server config.",
                             "minimum": 0,
+                        },
+                        "camp_timezone": {
+                            "type": "string",
+                            "description": (
+                                "IANA time zone used for camp calendar-day logic (from **`general.timezone`** in "
+                                "**`village.ini`**, with server fallback when missing or invalid). Drives "
+                                '**`workday=today`** on employee lists and **`workday`: `"today"`** on employee '
+                                "responses. Same identifiers as Python **`zoneinfo`** (e.g. `Europe/Berlin`)."
+                            ),
+                            "example": "Europe/Berlin",
                         },
                     },
                 },

@@ -113,12 +113,15 @@ def test_bulk_import_employees_update_ok(client,): # fmt: skip
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 13
+    assert len(data) == 15
     assert _nfc(data["first_name"]) == _nfc(payload_put["first_name"])
     assert _nfc(data["last_name"]) == _nfc(payload_put["last_name"])
     assert _nfc(data["role"]) == _nfc(payload_put["role"])
     assert data["active"] is payload_put["active"]
     assert _nfc(data["notes"]) == _nfc(payload_put["notes"])
+    assert data["full_time"] is True
+    assert data["workday"] is None
+    assert data["shift"] is None
 
     # In place update, with original data
     result = subprocess.run(
@@ -142,7 +145,7 @@ def test_bulk_import_employees_update_ok(client,): # fmt: skip
     assert response2.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
-    assert len(data2) == 13
+    assert len(data2) == 15
     assert _nfc(data2["first_name"]) == _nfc(employee_check["first_name"])
     assert _nfc(data2["last_name"]) == _nfc(employee_check["last_name"])
     assert data2["employee_number"] == employee_check["employee_number"]
@@ -151,6 +154,9 @@ def test_bulk_import_employees_update_ok(client,): # fmt: skip
     assert _nfc(data2["role"]) == _nfc(employee_check["role"])
     assert data2["active"] == employee_check["active"]
     assert _nfc(data2["notes"]) == _nfc(employee_check["notes"])
+    assert data2["full_time"] is True
+    assert data2["workday"] is None
+    assert data2["shift"] is None
 
     # Check if we still have 4 records
     response = client.get("/api/employees")

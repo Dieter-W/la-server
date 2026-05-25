@@ -36,11 +36,14 @@ REQUIRED_COLUMNS = (
 )
 
 
-def _parse_csv_bool(value) -> bool:
+def _parse_csv_bool(
+    value, row_num: int | None = None, field: str | None = None
+) -> bool:
     """Parse a boolean-like CSV cell.
 
     Truthy: ``true``, ``1``, ``yes``. Falsy: ``false``, ``0``, ``no`` (case-insensitive).
-    Empty / missing defaults to ``True``. Any other non-empty text is treated as falsy.
+    Empty / missing defaults to ``True``. Any other non-empty text is treated as falsy
+    and a warning is printed.
     """
     if value is None or value == "":
         return True
@@ -49,6 +52,11 @@ def _parse_csv_bool(value) -> bool:
         return False
     if s in ("true", "1", "yes"):
         return True
+    location = f"Row {row_num}" if row_num is not None else "unknown row"
+    field_hint = f" (field: {field})" if field else ""
+    print(
+        f"  {location}: WARNING - unrecognised boolean value {value!r}{field_hint}, treating as False"
+    )
     return False
 
 
@@ -101,14 +109,18 @@ def import_row(session, row: dict, row_num: int) -> bool:
     first_name = (row.get("first_name") or "").strip()
     last_name = (row.get("last_name") or "").strip()
     age = _parse_age(row.get("age"), row_num)
-    can_leave_alone = _parse_csv_bool(row.get("can_leave_alone", "true"))
+    if age is None:
+        return False
+    can_leave_alone = _parse_csv_bool(
+        row.get("can_leave_alone", "true"), row_num, "can_leave_alone"
+    )
     role = (row.get("role") or "").strip()
     if not first_name or not last_name or not role:
         print(
             f"  Row {row_num}: SKIP - missing required field (first_name, last_name, or role)"
         )
         return False
-    active = _parse_csv_bool(row.get("active", "true"))
+    active = _parse_csv_bool(row.get("active", "true"), row_num, "active")
     notes = (row.get("notes") or "").strip() or None
     auth_group, auth_err = _parse_auth_group(row.get("auth_group"))
     if auth_err:

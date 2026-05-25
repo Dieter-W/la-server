@@ -23,7 +23,7 @@ def validate_employee_number(employee_number: str) -> tuple[bool, str | None]:
 # ---------------------------------------------------------------------
 # Job assignment numbers
 # ---------------------------------------------------------------------
-# Wire format: ``*`` prefix + 5-digit assignment id + 2 mod 97-10 check digits (ISO 7064).
+# Assignment number format: ``*`` prefix + 5-digit assignment id + 2 mod 97-10 check digits (ISO 7064).
 # Check digits are computed on the id digits only, not on the prefix.
 _JOB_ASSIGNMENT_PREFIX = "*"
 _JOB_ASSIGNMENT_ID_WIDTH = 5

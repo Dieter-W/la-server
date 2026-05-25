@@ -155,7 +155,7 @@ class PartTime(BaseModel):
         ForeignKey("employees.id", ondelete="CASCADE"),
     )
     workday: Mapped[str] = mapped_column(String(20))
-    shift: Mapped[str] = mapped_column(String(20), default="all_day")
+    shift: Mapped[str] = mapped_column(String(20), default="all-day")
 
     notes: Mapped[str | None] = mapped_column(Text)
 

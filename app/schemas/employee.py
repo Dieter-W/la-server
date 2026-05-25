@@ -3,23 +3,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.auth.utils import verify_access_group
 from app.errors import APIError
 from app.models import Employee
 from app.schemas import _UNSET
 from app.utils import validate_employee_number
+from app.village_config import get_camp_timezone
 
 
 # ---------------------------------------------------------------------
 # Part-time (employee extension; no separate blueprint)
 # ---------------------------------------------------------------------
 class PartTimeShift(StrEnum):
-    """When on a workday the participant is on part-time."""
+    """When on a workday the participant is on part-time (stored and exposed as the same slug)."""
 
-    ALL_DAY = "all_day"
+    ALL_DAY = "all-day"
     MORNING = "morning"
     AFTERNOON = "afternoon"
 
@@ -56,14 +59,14 @@ def verify_part_time_workday(workday: str) -> tuple[bool, str | None]:
     return True, None
 
 
-def employee_is_full_time(emp: Employee) -> bool:
-    """True when the participant has no ``part_times`` rows (see database design)."""
-    return len(emp.part_times) == 0
-
-
 # ---------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------
+
+
+def employee_is_full_time(emp: Employee) -> bool:
+    """True when the participant has no ``part_times`` rows (see database design)."""
+    return len(emp.part_times) == 0
 
 
 def _parse_age_from_json(raw: Any) -> tuple[bool, int | None, str]:
@@ -102,6 +105,72 @@ def _parse_bool_from_json(raw: Any) -> tuple[bool, bool | None, str]:
     return False, None, "INVALID_JSON_BOOLEAN"
 
 
+@dataclass(frozen=True)
+class ListWorkdayContext:
+    """Resolved list ``workday`` query: filter workday, slot lookup workday, response label."""
+
+    filter_workday: str | None
+    """``None`` when ``workday=all`` (no part-time filter); else weekday for DB filter."""
+    lookup_workday: str
+    """Weekday used to find a ``part_times`` row on each employee."""
+    response_label: str
+    """API ``workday`` value when a matching slot exists (``today`` or weekday name)."""
+
+
+def camp_day(*, now: datetime | None = None, tz: ZoneInfo | None = None) -> str:
+    """Current weekday (``monday`` … ``sunday``) in camp timezone."""
+    if tz is None:
+        tz = get_camp_timezone()
+    if now is None:
+        instant = datetime.now(tz)
+    elif now.tzinfo is None:
+        instant = now.replace(tzinfo=tz)
+    else:
+        instant = now.astimezone(tz)
+    # ``PART_TIME_WORKDAYS`` order matches ``datetime.weekday()`` (0 = Monday).
+    return PART_TIME_WORKDAYS[instant.weekday()]
+
+
+def parse_list_workday_param(
+    param: str | None,
+    *,
+    now: datetime | None = None,
+) -> ListWorkdayContext:
+    """Resolve ``GET /api/employees`` ``workday`` query (default ``all``)."""
+    raw = (param or "all").strip().lower()
+    today = camp_day(now=now)
+
+    if raw == "all":
+        return ListWorkdayContext(None, today, "today")
+    if raw == "today":
+        return ListWorkdayContext(today, today, "today")
+
+    valid, err = verify_part_time_workday(raw)
+    if not valid:
+        raise APIError(err or "INVALID_PART_TIME_WORKDAY", 400)
+
+    return ListWorkdayContext(raw, raw, raw)
+
+
+def employee_context_workday_and_shift(
+    emp: Employee,
+    *,
+    lookup_workday: str,
+    response_label: str,
+) -> tuple[str | None, str | None]:
+    """API ``workday`` / ``shift`` for one employee and a context weekday.
+
+    Returns ``(response_label, shift)`` when a ``part_times`` row exists for
+    ``lookup_workday``; otherwise ``(None, None)``. Full-time employees always get ``(None, None)``.
+    """
+    if employee_is_full_time(emp):
+        return None, None
+    for pt in emp.part_times:
+        if pt.workday == lookup_workday:
+            return response_label, pt.shift
+    return None, None
+
+
 # ---------------------------------------------------------------------
 # Employees — path parameter request
 # ---------------------------------------------------------------------
@@ -124,13 +193,37 @@ class EmployeeNumberRequest:
 @dataclass
 class ListEmployeesQuery:
     active: bool | None
+    workday_context: ListWorkdayContext
+    shift: str | None
+    """``part_times.shift`` filter when ``shift`` query is set and ``workday`` ≠ ``all``."""
 
     @classmethod
     def from_query(cls, args: Any) -> ListEmployeesQuery:
         value = args.get("active")
         if value is None:
-            return cls(active=None)
-        return cls(active=value.lower() in ("true", "1", "yes"))
+            active = None
+        else:
+            active = value.lower() in ("true", "1", "yes")
+
+        workday_context = parse_list_workday_param(args.get("workday"))
+
+        shift_raw = args.get("shift")
+        shift: str | None = None
+        if (
+            shift_raw is not None
+            and str(shift_raw).strip()
+            and workday_context.filter_workday is not None
+        ):
+            valid, err = verify_part_time_shift(str(shift_raw).strip())
+            if not valid:
+                raise APIError(err or "INVALID_PART_TIME_SHIFT", 400)
+            shift = PartTimeShift(str(shift_raw).strip().lower()).value
+
+        return cls(
+            active=active,
+            workday_context=workday_context,
+            shift=shift,
+        )
 
 
 # ---------------------------------------------------------------------
@@ -297,11 +390,26 @@ class EmployeeResponse:
     created_at: str | None
     updated_at: str | None
     full_time: bool
+    workday: str | None
+    shift: str | None
     auth_group: str | None = None
 
     @classmethod
-    def from_orm(cls, emp: Employee, company_name: str | None, auth_group: str | None = None) -> EmployeeResponse: # fmt: skip
-        """Map Employee ORM (+ optional auth_group) to wire shape."""
+    def from_orm(
+        cls,
+        emp: Employee,
+        company_name: str | None,
+        auth_group: str | None = None,
+        *,
+        workday_context: ListWorkdayContext | None = None,
+    ) -> EmployeeResponse:
+        """Map Employee ORM (+ optional auth_group) to API response shape."""
+        ctx = workday_context or parse_list_workday_param("today")
+        workday, shift = employee_context_workday_and_shift(
+            emp,
+            lookup_workday=ctx.lookup_workday,
+            response_label=ctx.response_label,
+        )
         return cls(
             id=emp.id,
             first_name=emp.first_name,
@@ -316,6 +424,8 @@ class EmployeeResponse:
             created_at=emp.created_at.isoformat() if emp.created_at else None,
             updated_at=emp.updated_at.isoformat() if emp.updated_at else None,
             full_time=employee_is_full_time(emp),
+            workday=workday,
+            shift=shift,
             auth_group=auth_group,
         )
 
@@ -335,6 +445,8 @@ class EmployeeResponse:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "full_time": self.full_time,
+            "workday": self.workday,
+            "shift": self.shift,
         }
         if self.auth_group is not None:
             result["auth_group"] = self.auth_group

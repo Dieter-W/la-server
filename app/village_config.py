@@ -13,6 +13,10 @@ from pathlib import Path
 
 from app.errors import APIError
 
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+_DEFAULT_CAMP_TIMEZONE = "Europe/Berlin"
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------
@@ -95,3 +99,36 @@ def get_hourly_pay_increase() -> int:
             if increase is not None:
                 return int(increase)
     return 0
+
+
+def get_camp_timezone() -> ZoneInfo:
+    """Return ``general.timezone`` from village.ini as a ``ZoneInfo``.
+
+    If the key is missing, empty, or not a valid IANA identifier, falls back to
+    ``Europe/Berlin`` and logs a warning (keeps dev/test working when INI is minimal).
+    """
+    tz_name: str | None = None
+    village_data = load_village_data()
+    if village_data:
+        general = village_data.get("general")
+        if isinstance(general, dict):
+            raw = general.get("timezone")
+            if raw is not None and str(raw).strip():
+                tz_name = str(raw).strip()
+
+    if tz_name is None:
+        logger.warning(
+            "Missing or empty general.timezone in village.ini; using %s",
+            _DEFAULT_CAMP_TIMEZONE,
+        )
+        return ZoneInfo(_DEFAULT_CAMP_TIMEZONE)
+
+    try:
+        return ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        logger.warning(
+            "Invalid general.timezone %r in village.ini; using %s",
+            tz_name,
+            _DEFAULT_CAMP_TIMEZONE,
+        )
+        return ZoneInfo(_DEFAULT_CAMP_TIMEZONE)
