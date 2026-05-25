@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from sqlalchemy import and_, distinct, func, select
+from sqlalchemy import and_, distinct, exists, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.models import Company, Employee, JobAssignment, PartTime
 from app.repositories.base import BaseRepository
+from app.schemas.employee import (
+    ALL_WEEK_WORKDAY,
+    WEEKDAYS_WORKDAY,
+    is_weekdays_calendar_day,
+)
 
 
 class EmployeeRepository(BaseRepository[Employee]):
@@ -62,10 +67,52 @@ class EmployeeRepository(BaseRepository[Employee]):
         elif active is False:
             stmt = stmt.where(Employee.active.is_(False))
         if workday_filter is not None:
-            part_time_predicates = [PartTime.workday == workday_filter]
-            if shift is not None:
-                part_time_predicates.append(PartTime.shift == shift)
-            stmt = stmt.where(Employee.part_times.any(and_(*part_time_predicates)))
+            # Keep list/count SQL aligned with ``resolve_part_time_slot`` (app/schemas/employee.py):
+            # direct calendar row > ``weekdays`` fallback (Mon–Fri, no calendar override) >
+            # ``all-week`` fallback (no calendar override; on Mon–Fri also no ``weekdays`` row).
+            # ``is_weekdays_calendar_day`` gates the weekdays branch — same helper as slot resolution.
+            shift_predicates = [PartTime.shift == shift] if shift is not None else []
+
+            direct = Employee.part_times.any(
+                and_(PartTime.workday == workday_filter, *shift_predicates)
+            )
+
+            calendar_override = (
+                select(PartTime.id)
+                .where(
+                    PartTime.employee_id == Employee.id,
+                    PartTime.workday == workday_filter,
+                )
+                .correlate(Employee)
+            )
+            no_calendar_override = ~exists(calendar_override)
+
+            weekdays_preds = [PartTime.workday == WEEKDAYS_WORKDAY, *shift_predicates]
+            weekdays_fallback = and_(
+                is_weekdays_calendar_day(workday_filter),
+                Employee.part_times.any(and_(*weekdays_preds)),
+                no_calendar_override,
+            )
+
+            weekdays_override = (
+                select(PartTime.id)
+                .where(
+                    PartTime.employee_id == Employee.id,
+                    PartTime.workday == WEEKDAYS_WORKDAY,
+                )
+                .correlate(Employee)
+            )
+            all_week_preds = [PartTime.workday == ALL_WEEK_WORKDAY, *shift_predicates]
+            all_week_fallback = and_(
+                Employee.part_times.any(and_(*all_week_preds)),
+                no_calendar_override,
+                or_(
+                    not is_weekdays_calendar_day(workday_filter),
+                    ~exists(weekdays_override),
+                ),
+            )
+
+            stmt = stmt.where(or_(direct, weekdays_fallback, all_week_fallback))
         return stmt
 
     # ---------------------------------------------------------------------

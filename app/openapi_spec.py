@@ -3,6 +3,12 @@
 import tomllib
 from pathlib import Path
 
+from app.schemas.employee import (
+    PART_TIME_API_WORKDAY_LABELS,
+    PART_TIME_CALENDAR_WORKDAYS,
+    PART_TIME_STORED_WORKDAYS,
+)
+
 # ---------------------------------------------------------------------
 # Project version
 # ---------------------------------------------------------------------
@@ -155,26 +161,19 @@ def build_openapi_dict() -> dict:
             "schema": {
                 "type": "string",
                 "default": "all",
-                "enum": [
-                    "all",
-                    "today",
-                    "monday",
-                    "tuesday",
-                    "wednesday",
-                    "thursday",
-                    "friday",
-                    "saturday",
-                    "sunday",
-                ],
+                "enum": ["all", "today", *PART_TIME_CALENDAR_WORKDAYS],
             },
             "description": (
                 "Part-time list filter and response context (default **`all`**). "
+                "Calendar slugs and query-only **`all`** / **`today`** only — aggregate stored slugs "
+                "**`weekdays`** and **`all-week`** are **not** valid here (→ `400` **`INVALID_PART_TIME_WORKDAY`**). "
                 "**`all`**: no part-time filter; each row's **`workday`** / **`shift`** describe the slot for "
                 "**calendar today** in the camp timezone (`general.timezone` in **`village.ini`**, echoed as "
-                "**`la-server.camp_timezone`**). **`today`**: only participants with a **`part_times`** row for "
+                "**`la-server.camp_timezone`**). **`today`**: only participants with a matching part-time slot for "
                 "today's weekday in that timezone; row labels use **`today`**. "
-                "A weekday slug (**`monday`** … **`sunday`**): filter to that day and label rows with that slug. "
-                "Invalid values → `400` **`INVALID_PART_TIME_WORKDAY`**."
+                "A weekday slug (**`monday`** … **`sunday`**): filter to that calendar day (including aggregate "
+                "fallback rules) and label rows with that slug. "
+                "See [developer-guide.md](docs/developer-guide.md#aggregate-part-time-patterns)."
             ),
         },
         {
@@ -981,15 +980,20 @@ def build_openapi_dict() -> dict:
                         "workday": {
                             "type": "string",
                             "nullable": True,
+                            "enum": [*PART_TIME_API_WORKDAY_LABELS, None],
                             "description": (
-                                "Contextual part-time weekday label for the response. "
+                                "Contextual part-time weekday label for the response — never a stored aggregate "
+                                "slug (**`weekdays`**, **`all-week`**). "
                                 "**List** (`GET /api/employees`): depends on the **`workday`** query — with default "
                                 "**`all`**, calendar **today** in **`la-server.camp_timezone`** → **`today`** when a "
                                 "matching slot exists; with **`workday=tuesday`**, **`tuesday`** when a slot exists. "
                                 "**Single** (`GET /api/employees/{employee_number}`) and **`GET /api/auth/me`**: "
                                 "calendar today in camp timezone → **`today`** when a slot exists (ignores list query). "
                                 "**`null`** when the participant is full-time or has no "
-                                "`part_times` row for the context weekday."
+                                "`part_times` row for the context weekday. "
+                                "Aggregate patterns are listed under **`la-server.part_time_workdays`** for storage "
+                                "only; see [developer-guide.md](docs/developer-guide.md#aggregate-part-time-patterns) "
+                                "and [database_design.md](docs/database_design.md#aggregate-workdays-weekdays-all-week)."
                             ),
                             "example": "today",
                         },
@@ -1100,8 +1104,21 @@ def build_openapi_dict() -> dict:
                         },
                         "part_time_workdays": {
                             "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Allowed `part_times.workday` values.",
+                            "items": {
+                                "type": "string",
+                                "enum": PART_TIME_STORED_WORKDAYS,
+                            },
+                            "description": (
+                                "Allowed stored `part_times.workday` values: calendar days "
+                                "**`monday`** … **`sunday`**, plus aggregate patterns **`weekdays`** (Mon–Fri) "
+                                "and **`all-week`** (Mon–Sun). Storage and data entry only — employee list "
+                                "**`?workday=`** filters and response **`workday`** labels never use aggregate "
+                                "slugs. Full precedence and pairing rules: "
+                                "[developer-guide.md](docs/developer-guide.md#aggregate-part-time-patterns) "
+                                "(data entry, before/after examples) and "
+                                "[database_design.md](docs/database_design.md#aggregate-workdays-weekdays-all-week) "
+                                "(precedence)."
+                            ),
                         },
                         "validate_employee_number_checksum": {
                             "type": "boolean",

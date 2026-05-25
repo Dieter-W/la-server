@@ -9,7 +9,7 @@ from pathlib import Path
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
 from app.auth.utils import AUTH_GROUPS
-from app.schemas.employee import PART_TIME_SHIFTS, PART_TIME_WORKDAYS
+from app.schemas.employee import PART_TIME_SHIFTS, PART_TIME_STORED_WORKDAYS
 from app.errors import APIError
 from app.village_config import _DATA_DIR, load_village_data
 
@@ -43,7 +43,13 @@ def _if_none_match_includes_etag(header_value: str | None, etag: str | None) -> 
 
 
 def _build_la_server_block() -> dict:
-    """Runtime-only metadata for API clients (not sourced from village.ini)."""
+    """Runtime-only metadata for API clients (not sourced from village.ini).
+
+    ``part_time_workdays`` lists stored ``part_times.workday`` slugs (calendar days plus
+    aggregate ``weekdays`` / ``all-week``). Those aggregates are for data entry and DB
+    storage only — employee list ``?workday=`` filters and response ``workday`` labels
+    never use them (OpenAPI and developer guide describe the split).
+    """
     cfg = current_app.config
     validate = bool(cfg.get("VALIDATE_CHECK_SUM", True))
     access_td = cfg.get("JWT_ACCESS_TOKEN_EXPIRES") or timedelta(minutes=15)
@@ -51,7 +57,7 @@ def _build_la_server_block() -> dict:
     return {
         "auth_groups": list(AUTH_GROUPS),
         "part_time_shifts": list(PART_TIME_SHIFTS),
-        "part_time_workdays": list(PART_TIME_WORKDAYS),
+        "part_time_workdays": list(PART_TIME_STORED_WORKDAYS),
         "validate_employee_number_checksum": validate,
         "employee_number_checksum_algorithm": (
             "ISO_7064_MOD_97_10" if validate else None

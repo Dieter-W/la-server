@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 from app.auth.utils import verify_access_group
 from app.errors import APIError
-from app.models import Employee
+from app.models import Employee, PartTime
 from app.schemas import _UNSET
 from app.utils import validate_employee_number
 from app.village_config import get_camp_timezone
@@ -28,7 +28,7 @@ class PartTimeShift(StrEnum):
 
 
 class PartTimeWorkday(StrEnum):
-    """Weekday for a part-time record."""
+    """Stored workday slug for a part-time record (calendar day or aggregate)."""
 
     MONDAY = "monday"
     TUESDAY = "tuesday"
@@ -37,10 +37,36 @@ class PartTimeWorkday(StrEnum):
     FRIDAY = "friday"
     SATURDAY = "saturday"
     SUNDAY = "sunday"
+    WEEKDAYS = "weekdays"
+    ALL_WEEK = "all-week"
 
 
+WEEKDAYS_WORKDAY = PartTimeWorkday.WEEKDAYS.value
+ALL_WEEK_WORKDAY = PartTimeWorkday.ALL_WEEK.value
+
+_PART_TIME_AGGREGATE_WORKDAYS = frozenset(
+    {PartTimeWorkday.WEEKDAYS, PartTimeWorkday.ALL_WEEK}
+)
+PART_TIME_AGGREGATE_STORED_SLUGS = frozenset(
+    {PartTimeWorkday.WEEKDAYS.value, PartTimeWorkday.ALL_WEEK.value}
+)
+PART_TIME_CALENDAR_WORKDAYS = [
+    d.value for d in PartTimeWorkday if d not in _PART_TIME_AGGREGATE_WORKDAYS
+]
+PART_TIME_API_WORKDAY_LABELS = ["today", *PART_TIME_CALENDAR_WORKDAYS]
+# Mon–Fri subset; shared by ``is_weekdays_calendar_day``, slot resolution, and list SQL.
+WEEKDAYS_CALENDAR_WORKDAYS = PART_TIME_CALENDAR_WORKDAYS[:5]
+PART_TIME_STORED_WORKDAYS = [d.value for d in PartTimeWorkday]
 PART_TIME_SHIFTS = [s.value for s in PartTimeShift]
-PART_TIME_WORKDAYS = [d.value for d in PartTimeWorkday]
+
+
+def is_weekdays_calendar_day(day: str) -> bool:
+    """True when ``day`` is Monday through Friday (calendar slug only).
+
+    Used by ``resolve_part_time_slot`` and ``EmployeeRepository._apply_list_filters``
+    so aggregate ``weekdays`` rows never match Saturday or Sunday.
+    """
+    return day.strip().lower() in WEEKDAYS_CALENDAR_WORKDAYS
 
 
 def verify_part_time_shift(shift: str) -> tuple[bool, str | None]:
@@ -52,11 +78,51 @@ def verify_part_time_shift(shift: str) -> tuple[bool, str | None]:
 
 
 def verify_part_time_workday(workday: str) -> tuple[bool, str | None]:
-    """Verify if the part-time workday is valid (case-insensitive)."""
-    if workday.strip().lower() not in PART_TIME_WORKDAYS:
+    """Verify calendar workday for list queries (case-insensitive; no aggregates)."""
+    if workday.strip().lower() not in PART_TIME_CALENDAR_WORKDAYS:
         return False, "INVALID_PART_TIME_WORKDAY"
 
     return True, None
+
+
+def verify_part_time_stored_workday(workday: str) -> tuple[bool, str | None]:
+    """Verify stored workday slug including aggregate patterns (case-insensitive)."""
+    if workday.strip().lower() not in PART_TIME_STORED_WORKDAYS:
+        return False, "INVALID_PART_TIME_WORKDAY"
+
+    return True, None
+
+
+def validate_part_time_combination(workday: str, shift: str) -> tuple[bool, str | None]:
+    """Reject aggregate workday paired with ``all-day`` (full-time = zero rows).
+
+    Returns ``(False, "INVALID_PART_TIME_COMBINATION")`` for ``weekdays``/``all-week`` + ``all-day``.
+    """
+    w = workday.strip().lower()
+    s = shift.strip().lower()
+    if w in (WEEKDAYS_WORKDAY, ALL_WEEK_WORKDAY) and s == PartTimeShift.ALL_DAY.value:
+        return False, "INVALID_PART_TIME_COMBINATION"
+    return True, None
+
+
+def resolve_part_time_slot(
+    part_times: list[PartTime],
+    lookup_workday: str,
+) -> PartTime | None:
+    """Resolve the effective part-time row for a calendar day (precedence: day > weekdays > all-week)."""
+    specific = weekdays_row = all_week_row = None
+    for pt in part_times:
+        if pt.workday == lookup_workday:
+            specific = pt
+        elif pt.workday == WEEKDAYS_WORKDAY:
+            weekdays_row = pt
+        elif pt.workday == ALL_WEEK_WORKDAY:
+            all_week_row = pt
+    if specific is not None:
+        return specific
+    if weekdays_row is not None and is_weekdays_calendar_day(lookup_workday):
+        return weekdays_row
+    return all_week_row
 
 
 # ---------------------------------------------------------------------
@@ -127,8 +193,9 @@ def camp_day(*, now: datetime | None = None, tz: ZoneInfo | None = None) -> str:
         instant = now.replace(tzinfo=tz)
     else:
         instant = now.astimezone(tz)
-    # ``PART_TIME_WORKDAYS`` order matches ``datetime.weekday()`` (0 = Monday).
-    return PART_TIME_WORKDAYS[instant.weekday()]
+    # Must not include aggregate stored slugs.
+    # ``PART_TIME_CALENDAR_WORKDAYS`` order matches ``datetime.weekday()`` (0 = Monday).
+    return PART_TIME_CALENDAR_WORKDAYS[instant.weekday()]
 
 
 def parse_list_workday_param(
@@ -152,6 +219,20 @@ def parse_list_workday_param(
     return ListWorkdayContext(raw, raw, raw)
 
 
+def project_api_workday_label(label: str | None) -> str | None:
+    """Employee JSON ``workday``: contextual labels only — never aggregate stored slugs."""
+    if label is None:
+        return None
+    normalized = label.strip().lower()
+    if normalized in PART_TIME_AGGREGATE_STORED_SLUGS:
+        return None
+    if normalized == "today":
+        return "today"
+    if normalized in PART_TIME_CALENDAR_WORKDAYS:
+        return normalized
+    return None
+
+
 def employee_context_workday_and_shift(
     emp: Employee,
     *,
@@ -162,12 +243,13 @@ def employee_context_workday_and_shift(
 
     Returns ``(response_label, shift)`` when a ``part_times`` row exists for
     ``lookup_workday``; otherwise ``(None, None)``. Full-time employees always get ``(None, None)``.
+    The ``workday`` label is never a stored aggregate slug (``weekdays``, ``all-week``).
     """
     if employee_is_full_time(emp):
         return None, None
-    for pt in emp.part_times:
-        if pt.workday == lookup_workday:
-            return response_label, pt.shift
+    pt = resolve_part_time_slot(emp.part_times, lookup_workday)
+    if pt is not None:
+        return project_api_workday_label(response_label), pt.shift
     return None, None
 
 

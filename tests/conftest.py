@@ -15,7 +15,7 @@ from sqlalchemy.pool import NullPool
 
 from app import create_app
 from app.database import db
-from app.models import Authentication, Company, Employee, JobAssignment
+from app.models import Authentication, Company, Employee, JobAssignment, PartTime
 from app.auth.utils import hash_password
 
 from app.config import Config
@@ -264,6 +264,48 @@ def sample_employee(
         session.commit()
 
         yield employee
+
+        session.close()
+
+
+@pytest.fixture()
+def sample_employee_part_time(
+    app,
+):
+    """Add 2 part-time employees for testing"""
+    with app.app_context():
+        session = app.SessionLocal()
+
+        part_time_employee = PartTime(
+            employee_id=3,  # A00265
+            workday="monday",
+            shift="morning",
+        )
+        session.add(part_time_employee)
+
+        part_time_employee = PartTime(
+            employee_id=3,  # A00265
+            workday="tuesday",
+            shift="afternoon",
+        )
+        session.add(part_time_employee)
+
+        part_time_employee = PartTime(
+            employee_id=4,  # P00370
+            workday="wednesday",
+            shift="all-day",
+        )
+        session.add(part_time_employee)
+
+        part_time_employee = PartTime(
+            employee_id=4,  # P00370
+            workday="thursday",
+        )
+        session.add(part_time_employee)
+
+        session.commit()
+
+        yield part_time_employee
 
         session.close()
 
