@@ -3,7 +3,7 @@
 from unittest.mock import patch
 
 from app.auth.utils import AUTH_GROUPS
-from app.schemas.employee import PART_TIME_SHIFTS, PART_TIME_STORED_WORKDAYS
+from app.schemas.part_time import PART_TIME_SHIFTS, PART_TIME_STORED_WORKDAYS
 from app.routes import village_data as village_data_module
 
 
@@ -11,6 +11,7 @@ from app.routes import village_data as village_data_module
 # Village data - Get JSON API
 # ---------------------------------------------------------------------
 def test_village_data_get_ok(client):
+    """GET /api/village-data returns 200 with general, currency, village-images, and ETag."""
     response = client.get("/api/village-data")
     if response.status_code != 200:
         print(response.text)
@@ -25,6 +26,7 @@ def test_village_data_get_ok(client):
 
 
 def test_village_data_get_ok_etag(client):
+    """If-None-Match with current ETag returns 304 and an empty body."""
     response1 = client.get("/api/village-data")
     if response1.status_code != 200:
         print(response1.text)
@@ -38,6 +40,7 @@ def test_village_data_get_ok_etag(client):
 
 
 def test_village_data_get_ok_la_server(client):
+    """Response la-server block exposes auth groups, part-time enums, checksum flag, and JWT TTLs."""
     response = client.get("/api/village-data")
     if response.status_code != 200:
         print(response.text)
@@ -72,6 +75,7 @@ def test_village_data_get_ok_la_server(client):
 
 
 def test_village_data_get_ok_server_config_changes(client, app):
+    """Changing server config updates ETag; a stale If-None-Match returns fresh 200 JSON."""
     response1 = client.get("/api/village-data")
     assert response1.status_code == 200
     etag_before = response1.headers["ETag"]
@@ -92,6 +96,7 @@ def test_village_data_get_ok_server_config_changes(client, app):
 
 
 def test_village_data_get_ok_ini_file_changes(client):
+    """la-server fields are injected by the server, not copied from INI la-server keys."""
     fake_ini = {
         "general": {"name": "X"},
         "la-server": {"should_not_appear": "ini-mistake"},
@@ -110,6 +115,7 @@ def test_village_data_get_ok_ini_file_changes(client):
 # Village data - Get logo API
 # ---------------------------------------------------------------------
 def test_village_get_logo_ok(client):
+    """GET /api/village-data/logo returns 200 image bytes and an ETag."""
     response = client.get("/api/village-data/logo")
     if response.status_code != 200:
         print(response.text)
@@ -120,6 +126,7 @@ def test_village_get_logo_ok(client):
 
 
 def test_village_get_logo_ok_etag(client):
+    """If-None-Match with current logo ETag returns 304 and an empty body."""
     response1 = client.get("/api/village-data/logo")
     if response1.status_code != 200:
         print(response1.text)
@@ -135,6 +142,7 @@ def test_village_get_logo_ok_etag(client):
 
 
 def test_village_get_logo_error_1(client):
+    """Missing logo configuration returns 404 VILLAGE_LOGO_NOT_CONFIGURED."""
     with patch.object(
         village_data_module,
         "load_village_data",
@@ -151,6 +159,7 @@ def test_village_get_logo_error_1(client):
 # Village data - Get favicon API
 # ---------------------------------------------------------------------
 def test_village_get_favicon_ok(client):
+    """GET /api/village-data/favicon returns 200 image bytes and an ETag."""
     response = client.get("/api/village-data/favicon")
     if response.status_code != 200:
         print(response.text)
@@ -161,6 +170,7 @@ def test_village_get_favicon_ok(client):
 
 
 def test_village_get_favicon_ok_etag(client):
+    """If-None-Match with current favicon ETag returns 304 and an empty body."""
     response1 = client.get("/api/village-data/favicon")
     if response1.status_code != 200:
         print(response1.text)
@@ -176,6 +186,7 @@ def test_village_get_favicon_ok_etag(client):
 
 
 def test_village_get_favicon_error_1(client):
+    """Missing favicon configuration returns 404 VILLAGE_FAVICON_NOT_CONFIGURED."""
     with patch.object(
         village_data_module,
         "load_village_data",

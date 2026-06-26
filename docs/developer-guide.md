@@ -126,7 +126,7 @@ curl -s http://localhost:5000/api/auth/me \
 - Database constraint issues may return `**409`** with `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` (duplicate / unique violation) or `{"error": "CONSTRAINT_VIOLATION", "message": "Delete failed, because related entries in JobAssignment table"}` (delete blocked by related rows), as implemented in [`app/errors.py`](../app/errors.py).
 - Uncaught DB errors: `**500**` with `DATABASE_ERROR`. Unhandled exceptions: `**500**` with `INTERNAL_SERVER_ERROR`, per [`app/errors.py`](../app/errors.py). For both, a **`message`** field is included in the JSON **only when** server **`DEBUG`** is enabled (otherwise the body is just `{"error": "<CODE>"}`).
 
-**Common error codes** include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `INVALID_AGE_IN_JSON`, `INVALID_JSON_BOOLEAN_IN_JSON`, `INVALID_PART_TIME_WORKDAY`, `INVALID_PART_TIME_SHIFT`, `INVALID_PART_TIME_COMBINATION`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, `BAD_CREDENTIALS`, `FORBIDDEN_WRONG_AUTH_GROUP`, `OLD_PASSWORD_IS_INCORRECT`, `AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`, and variants with `_IN_JSON` where applicable.
+**Common error codes** include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `INVALID_AGE_IN_JSON`, `INVALID_JSON_BOOLEAN_IN_JSON`, `INVALID_PART_TIME_WORKDAY`, `INVALID_PART_TIME_SHIFT`, `INVALID_PART_TIME_COMBINATION`, `PART_TIME_NOT_FOUND`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, `BAD_CREDENTIALS`, `FORBIDDEN_WRONG_AUTH_GROUP`, `OLD_PASSWORD_IS_INCORRECT`, `AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`, and variants with `_IN_JSON` where applicable.
 
 JWT responses from Flask-JWT-Extended include a `message` next to `error` where applicable; see [`app/__init__.py`](../app/__init__.py). **HTTP mapping:** missing `Authorization` / Bearer → **`401`** `AUTHORIZATION_REQUIRED`; expired JWT → **`401`** `EXPIRED_TOKEN`; malformed or invalid Bearer / wrong token type for the loader → **`422`** `INVALID_TOKEN`.
 
@@ -173,6 +173,11 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | POST   | `/api/employees`                               | Create employee                             | admin required                   |
 | PUT    | `/api/employees/<employee_number>`             | Update employee                             | admin required                   |
 | DELETE | `/api/employees/<employee_number>`             | Soft or hard delete employee                | admin required                   |
+| GET    | `/api/part-time/<employee_number>`             | List stored part-time rows                  | public                           |
+| POST   | `/api/part-time/<employee_number>`             | Create part-time row                        | admin required                   |
+| PUT    | `/api/part-time/<employee_number>`             | Update part-time row                        | admin required                   |
+| DELETE | `/api/part-time/<employee_number>`             | Delete all part-time rows                   | admin required                   |
+| DELETE | `/api/part-time/<employee_number>?workday=`    | Delete one part-time row                    | admin required                   |
 | GET    | `/api/job-assignments`                         | List job assignments                        | public                           |
 | POST   | `/api/job-assignments`                         | Create job assignment                       | employee or higher               |
 | DELETE | `/api/job-assignments/<job_assignment_number>` | Remove assignment by assignment number      | employee or higher               |
@@ -1110,6 +1115,8 @@ In domain language, each row is a **camp participant** (child or staff). The API
 
 Employee list, get-one, and **`GET /api/auth/me`** responses include **`full_time`**, **`workday`**, and **`shift`**. These are **derived** from optional **`part_times`** database rows (see [database_design.md](./database_design.md#part_times)), not separate columns on the employee.
 
+**Two APIs, two jobs:** use **`GET /api/employees`** (and filters) for rosters, kiosk display, and “who works today?” — responses show contextual labels such as **`today`**. Use **`/api/part-time/{employee_number}`** for **admin maintenance** of stored rows (`workday`, `shift`, `notes` as persisted, including aggregate slugs). Do **not** write part-time data via employee POST/PUT. See [Part-time API](#part-time-api).
+
 **Camp timezone:** **`general.timezone`** in **`village_data/village.ini`** (IANA name, e.g. `Europe/Berlin`) defines which calendar day is **“today”** for the camp. The server reads it via **`get_camp_timezone()`** ([`app/village_config.py`](../app/village_config.py)); missing or invalid values fall back to **`Europe/Berlin`**. The same key appears under **`general`** in **`GET /api/village-data`**.
 
 **Response labels** (full-time participants, or when a matching part-time slot exists for the context weekday):
@@ -1177,9 +1184,9 @@ When someone works the **same shift on many days**, you can store **one aggregat
 { "workday": "all-week", "shift": "all-day" }
 ```
 
-That combination is **invalid**. Aggregate slugs (**`weekdays`**, **`all-week`**) may pair only with **`morning`** or **`afternoon`**. The same applies to **`weekdays`** + **`all-day`**. When a future write API or import script validates rows, it returns **`400`** with **`INVALID_PART_TIME_COMBINATION`**. To restore full-time, **delete all** part-time rows for that employee — do not substitute an aggregate **`all-day`** row.
+That combination is **invalid**. Aggregate slugs (**`weekdays`**, **`all-week`**) may pair only with **`morning`** or **`afternoon`**. The same applies to **`weekdays`** + **`all-day`**. **`POST`** / **`PUT /api/part-time/{employee_number}`** return **`400`** with **`INVALID_PART_TIME_COMBINATION`**. To restore full-time, **delete all** part-time rows for that employee via **`DELETE /api/part-time/{employee_number}`** — do not substitute an aggregate **`all-day`** row.
 
-See [database_design.md — rule 7](./database_design.md#part-time-design-decisions) and [`validate_part_time_combination()`](../app/schemas/employee.py).
+See [database_design.md — rule 7](./database_design.md#part-time-design-decisions) and [`validate_part_time_combination()`](../app/schemas/part_time.py).
 
 **Does not apply on Saturday/Sunday:** a stored **`weekdays`** row never supplies a slot on Saturday or Sunday. On those days the employee JSON shows **`workday`: null** and **`shift`: null** unless they also have a calendar row for that day or an **`all-week`** row. List filters **`?workday=saturday`** and **`?workday=sunday`** **exclude** participants who only have a **`weekdays`** row; **`?workday=friday`** **includes** them.
 
@@ -1634,6 +1641,294 @@ None.
 | 404  | Error: `{"error": "EMPLOYEE_NOT_FOUND"}` |
 | 409  | Error: `{"error": "CONSTRAINT_VIOLATION", "message": "Delete failed, because related entries in JobAssignment table"}` |
 
+
+---
+
+<a id="part-time-api"></a>
+
+## Part-time API
+
+Admin CRUD on stored **`part_times`** rows at **`/api/part-time/{employee_number}`**. Normal camp processing (employee lists, kiosk, **`GET /api/auth/me`**) continues to use **`/api/employees`** for derived **`full_time`**, **`workday`**, and **`shift`** — see [Part-time context on employee responses](#part-time-context-on-employee-responses) and [Aggregate part-time patterns](#aggregate-part-time-patterns).
+
+| Need | Call |
+| ---- | ---- |
+| Who works today? / roster / shift display | **`GET /api/employees`** (derived fields) |
+| What rows are stored for editing? | **`GET /api/part-time/{employee_number}`** |
+| Admin edit schedule | **`POST`** / **`PUT`** / **`DELETE /api/part-time/{employee_number}`** |
+
+**Full-time everywhere** = **delete all** part-time rows (`DELETE /api/part-time/{employee_number}` with no query), not `{ "workday": "all-week", "shift": "all-day" }`.
+
+Every route validates path **`employee_number`** before database access (same rules as the Employee API): invalid format/checksum → **`400`** **`EMPLOYEE_NUMBER_WRONG`**; valid number but no employee row → **`404`** **`EMPLOYEE_NOT_FOUND`**.
+
+**Write validation** (POST, PUT, and DELETE-one **`?workday=`**):
+
+1. **`verify_part_time_stored_workday`** → **`400`** **`INVALID_PART_TIME_WORKDAY`**
+2. **`verify_part_time_shift`** → **`400`** **`INVALID_PART_TIME_SHIFT`**
+3. **`validate_part_time_combination`** → **`400`** **`INVALID_PART_TIME_COMBINATION`**
+
+Allowed stored **`workday`** values (including aggregates) are listed under **`la-server.part_time_workdays`** on **`GET /api/village-data`**.
+
+### List stored part-time rows - /api/part-time/<employee_number>
+
+**Explanation**
+Returns **stored** slugs for one employee — not contextual **`today`**. Rows are ordered by **`PART_TIME_STORED_WORKDAYS`**. Reject any **`?workday=`** query on GET → **`400`** **`INVALID_PART_TIME_WORKDAY`**.
+
+**Parameters** (path)
+
+| Name              | Required | Description   |
+| ----------------- | -------- | ------------- |
+| `employee_number` | Yes      | e.g. `M00252` |
+
+**Endpoint sample**
+
+```http
+GET /api/part-time/M00252 HTTP/1.1
+Host: localhost:5000
+```
+
+```bash
+curl -s "http://localhost:5000/api/part-time/M00252"
+```
+
+**JSON request**
+None.
+
+**JSON response** (example)
+
+```json
+{
+  "employee_number": "M00252",
+  "part_times": [
+    {
+      "id": 1,
+      "workday": "weekdays",
+      "shift": "morning",
+      "notes": null,
+      "created_at": "2026-01-15T10:00:00+00:00",
+      "updated_at": "2026-01-15T10:00:00+00:00"
+    }
+  ],
+  "count": 1
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 400  | `{"error": "EMPLOYEE_NUMBER_WRONG"}` or `{"error": "INVALID_PART_TIME_WORKDAY"}` (spurious `?workday=`) |
+| 404  | `{"error": "EMPLOYEE_NOT_FOUND"}` |
+
+---
+
+### Create part-time row - /api/part-time/<employee_number>
+
+**Explanation**
+Creates one stored row. **`workday`** is required; **`shift`** defaults to **`all-day`**; **`notes`** is optional. Duplicate **`workday`** for the same employee → **`409`** **`CONSTRAINT_VIOLATION`** (enforced by the DB unique constraint `uq_part_times_employee_workday`). **Authorization:** admin required.
+
+**Parameters** (path)
+
+| Name              | Required | Description   |
+| ----------------- | -------- | ------------- |
+| `employee_number` | Yes      | Target employee |
+
+**Endpoint sample**
+
+```http
+POST /api/part-time/M00252 HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X POST "http://localhost:5000/api/part-time/M00252" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"workday":"weekdays","shift":"morning"}'
+```
+
+**JSON request**
+
+| Field     | Required | Description |
+| --------- | -------- | ----------- |
+| `workday` | Yes      | Stored slug (`monday` … `sunday`, `weekdays`, `all-week`) |
+| `shift`   | No       | Default **`all-day`** |
+| `notes`   | No       | Optional free text |
+
+**JSON response** (created row — **`201`**)
+
+```json
+{
+  "id": 3,
+  "workday": "weekdays",
+  "shift": "morning",
+  "notes": null,
+  "created_at": "2026-01-15T10:00:00+00:00",
+  "updated_at": "2026-01-15T10:00:00+00:00"
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 201  | Created |
+| 400  | Validation errors (`INVALID_PART_TIME_WORKDAY`, `INVALID_PART_TIME_SHIFT`, `INVALID_PART_TIME_COMBINATION`, …) |
+| 403  | `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
+| 404  | `{"error": "EMPLOYEE_NOT_FOUND"}` |
+| 409  | `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` |
+
+---
+
+### Update part-time row - /api/part-time/<employee_number>
+
+**Explanation**
+Partial update by stored **`workday`** lookup key (**`workday`** is not renamable). Include **`shift`** and/or **`notes`** to change them. Unknown row → **`404`** **`PART_TIME_NOT_FOUND`**. **Authorization:** admin required.
+
+**Parameters** (path)
+
+| Name              | Required | Description   |
+| ----------------- | -------- | ------------- |
+| `employee_number` | Yes      | Target employee |
+
+**Endpoint sample**
+
+```http
+PUT /api/part-time/M00252 HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X PUT "http://localhost:5000/api/part-time/M00252" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"workday":"tuesday","shift":"morning","notes":"Until noon"}'
+```
+
+**JSON request**
+
+| Field     | Required | Description |
+| --------- | -------- | ----------- |
+| `workday` | Yes      | Lookup key (stored slug) |
+| `shift`   | No       | New shift when present |
+| `notes`   | No       | New notes; send `null` to clear |
+
+**JSON response**
+Same shape as create (**`200`**).
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 400  | Validation errors |
+| 403  | Not admin |
+| 404  | `{"error": "EMPLOYEE_NOT_FOUND"}` or `{"error": "PART_TIME_NOT_FOUND"}` |
+
+---
+
+### Delete all part-time rows - /api/part-time/<employee_number>
+
+**Explanation**
+Removes every stored row for the employee (idempotent when already empty). Restores full-time: **`GET /api/employees/{employee_number}`** then shows **`full_time`: true**, **`workday`: `"today"`**, **`shift`: `"all-day"`** (when calendar today applies). **Authorization:** admin required. When **`?workday=`** is present, see [Delete one part-time row](#delete-one-part-time-row---apipart-timeemployee_numberworkday).
+
+**Parameters** (path)
+
+| Name              | Required | Description   |
+| ----------------- | -------- | ------------- |
+| `employee_number` | Yes      | Target employee |
+
+**Endpoint sample**
+
+```http
+DELETE /api/part-time/M00252 HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X DELETE "http://localhost:5000/api/part-time/M00252" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**JSON request**
+None.
+
+**JSON response**
+
+```json
+{
+  "message": "part-time rows deleted",
+  "count": 2
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 400  | `{"error": "EMPLOYEE_NUMBER_WRONG"}` |
+| 403  | Not admin |
+| 404  | `{"error": "EMPLOYEE_NOT_FOUND"}` |
+
+---
+
+<a id="delete-one-part-time-row---apipart-timeemployee_numberworkday"></a>
+
+### Delete one part-time row - /api/part-time/<employee_number>?workday=
+
+**Explanation**
+Deletes the row for one stored **`workday`** slug. Unknown row → **`404`** **`PART_TIME_NOT_FOUND`**. **Authorization:** admin required.
+
+**Parameters** (path)
+
+| Name              | Required | Description   |
+| ----------------- | -------- | ------------- |
+| `employee_number` | Yes      | Target employee |
+
+**Parameters** (query)
+
+| Name      | Required | Description |
+| --------- | -------- | ----------- |
+| `workday` | Yes      | Stored slug to delete |
+
+**Endpoint sample**
+
+```http
+DELETE /api/part-time/M00252?workday=weekdays HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X DELETE "http://localhost:5000/api/part-time/M00252?workday=weekdays" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**JSON request**
+None.
+
+**JSON response**
+
+```json
+{
+  "message": "part-time row deleted"
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 400  | `{"error": "INVALID_PART_TIME_WORKDAY"}` |
+| 403  | Not admin |
+| 404  | `{"error": "EMPLOYEE_NOT_FOUND"}` or `{"error": "PART_TIME_NOT_FOUND"}` |
 
 ---
 
@@ -2125,6 +2420,18 @@ Create **`.env`** with **`.\scripts\setup.ps1 -Mode init-env`** or **`./scripts/
 ## Spielstadt assets (`village_data/`)
 
 Client-visible **branding and config** are not stored in MariaDB; they come from **`village_data/village.ini`** and static files under **`village_data/`** (see **Village data** in the [README](../README.md)). After **`init-env`**, adjust **`village.ini`** and images for your environment; the running server reloads from disk when **`village.ini`**’s modification time changes (in-process cache). Set **`general.timezone`** to the camp’s IANA time zone — employee **`workday=today`** and contextual **`workday`** / **`shift`** fields depend on it ([`get_camp_timezone()`](../app/village_config.py), [Part-time context on employee responses](#part-time-context-on-employee-responses) in this guide).
+
+## Load and stress testing
+
+Functional tests in this repository (`poetry run pytest`) check **correctness**, not throughput or concurrency under camp-day load.
+
+Load and stress scenarios live in a **separate repository**, **[`la-loadtest`](../../la-loadtest)** (sibling folder to `la-server`). It uses [Locust](https://locust.io/) to simulate kiosk and staff API traffic against a **staging** LA-Server instance (never production camp data).
+
+Typical workflow:
+
+1. Start staging LA-Server (`DEBUG=false`, default `THREADS=4`).
+2. In `la-loadtest`: copy `.env.example` to `.env`, `poetry install`, run Locust (see [`la-loadtest/README.md`](../../la-loadtest/README.md)).
+3. Optionally poll `GET /api/health/runtime` (admin JWT) during a run — [Runtime diagnostics](#runtime-diagnostics---apihealthruntime) — to watch SQLAlchemy pool and concurrency peaks.
 
 ## Day-to-day commands
 

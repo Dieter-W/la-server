@@ -2,7 +2,7 @@
 
 This document describes the MariaDB schema for the LA-Server. Models live in [`app/models.py`](../app/models.py) (Flask-SQLAlchemy). On startup, [`init_db()`](../app/database.py) imports models and runs `db.create_all()` so the schema matches the code. You can also bootstrap an empty database with [`scripts/create_database.py`](../scripts/create_database.py) (creates the DB if needed and relies on the same `create_all()` path).
 
-There is **no Alembic** (or other automated migration runner) in this repository. **Fresh installs** get the current schema from `create_all()`.
+There is **no Alembic** (or other automated migration runner) in this repository. Deployments always install from scratch: [`scripts/create_database.py`](../scripts/create_database.py) (or app startup via `create_all()`) creates the full schema for an empty database.
 
 **Sign-in and tokens** are handled in the HTTP API ([`app/auth/`](../app/auth/)): passwords are verified against `authentications.password_hash`; successful login issues a **JWT** (not stored in this database). This document only covers **persisted** credential and profile data.
 
@@ -52,6 +52,8 @@ All concrete tables inherit from `BaseModel` (`__abstract__ = True`):
 | `first_name`      | `String(255)`     | `NOT NULL`              |
 | `last_name`       | `String(255)`     | `NOT NULL`              |
 | `employee_number` | `String(16)`      | `NOT NULL`, `UNIQUE`, indexed |
+| `age`             | integer           | `NOT NULL`              |
+| `can_leave_alone` | boolean           | `NOT NULL`, default `true` |
 | `role`            | `String(255)`     | `NOT NULL`              |
 | `active`          | boolean           | `NOT NULL`, default `true` |
 | `notes`           | `Text`            | nullable                |
@@ -117,7 +119,7 @@ Checksum validation for `employee_number` (ISO 7064 Mod 97,10) is **not** enforc
 **ORM:** `PartTime.employee` ↔ `Employee.part_times` (collection; may be empty).
 `Employee.part_times` may be empty. No related rows means the participant is treated as working **full time** on every day (see [design decisions](#part-time-design-decisions)).
 
-**Application values for `workday` (stored):** `monday` … `sunday`, plus aggregate slugs **`weekdays`** (Mon–Fri) and **`all-week`** (Mon–Sun). Enforced in the API; not an enum in the database. See [`app/schemas/employee.py`](../app/schemas/employee.py) (`PartTimeWorkday`, `PART_TIME_STORED_WORKDAYS`, `verify_part_time_stored_workday`). List query filters accept calendar slugs only — see [Aggregate workdays](#aggregate-workdays-weekdays-all-week).
+**Application values for `workday` (stored):** `monday` … `sunday`, plus aggregate slugs **`weekdays`** (Mon–Fri) and **`all-week`** (Mon–Sun). Enforced in the API; not an enum in the database. See [`app/schemas/part_time.py`](../app/schemas/part_time.py) (`PartTimeWorkday`, `PART_TIME_STORED_WORKDAYS`, `verify_part_time_stored_workday`). List query filters accept calendar slugs only — see [Aggregate workdays](#aggregate-workdays-weekdays-all-week).
 
 **Application values for `shift`:** `all-day`, `morning`, and `afternoon` (enforced in the API; not an enum in the database). The same slugs are stored in `part_times.shift`, returned in JSON employee responses, and accepted on list query filters. Clients can read the allowed values from `GET /api/village-data` under `la-server.part_time_workdays` and `la-server.part_time_shifts`.
 
@@ -140,7 +142,7 @@ Two cases are easy to confuse. **Zero rows** means the participant works **full 
    - **`weekdays` or `all-week` + `all-day`** is invalid — aggregates are only for half-day shifts. Full time everywhere = **zero rows** (rule 1), not an aggregate row.
    - Valid stored `workday` values: `monday` … `sunday`, `weekdays`, or `all-week`.
    - List query **`workday=all`** is filter-only and is **never** stored.
-   - **Not enforced on write today:** MariaDB does not reject invalid rows; there is no part-time write API yet. [`validate_part_time_combination()`](../app/schemas/employee.py) and [`verify_part_time_stored_workday()`](../app/schemas/employee.py) exist for future writes/imports and are unit-tested, but nothing in the running server calls them when persisting `part_times`. Staff and scripts must follow rule 7 manually until a write path is added.
+   - **Write enforcement:** **`POST`**, **`PUT`**, and **`DELETE ?workday=`** on **`/api/part-time/{employee_number}`** call [`validate_part_time_combination()`](../app/schemas/part_time.py) and [`verify_part_time_stored_workday()`](../app/schemas/part_time.py) before persisting. Invalid combinations → **`400`** **`INVALID_PART_TIME_COMBINATION`**. MariaDB alone does not reject invalid rows; direct SQL inserts can still bypass the API.
 
 A participant may have **multiple** `part_times` rows (e.g. `weekdays/morning` plus `friday/afternoon`, or three calendar-day rows). The database enforces **at most one row per (`employee_id`, `workday`)** — you cannot store two different shifts for the same stored `workday` key in separate rows; pick `morning`, `afternoon`, or `all-day` (calendar days only) for that key. An employee may hold both a **`weekdays`** row and an **`all-week`** row (different keys); precedence resolves which applies on each calendar day. Days with no matching row after precedence have **no slot** (rule 6). Rule 1 applies only when there are **zero** rows total.
 
@@ -173,11 +175,11 @@ Aggregate slugs replace duplicate calendar-day rows when the same shift repeats 
 | **`weekdays`** | Mon–Fri | “Morning every weekday”; weekends off |
 | **`all-week`** | Mon–Sun | Seven-day camp; same shift every day including Sat/Sun |
 
-**Does not apply on Saturday/Sunday:** a **`weekdays`** row never matches Saturday or Sunday — enforced by [`is_weekdays_calendar_day()`](../app/schemas/employee.py) in slot resolution and list SQL. On those days, only a **calendar-day row** for that day or an **`all-week`** row can supply a slot.
+**Does not apply on Saturday/Sunday:** a **`weekdays`** row never matches Saturday or Sunday — enforced by [`is_weekdays_calendar_day()`](../app/schemas/part_time.py) in slot resolution and list SQL. On those days, only a **calendar-day row** for that day or an **`all-week`** row can supply a slot.
 
 #### Shift pairing (rule 7)
 
-Aggregate rows pair only with **`morning`** or **`afternoon`**. **`weekdays`/`all-week` + `all-day`** is **invalid** by design (rule 7). A future write API or import should call [`validate_part_time_combination()`](../app/schemas/employee.py) and return **`INVALID_PART_TIME_COMBINATION`**; **today there is no such write path**, so invalid rows could still be inserted directly into the database.
+Aggregate rows pair only with **`morning`** or **`afternoon`**. **`weekdays`/`all-week` + `all-day`** is **invalid** by design (rule 7). **`POST`** / **`PUT /api/part-time/{employee_number}`** call [`validate_part_time_combination()`](../app/schemas/part_time.py) and return **`INVALID_PART_TIME_COMBINATION`**; direct database inserts can still bypass the API.
 
 | Stored combination | Valid? | Use instead |
 | ------------------ | ------ | ----------- |
@@ -229,7 +231,7 @@ Aggregate rows pair only with **`morning`** or **`afternoon`**. **`weekdays`/`al
 | `saturday` | `morning` | `all-week` |
 | `sunday` | `morning` | `all-week` |
 
-Slot lookup follows the same order as [`resolve_part_time_slot()`](../app/schemas/employee.py):
+Slot lookup follows the same order as [`resolve_part_time_slot()`](../app/schemas/part_time.py):
 
 ```mermaid
 flowchart TD
@@ -257,6 +259,7 @@ flowchart TD
 | **Employee JSON `workday`** | **Never** aggregate slugs — always the **context label**: **`today`**, a calendar name (`monday` … `sunday`), or **`null`** |
 | **List filter `?workday=`** | Calendar slugs, **`today`**, or **`all`** only — **`weekdays`** / **`all-week`** → **`400`** **`INVALID_PART_TIME_WORKDAY`** |
 | **`GET /api/village-data`** | **`la-server.part_time_workdays`** lists **all stored** values including aggregates (for data entry / scripts) — see [developer-guide.md](./developer-guide.md#aggregate-part-time-patterns) |
+| **`/api/part-time/{employee_number}`** | Admin CRUD on stored rows; returns stored slugs (including aggregates), not contextual **`today`** — see [developer-guide.md — Part-time API](./developer-guide.md#part-time-api) |
 
 #### Unique constraint
 
@@ -275,7 +278,7 @@ Employee JSON includes **`full_time`**, **`workday`**, and **`shift`**. These ar
 | Field       | Source | Meaning |
 |------------|--------|---------|
 | `full_time` | `len(part_times) == 0` | `true` when the participant has no part-time rows (full-time worker). |
-| `workday`   | Effective slot for the context calendar day via [`resolve_part_time_slot()`](../app/schemas/employee.py) (precedence: calendar > `weekdays` > `all-week`) | Response label when a slot exists: **`today`**, a calendar weekday slug (`monday` … `sunday`), or **`null`**. **Never** **`weekdays`** or **`all-week`**. |
+| `workday`   | Effective slot for the context calendar day via [`resolve_part_time_slot()`](../app/schemas/part_time.py) (precedence: calendar > `weekdays` > `all-week`) | Response label when a slot exists: **`today`**, a calendar weekday slug (`monday` … `sunday`), or **`null`**. **Never** **`weekdays`** or **`all-week`**. |
 | `shift`     | Effective row’s `part_times.shift` | **`all-day`**, **`morning`**, or **`afternoon`** when `workday` is set; **`null`** when `workday` is **`null`**. |
 
 **Context weekday** depends on the endpoint:
@@ -289,7 +292,7 @@ Employee JSON includes **`full_time`**, **`workday`**, and **`shift`**. These ar
 
 Example: camp calendar is **Wednesday**, list uses **`?workday=tuesday`** → participants match if they have a direct **`tuesday`** row, or **`weekdays`** (+ shift) with no overriding **`tuesday`** row, or **`all-week`** (+ shift) with no overriding calendar or **`weekdays`** match; each returned row shows **`"workday": "tuesday"`** and the effective **`shift`**. With default **`workday=all`**, all employees are listed; each row’s **`workday`** / **`shift`** describe the slot for **Wednesday** (today), so a participant with only **`weekdays/morning`** shows **`"workday": "today"`** and **`"shift": "morning"`** — not **`"weekdays"`**.
 
-List filters (not stored): optional **`shift`** when **`workday`** is not **`all`** restricts to the effective shift for that filter day (same precedence as slot resolution). Filter values **`weekdays`** and **`all-week`** are invalid → **`400`**. Helpers live in [`app/schemas/employee.py`](../app/schemas/employee.py) (`camp_day`, `resolve_part_time_slot`, `parse_list_workday_param`, `employee_context_workday_and_shift`); list SQL mirrors precedence in [`app/repositories/employee.py`](../app/repositories/employee.py). Staff-facing filter examples: [developer-guide.md — List filter behavior](./developer-guide.md#aggregate-part-time-patterns).
+List filters (not stored): optional **`shift`** when **`workday`** is not **`all`** restricts to the effective shift for that filter day (same precedence as slot resolution). Filter values **`weekdays`** and **`all-week`** are invalid → **`400`**. Helpers live in [`app/schemas/part_time.py`](../app/schemas/part_time.py) (`camp_day`, `resolve_part_time_slot`, `parse_list_workday_param`, `employee_context_workday_and_shift`); list SQL mirrors precedence in [`app/repositories/employee.py`](../app/repositories/employee.py). Staff-facing filter examples: [developer-guide.md — List filter behavior](./developer-guide.md#aggregate-part-time-patterns).
 
 ---
 

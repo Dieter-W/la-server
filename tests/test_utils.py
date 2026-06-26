@@ -1,17 +1,36 @@
 """Helpers for JWT login and token fixtures used by API tests."""
 
 from datetime import timedelta
+
 from flask_jwt_extended import create_access_token, create_refresh_token
 
-# ---------------------------------------------------------------------
-# Login — employee access token (seeded M00252)
-# ---------------------------------------------------------------------
-def _login_as_employee(client, sample_authentication=None, sample_employee=None) -> str:  # fmt: skip
-    """POST /api/auth/login as seeded employee ``M00252``; return access ``token``."""
 
+# ---------------------------------------------------------------------
+# HTTP response helpers
+# ---------------------------------------------------------------------
+def assert_status(response, expected: int) -> dict:
+    """Assert HTTP status; print body on mismatch; return parsed JSON."""
+    if response.status_code != expected:
+        print(response.text)
+    assert response.status_code == expected
+    return response.get_json()
+
+
+# ---------------------------------------------------------------------
+# Login — shared POST /api/auth/login helper
+# ---------------------------------------------------------------------
+def _login(
+    client,
+    employee_number: str,
+    password: str,
+    *,
+    auth_group: str,
+    password_must_change: bool,
+) -> str:
+    """POST /api/auth/login; return access token after asserting response."""
     response = client.post(
         "/api/auth/login",
-        json={"employee_number": "M00252", "password": "Mustermann"},
+        json={"employee_number": employee_number, "password": password},
     )
     if response.status_code != 200:
         print(response.text)
@@ -20,10 +39,23 @@ def _login_as_employee(client, sample_authentication=None, sample_employee=None)
     assert data["message"] == "Authenticated"
     assert data["token"] is not None
     assert data["refresh_token"] is not None
-    assert data["auth_group"] == "employee"
-    assert data["password_must_change"] is True
-
+    assert data["auth_group"] == auth_group
+    assert data["password_must_change"] is password_must_change
     return data["token"]
+
+
+# ---------------------------------------------------------------------
+# Login — employee access token (seeded M00252)
+# ---------------------------------------------------------------------
+def _login_as_employee(client, sample_authentication=None, sample_employee=None) -> str:  # fmt: skip
+    """POST /api/auth/login as seeded employee ``M00252``; return access ``token``."""
+    return _login(
+        client,
+        "M00252",
+        "Mustermann",
+        auth_group="employee",
+        password_must_change=True,
+    )
 
 
 # ---------------------------------------------------------------------
@@ -31,22 +63,13 @@ def _login_as_employee(client, sample_authentication=None, sample_employee=None)
 # ---------------------------------------------------------------------
 def _login_as_staff(client, sample_authentication=None, sample_employee=None) -> str:  # fmt: skip
     """POST /api/auth/login as seeded staff ``A00265``; return access ``token``."""
-
-    response = client.post(
-        "/api/auth/login",
-        json={"employee_number": "A00265", "password": "Schmidt"},
+    return _login(
+        client,
+        "A00265",
+        "Schmidt",
+        auth_group="staff",
+        password_must_change=False,
     )
-    if response.status_code != 200:
-        print(response.text)
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["message"] == "Authenticated"
-    assert data["token"] is not None
-    assert data["refresh_token"] is not None
-    assert data["auth_group"] == "staff"
-    assert data["password_must_change"] is False
-
-    return data["token"]
 
 
 # ---------------------------------------------------------------------
@@ -54,22 +77,13 @@ def _login_as_staff(client, sample_authentication=None, sample_employee=None) ->
 # ---------------------------------------------------------------------
 def _login_as_admin(client, sample_authentication=None, sample_employee=None) -> str:  # fmt: skip
     """POST /api/auth/login as seeded admin ``P00370``; return access ``token``."""
-
-    response = client.post(
-        "/api/auth/login",
-        json={"employee_number": "P00370", "password": "Krause"},
+    return _login(
+        client,
+        "P00370",
+        "Krause",
+        auth_group="admin",
+        password_must_change=True,
     )
-    if response.status_code != 200:
-        print(response.text)
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["message"] == "Authenticated"
-    assert data["token"] is not None
-    assert data["refresh_token"] is not None
-    assert data["auth_group"] == "admin"
-    assert data["password_must_change"] is True
-
-    return data["token"]
 
 
 # ---------------------------------------------------------------------

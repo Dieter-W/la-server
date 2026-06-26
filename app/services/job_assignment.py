@@ -78,19 +78,23 @@ class JobAssignmentService:
     # Job assignments — delete one
     # ---------------------------------------------------------------------
     def delete_assignment(self, job_assignment_id: int) -> None:
-        """Drop one assignment row by primary key."""
+        """Drop one assignment row by primary key (idempotent under concurrency)."""
         job = self.repo.get_by_id(job_assignment_id)
         if job is None:
             raise APIError("JOB_ASSIGNMENT_NOT_FOUND", 404)
 
-        emp = job.employees
-        employee_number = emp.employee_number if emp is not None else None
+        employee_id = job.employee_id
+        employee_number = (
+            job.employees.employee_number if job.employees is not None else None
+        )
 
-        self.repo.delete(job)
+        if not self.repo.delete_by_id(job_assignment_id):
+            raise APIError("JOB_ASSIGNMENT_NOT_FOUND", 404)
+
         logger.debug(
             "Job assignment deleted id=%s employee_id=%s employee_number=%s",
-            job.id,
-            job.employee_id,
+            job_assignment_id,
+            employee_id,
             employee_number,
         )
 

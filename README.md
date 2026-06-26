@@ -20,6 +20,8 @@ In client apps users sign in with **employee number** and **password**. The serv
 
 Some operations are open to everyone (public). Others need a signed-in user; a few need **staff** or **admin**, the most need **employee** (all kids in the summer camp). The **API Endpoints** table below marks each route as **public** or with the minimum type of account that is allowed.
 
+**Part-time schedules:** roster and kiosk apps read derived **`full_time`**, **`workday`**, and **`shift`** from **`GET /api/employees`**. Admins maintain stored schedule rows via **`/api/part-time/{employee_number}`** (see [developer-guide.md](./docs/developer-guide.md#part-time-api)).
+
 ### Initial password
 
 When an account is **created** (`POST /api/employees`), **imported from CSV** ([CSV bulk import](#csv-bulk-import)), or when **staff or admin runs a password reset** (`POST /api/auth/password/reset-password`), the server sets the login secret from the participant’s **`last_name`** (trimmed, then hashed). **Sign-in treats the password as case-insensitive**, so the surname can be typed in normal spelling. The account stays flagged **`password_must_change`** until the user picks their own password with **`POST /api/auth/password/set-password`**. The **login** response includes that flag so client apps can send new users through “change password” immediately after the first sign-in.
@@ -275,6 +277,11 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | POST   | `/api/employees`                               | Create employee                             | admin required                   |
 | PUT    | `/api/employees/<employee_number>`             | Update employee                             | admin required                   |
 | DELETE | `/api/employees/<employee_number>`             | Soft or hard delete employee                | admin required                   |
+| GET    | `/api/part-time/<employee_number>`             | List stored part-time rows                  | public                           |
+| POST   | `/api/part-time/<employee_number>`             | Create part-time row                        | admin required                   |
+| PUT    | `/api/part-time/<employee_number>`             | Update part-time row                        | admin required                   |
+| DELETE | `/api/part-time/<employee_number>`             | Delete all part-time rows                   | admin required                   |
+| DELETE | `/api/part-time/<employee_number>?workday=`    | Delete one part-time row                    | admin required                   |
 | GET    | `/api/job-assignments`                         | List job assignments                        | public                           |
 | POST   | `/api/job-assignments`                         | Create job assignment                       | employee or higher               |
 | DELETE | `/api/job-assignments/<job_assignment_number>` | Remove assignment by assignment number      | employee or higher               |

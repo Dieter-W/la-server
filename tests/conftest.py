@@ -4,7 +4,9 @@ import os
 import sys
 import pytest
 
+from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -19,6 +21,26 @@ from app.models import Authentication, Company, Employee, JobAssignment, PartTim
 from app.auth.utils import hash_password
 
 from app.config import Config
+from app.schemas.part_time import ALL_WEEK_WORKDAY, WEEKDAYS_WORKDAY, camp_day
+from tests.test_camp_time import (
+    BERLIN,
+    CAMP_FRIDAY,
+    CAMP_MONDAY,
+    CAMP_SATURDAY,
+    CAMP_SUNDAY,
+    CAMP_WEDNESDAY,
+)
+from tests.test_part_time_helpers import seed_part_time_rows
+from tests.test_utils import _login_as_admin, _login_as_employee, _login_as_staff
+
+
+def _camp_day_patch(camp_instant: datetime):
+    """Pin ``camp_day()`` to a fixed calendar day in camp timezone."""
+
+    def _fixed(*, now=None, tz=None):
+        return camp_day(now=camp_instant, tz=tz or BERLIN)
+
+    return patch("app.schemas.part_time.camp_day", side_effect=_fixed)
 
 
 def _mariadb_test_database_name(worker_id: str) -> str:
@@ -271,42 +293,24 @@ def sample_employee(
 @pytest.fixture()
 def sample_employee_part_time(
     app,
+    sample_employee,
 ):
     """Add 2 part-time employees for testing"""
     with app.app_context():
         session = app.SessionLocal()
-
-        part_time_employee = PartTime(
-            employee_id=3,  # A00265
-            workday="monday",
-            shift="morning",
+        seed_part_time_rows(
+            session,
+            [
+                (3, "monday", "morning"),  # A00265
+                (3, "tuesday", "afternoon"),
+                (4, "wednesday", "all-day"),  # P00370
+                (4, "thursday", "all-day"),
+            ],
         )
-        session.add(part_time_employee)
-
-        part_time_employee = PartTime(
-            employee_id=3,  # A00265
-            workday="tuesday",
-            shift="afternoon",
+        part_time_employee = (
+            session.query(PartTime).order_by(PartTime.id.desc()).first()
         )
-        session.add(part_time_employee)
-
-        part_time_employee = PartTime(
-            employee_id=4,  # P00370
-            workday="wednesday",
-            shift="all-day",
-        )
-        session.add(part_time_employee)
-
-        part_time_employee = PartTime(
-            employee_id=4,  # P00370
-            workday="thursday",
-        )
-        session.add(part_time_employee)
-
-        session.commit()
-
         yield part_time_employee
-
         session.close()
 
 
@@ -339,3 +343,157 @@ def sample_job_assignment(
         yield job_assignment
 
         session.close()
+
+
+# ---------------------------------------------------------
+# 5. Shared time fixtures
+# ---------------------------------------------------------
+@pytest.fixture
+def camp_is_monday():
+    """Pin calendar today to Monday via fixed ``now`` in camp timezone."""
+    with _camp_day_patch(CAMP_MONDAY):
+        yield
+
+
+@pytest.fixture
+def camp_is_wednesday():
+    """Pin calendar today to Wednesday via fixed ``now`` in camp timezone."""
+    with _camp_day_patch(CAMP_WEDNESDAY):
+        yield
+
+
+@pytest.fixture
+def camp_is_friday():
+    """Pin calendar today to Friday via fixed ``now`` in camp timezone."""
+    with _camp_day_patch(CAMP_FRIDAY):
+        yield
+
+
+@pytest.fixture
+def camp_is_saturday():
+    """Pin calendar today to Saturday via fixed ``now`` in camp timezone."""
+    with _camp_day_patch(CAMP_SATURDAY):
+        yield
+
+
+@pytest.fixture
+def camp_is_sunday():
+    """Pin calendar today to Sunday via fixed ``now`` in camp timezone."""
+    with _camp_day_patch(CAMP_SUNDAY):
+        yield
+
+
+# ---------------------------------------------------------
+# 6. Part-time scenario fixtures (employee projection tests)
+# ---------------------------------------------------------
+@pytest.fixture
+def part_time_monika(app, sample_employee):
+    """Monika (id 2): Monday morning + Tuesday afternoon part-time slots."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_part_time_rows(
+            session,
+            [
+                (2, "monday", "morning"),
+                (2, "tuesday", "afternoon"),
+            ],
+        )
+        session.close()
+
+
+@pytest.fixture
+def part_time_anna_all_day(app, sample_employee):
+    """Anna (id 3): Monday slot with default full-day shift (all-day)."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_part_time_rows(session, [(3, "monday", "all-day")])
+        session.close()
+
+
+@pytest.fixture
+def part_time_anna_weekdays_morning(app, sample_employee):
+    """Anna (id 3): ``weekdays`` morning aggregate slot."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_part_time_rows(session, [(3, WEEKDAYS_WORKDAY, "morning")])
+        session.close()
+
+
+@pytest.fixture
+def part_time_anna_all_week_morning(app, sample_employee):
+    """Anna (id 3): ``all-week`` morning aggregate slot."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_part_time_rows(session, [(3, ALL_WEEK_WORKDAY, "morning")])
+        session.close()
+
+
+@pytest.fixture
+def part_time_anna_weekdays_and_friday_afternoon(app, sample_employee):
+    """Anna (id 3): ``weekdays`` morning + Friday afternoon override."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_part_time_rows(
+            session,
+            [
+                (3, WEEKDAYS_WORKDAY, "morning"),
+                (3, "friday", "afternoon"),
+            ],
+        )
+        session.close()
+
+
+@pytest.fixture
+def part_time_monika_unsorted_rows(app, sample_employee):
+    """Monika (id 2): rows in non-canonical order for list-sort tests."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_part_time_rows(
+            session,
+            [
+                (2, "friday", "morning"),
+                (2, "monday", "afternoon"),
+                (2, WEEKDAYS_WORKDAY, "morning"),
+                (2, ALL_WEEK_WORKDAY, "afternoon"),
+            ],
+        )
+        session.close()
+
+
+# ---------------------------------------------------------
+# 7. Auth token fixtures (wrappers around tests.test_utils login helpers)
+# ---------------------------------------------------------
+@pytest.fixture
+def admin_token(client, sample_authentication, sample_employee):
+    """Seeded admin ``P00370`` access token."""
+    return _login_as_admin(client, sample_authentication, sample_employee)
+
+
+@pytest.fixture
+def admin_headers(admin_token):
+    """``Authorization`` header for admin requests."""
+    return {"Authorization": f"Bearer {admin_token}"}
+
+
+@pytest.fixture
+def employee_token(client, sample_authentication, sample_employee):
+    """Seeded employee ``M00252`` access token."""
+    return _login_as_employee(client, sample_authentication, sample_employee)
+
+
+@pytest.fixture
+def employee_headers(employee_token):
+    """``Authorization`` header for employee requests."""
+    return {"Authorization": f"Bearer {employee_token}"}
+
+
+@pytest.fixture
+def staff_token(client, sample_authentication, sample_employee):
+    """Seeded staff ``A00265`` access token."""
+    return _login_as_staff(client, sample_authentication, sample_employee)
+
+
+@pytest.fixture
+def staff_headers(staff_token):
+    """``Authorization`` header for staff requests."""
+    return {"Authorization": f"Bearer {staff_token}"}

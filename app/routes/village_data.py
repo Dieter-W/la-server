@@ -9,7 +9,7 @@ from pathlib import Path
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
 from app.auth.utils import AUTH_GROUPS
-from app.schemas.employee import PART_TIME_SHIFTS, PART_TIME_STORED_WORKDAYS
+from app.schemas.part_time import PART_TIME_SHIFTS, PART_TIME_STORED_WORKDAYS
 from app.errors import APIError
 from app.village_config import _DATA_DIR, load_village_data
 

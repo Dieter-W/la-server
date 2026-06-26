@@ -1,6 +1,25 @@
 """Global Flask error handlers (see app/errors.py)."""
 
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
+
+
+def test_operational_error_concurrent_update(app, client):
+    """MariaDB errno 1020 is mapped to 409 CONCURRENT_UPDATE."""
+
+    @app.route("/__test__/concurrent_update", methods=["GET"])
+    def raise_concurrent_update():
+        raise OperationalError(
+            "DELETE FROM job_assignments",
+            {},
+            Exception(
+                1020, "Record has changed since last read in table 'job_assignments'"
+            ),
+        )
+
+    response = client.get("/__test__/concurrent_update")
+    assert response.status_code == 409
+    data = response.get_json()
+    assert data["error"] == "CONCURRENT_UPDATE"
 
 
 def test_sqlalchemy_error_database(app, client):

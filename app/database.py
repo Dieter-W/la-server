@@ -68,8 +68,7 @@ def init_db(app) -> None:
 
         import app.models  # noqa: F401 - register models before create_all
 
-        # create_all ensures schema for dev, tests, and fresh installs.
-        # Operators may use scripts/create_database.py and adjust models or
-        # apply DDL manually in production as they choose.
+        # create_all ensures schema for dev, tests, and fresh installs
+        # (see scripts/create_database.py for explicit bootstrap).
         db.create_all()
         logger.debug("Database schema ensured (create_all).")

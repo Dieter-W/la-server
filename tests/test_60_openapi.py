@@ -14,6 +14,7 @@ def test_openapi_ok(client):
     assert "LA-Server" in data["info"]["title"]
     assert "/api/health" in data["paths"]
     assert "/api/auth/login" in data["paths"]
+    assert "/api/part-time/{employee_number}" in data["paths"]
     assert data["components"]["securitySchemes"]["bearerAuth"]["type"] == "http"
 
 

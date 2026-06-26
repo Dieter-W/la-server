@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models import Company, Employee, JobAssignment, PartTime
 from app.repositories.base import BaseRepository
-from app.schemas.employee import (
+from app.schemas.part_time import (
     ALL_WEEK_WORKDAY,
     WEEKDAYS_WORKDAY,
     is_weekdays_calendar_day,
@@ -114,6 +114,18 @@ class EmployeeRepository(BaseRepository[Employee]):
 
             stmt = stmt.where(or_(direct, weekdays_fallback, all_week_fallback))
         return stmt
+
+    # ---------------------------------------------------------------------
+    # Get one by number (no JOIN)
+    # ---------------------------------------------------------------------
+    def get_by_number(self, employee_number: str) -> Employee | None:
+        """One employee by number with part_times eagerly loaded; no company JOIN."""
+        stmt = (
+            select(Employee)
+            .options(selectinload(Employee.part_times))
+            .where(Employee.employee_number == employee_number)
+        )
+        return self.db.execute(stmt).scalar_one_or_none()
 
     # ---------------------------------------------------------------------
     # Get one with company

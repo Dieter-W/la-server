@@ -60,6 +60,12 @@ class JobAssignmentRepository(BaseRepository[JobAssignment]):
         """Delete one assignment row."""
         self.db.delete(job)
 
+    def delete_by_id(self, job_assignment_id: int) -> bool:
+        """Delete by primary key; return whether a row was removed."""
+        stmt = delete(JobAssignment).where(JobAssignment.id == job_assignment_id)
+        result = self.db.execute(stmt)
+        return bool(result.rowcount)
+
     # ---------------------------------------------------------------------
     # Persist — bulk delete
     # ---------------------------------------------------------------------

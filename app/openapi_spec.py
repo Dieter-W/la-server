@@ -3,7 +3,7 @@
 import tomllib
 from pathlib import Path
 
-from app.schemas.employee import (
+from app.schemas.part_time import (
     PART_TIME_API_WORKDAY_LABELS,
     PART_TIME_CALENDAR_WORKDAYS,
     PART_TIME_STORED_WORKDAYS,
@@ -31,8 +31,10 @@ def _read_project_version() -> str:
 
 API_TITLE = "LA-Server API"
 API_DESCRIPTION = (
-    "Kinderspielstadt Los Ämmerles JSON REST API (companies, employees, job assignments, "
-    "village configuration, auth). For request/response shapes and error codes see "
+    "Kinderspielstadt Los Ämmerles JSON REST API (companies, employees, part-time schedule "
+    "maintenance, job assignments, village configuration, auth). Employee responses expose "
+    "derived **`full_time`** / **`workday`** / **`shift`**; stored schedule rows are maintained "
+    "via **`/api/part-time`**. For request/response shapes and error codes see "
     "[developer-guide.md](docs/developer-guide.md)."
 )
 API_VERSION = _read_project_version()
@@ -200,6 +202,21 @@ def build_openapi_dict() -> dict:
             "required": False,
             "schema": {"type": "string"},
             "description": "`true` / `1` / `yes` for permanent delete.",
+        }
+    ]
+    query_part_time_delete = [
+        {
+            "name": "workday",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "type": "string",
+                "enum": PART_TIME_STORED_WORKDAYS,
+            },
+            "description": (
+                "Stored workday slug. When set, delete one row for that key; omit to delete all "
+                "part-time rows for the employee (restores full-time when none remain)."
+            ),
         }
     ]
 
@@ -401,6 +418,97 @@ def build_openapi_dict() -> dict:
         },
     )
 
+    # --- Part-time (stored schedule rows) ---
+    merge_path(
+        "/api/part-time/{employee_number}",
+        {
+            **_op(
+                "get",
+                "List stored part-time rows",
+                tag="Part-time",
+                parameters=parameters_employee_number,
+                response_schema="ListPartTimesResponse",
+                responses={
+                    "200": _response_200(
+                        "ListPartTimesResponse",
+                        "Stored rows ordered by `PART_TIME_STORED_WORKDAYS`",
+                    ),
+                    **{
+                        k: v
+                        for k, v in _RESPONSES_DEFAULT.items()
+                        if k in ("400", "404")
+                    },
+                },
+            ),
+            **_op(
+                "post",
+                "Create part-time row",
+                tag="Part-time",
+                security=_BEARER,
+                parameters=parameters_employee_number,
+                request_schema="CreatePartTimeRequest",
+                responses={
+                    "201": {
+                        "description": "Created",
+                        "content": _content_block("PartTimeRowResponse"),
+                    },
+                    **{
+                        k: v
+                        for k, v in _RESPONSES_DEFAULT.items()
+                        if k in ("400", "401", "403", "404", "409")
+                    },
+                },
+            ),
+            **_op(
+                "put",
+                "Update part-time row (partial)",
+                tag="Part-time",
+                security=_BEARER,
+                parameters=parameters_employee_number,
+                request_schema="UpdatePartTimeRequest",
+                response_schema="PartTimeRowResponse",
+                responses={
+                    "200": _response_200("PartTimeRowResponse", "Updated row"),
+                    **{
+                        k: v
+                        for k, v in _RESPONSES_DEFAULT.items()
+                        if k in ("400", "401", "403", "404")
+                    },
+                },
+            ),
+            **_op(
+                "delete",
+                "Delete all part-time rows, or one when `?workday=` is set",
+                tag="Part-time",
+                security=_BEARER,
+                parameters=parameters_employee_number + query_part_time_delete,
+                responses={
+                    "200": {
+                        "description": (
+                            "All rows deleted (`DeleteAllPartTimesResponse`) or one row "
+                            "(`DeleteOnePartTimeResponse` when `?workday=` is set)."
+                        ),
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        _schema_ref("DeleteAllPartTimesResponse"),
+                                        _schema_ref("DeleteOnePartTimeResponse"),
+                                    ]
+                                }
+                            }
+                        },
+                    },
+                    **{
+                        k: v
+                        for k, v in _RESPONSES_DEFAULT.items()
+                        if k in ("400", "401", "403", "404")
+                    },
+                },
+            ),
+        },
+    )
+
     # --- Job assignments ---
     merge_path(
         "/api/job-assignments",
@@ -518,7 +626,17 @@ def build_openapi_dict() -> dict:
                 "name": "Employees",
                 "description": (
                     "Camp participants (employees). List supports **`workday`** / **`shift`** filters; "
-                    "responses include contextual **`workday`** / **`shift`** (see **`EmployeeResponse`**)."
+                    "responses include derived contextual **`full_time`**, **`workday`**, and **`shift`** "
+                    "(see **`EmployeeResponse`**). To edit stored schedule rows, use **Part-time** — "
+                    "not employee POST/PUT."
+                ),
+            },
+            {
+                "name": "Part-time",
+                "description": (
+                    "Admin CRUD on stored **`part_times`** rows for one employee. "
+                    "Returns stored slugs (including aggregates **`weekdays`** / **`all-week`**), not "
+                    "contextual **`today`**. Rosters and filters continue to use **Employees**."
                 ),
             },
             {
@@ -1038,6 +1156,139 @@ def build_openapi_dict() -> dict:
                 "EmployeeListResponse": {
                     "type": "array",
                     "items": _schema_ref("EmployeeResponse"),
+                },
+                # ----------------------------------------------------------
+                # Part-time — request schemas
+                # ----------------------------------------------------------
+                "CreatePartTimeRequest": {
+                    "type": "object",
+                    "required": ["workday"],
+                    "properties": {
+                        "workday": {
+                            "type": "string",
+                            "enum": PART_TIME_STORED_WORKDAYS,
+                            "description": (
+                                "Stored schedule key (calendar day or aggregate). "
+                                "See **`la-server.part_time_workdays`** on **`GET /api/village-data`**."
+                            ),
+                            "example": "weekdays",
+                        },
+                        "shift": {
+                            "type": "string",
+                            "enum": ["all-day", "morning", "afternoon"],
+                            "description": "Defaults to **`all-day`** when omitted.",
+                            "example": "morning",
+                        },
+                        "notes": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": "Optional free-text notes.",
+                            "example": None,
+                        },
+                    },
+                },
+                "UpdatePartTimeRequest": {
+                    "type": "object",
+                    "required": ["workday"],
+                    "description": (
+                        "Partial update. **`workday`** is the lookup key only (not renamable). "
+                        "Include **`shift`** and/or **`notes`** to change them."
+                    ),
+                    "properties": {
+                        "workday": {
+                            "type": "string",
+                            "enum": PART_TIME_STORED_WORKDAYS,
+                            "description": "Stored row to update.",
+                            "example": "tuesday",
+                        },
+                        "shift": {
+                            "type": "string",
+                            "enum": ["all-day", "morning", "afternoon"],
+                            "example": "morning",
+                        },
+                        "notes": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": "Send `null` to clear.",
+                            "example": "Covers register until noon.",
+                        },
+                    },
+                },
+                # ----------------------------------------------------------
+                # Part-time — response schemas
+                # ----------------------------------------------------------
+                "PartTimeRowResponse": {
+                    "type": "object",
+                    "required": [
+                        "id",
+                        "workday",
+                        "shift",
+                        "notes",
+                        "created_at",
+                        "updated_at",
+                    ],
+                    "properties": {
+                        "id": {"type": "integer", "example": 1},
+                        "workday": {
+                            "type": "string",
+                            "enum": PART_TIME_STORED_WORKDAYS,
+                            "description": "Stored slug as persisted in `part_times.workday`.",
+                            "example": "weekdays",
+                        },
+                        "shift": {
+                            "type": "string",
+                            "enum": ["all-day", "morning", "afternoon"],
+                            "example": "morning",
+                        },
+                        "notes": {"type": "string", "nullable": True, "example": None},
+                        "created_at": {
+                            "type": "string",
+                            "nullable": True,
+                            "example": "2026-05-14T08:00:00",
+                        },
+                        "updated_at": {
+                            "type": "string",
+                            "nullable": True,
+                            "example": "2026-05-14T09:15:00",
+                        },
+                    },
+                },
+                "ListPartTimesResponse": {
+                    "type": "object",
+                    "required": ["employee_number", "part_times", "count"],
+                    "properties": {
+                        "employee_number": {"type": "string", "example": "M00252"},
+                        "part_times": {
+                            "type": "array",
+                            "items": _schema_ref("PartTimeRowResponse"),
+                        },
+                        "count": {"type": "integer", "example": 1},
+                    },
+                },
+                "DeleteAllPartTimesResponse": {
+                    "type": "object",
+                    "required": ["message", "count"],
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "example": "part-time rows deleted",
+                        },
+                        "count": {
+                            "type": "integer",
+                            "description": "Number of rows removed (0 when already empty).",
+                            "example": 2,
+                        },
+                    },
+                },
+                "DeleteOnePartTimeResponse": {
+                    "type": "object",
+                    "required": ["message"],
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "example": "part-time row deleted",
+                        },
+                    },
                 },
                 # ----------------------------------------------------------
                 # Job assignments — response schemas

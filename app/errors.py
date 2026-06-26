@@ -3,7 +3,7 @@
 import logging
 
 from flask import current_app, jsonify, g
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,29 @@ def register_error_handlers(app):
 
         logger.warning("Integrity constraint: %s", raw)
         return jsonify({"error": "CONSTRAINT_VIOLATION", "message": msg}), 409
+
+    @app.errorhandler(OperationalError)
+    def handle_operational_error(e):
+        """Map MariaDB concurrent row conflicts (errno 1020) to HTTP 409."""
+        g.db.rollback()
+        orig = getattr(e, "orig", None)
+        errno = orig.args[0] if orig and getattr(orig, "args", None) else None
+        if errno == 1020:
+            logger.warning("Concurrent update conflict: %s", e)
+            return (
+                jsonify(
+                    {
+                        "error": "CONCURRENT_UPDATE",
+                        "message": "Record changed since last read",
+                    }
+                ),
+                409,
+            )
+        logger.exception("Database operational error")
+        body: dict = {"error": "DATABASE_ERROR"}
+        if current_app.config.get("DEBUG"):
+            body["message"] = str(e)
+        return jsonify(body), 500
 
     @app.errorhandler(SQLAlchemyError)
     def handle_sqlalchemy_error(e):
