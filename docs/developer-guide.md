@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **LA-Server** (Kinderspielstadt Los Ämmerles) is a Flask application backed by **MariaDB**. It exposes a JSON REST API for companies, **camp participants** (children and staff; “employees” in paths and JSON), job assignments during the summer camp, and **Spielstadt branding / configuration** (read from `village_data/` on the server: `village.ini` plus static images). Clients (e.g. job center apps) call these endpoints over HTTP.
+The **LA-Server** (Kinderspielstadt Los Ämmerles) is a Flask application backed by **MariaDB**. It exposes a JSON REST API for companies, **camp participants** (children and staff; “employees” in paths and JSON), daily **check-in / check-out** attendance, job assignments during the summer camp, and **Spielstadt branding / configuration** (read from `village_data/` on the server: `village.ini` plus static images). Clients (e.g. gate scanners and job center apps) call these endpoints over HTTP.
 
 For environment variables, production setup (`setup.ps1` / `setup.sh` with `init-env` or `provision`), **`village_data/`** layout, and CSV bulk import, see the main [README.md](../README.md). A short pointer to this development guide is under *Development* in the [README](../README.md).
 
@@ -116,6 +116,7 @@ curl -s http://localhost:5000/api/auth/me \
   "full_time": false,
   "workday": "today",
   "shift": "morning",
+  "checked_in": false,
   "auth_group": "employee"
 }
 ```
@@ -126,7 +127,7 @@ curl -s http://localhost:5000/api/auth/me \
 - Database constraint issues may return `**409`** with `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` (duplicate / unique violation) or `{"error": "CONSTRAINT_VIOLATION", "message": "Delete failed, because related entries in JobAssignment table"}` (delete blocked by related rows), as implemented in [`app/errors.py`](../app/errors.py).
 - Uncaught DB errors: `**500**` with `DATABASE_ERROR`. Unhandled exceptions: `**500**` with `INTERNAL_SERVER_ERROR`, per [`app/errors.py`](../app/errors.py). For both, a **`message`** field is included in the JSON **only when** server **`DEBUG`** is enabled (otherwise the body is just `{"error": "<CODE>"}`).
 
-**Common error codes** include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `INVALID_AGE_IN_JSON`, `INVALID_JSON_BOOLEAN_IN_JSON`, `INVALID_PART_TIME_WORKDAY`, `INVALID_PART_TIME_SHIFT`, `INVALID_PART_TIME_COMBINATION`, `PART_TIME_NOT_FOUND`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, `BAD_CREDENTIALS`, `FORBIDDEN_WRONG_AUTH_GROUP`, `OLD_PASSWORD_IS_INCORRECT`, `AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`, and variants with `_IN_JSON` where applicable.
+**Common error codes** include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUEST_BODY_NOT_ALLOWED`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `INVALID_AGE_IN_JSON`, `INVALID_JSON_BOOLEAN_IN_JSON`, `INVALID_PART_TIME_WORKDAY`, `INVALID_PART_TIME_SHIFT`, `INVALID_PART_TIME_COMBINATION`, `INVALID_ATTENDANCE_WORKDAY`, `PART_TIME_NOT_FOUND`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `ATTENDANCE_NOT_CHECKED_IN`, `ATTENDANCE_CHECK_IN_REQUIRED`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, `BAD_CREDENTIALS`, `FORBIDDEN_WRONG_AUTH_GROUP`, `OLD_PASSWORD_IS_INCORRECT`, `AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`, and variants with `_IN_JSON` where applicable.
 
 JWT responses from Flask-JWT-Extended include a `message` next to `error` where applicable; see [`app/__init__.py`](../app/__init__.py). **HTTP mapping:** missing `Authorization` / Bearer → **`401`** `AUTHORIZATION_REQUIRED`; expired JWT → **`401`** `EXPIRED_TOKEN`; malformed or invalid Bearer / wrong token type for the loader → **`422`** `INVALID_TOKEN`.
 
@@ -178,6 +179,11 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | PUT    | `/api/part-time/<employee_number>`             | Update part-time row                        | admin required                   |
 | DELETE | `/api/part-time/<employee_number>`             | Delete all part-time rows                   | admin required                   |
 | DELETE | `/api/part-time/<employee_number>?workday=`    | Delete one part-time row                    | admin required                   |
+| POST   | `/api/attendance/check-in/<employee_number>`   | Record check-in for camp today              | staff or higher                  |
+| POST   | `/api/attendance/check-out/<employee_number>`  | Record optional check-out for camp today    | staff or higher                  |
+| GET    | `/api/attendance/check-ins?workday=`           | List check-ins for a camp day               | public                           |
+| GET    | `/api/attendance/check-outs?workday=`          | List check-outs for a camp day              | public                           |
+| GET    | `/api/attendance/<employee_number>`            | Attendance history (optional day filter)    | public                           |
 | GET    | `/api/job-assignments`                         | List job assignments                        | public                           |
 | POST   | `/api/job-assignments`                         | Create job assignment                       | employee or higher               |
 | DELETE | `/api/job-assignments/<job_assignment_number>` | Remove assignment by assignment number      | employee or higher               |
@@ -446,7 +452,7 @@ Other auth-related error codes are listed under [Errors and status codes](#error
 ### Me service - /api/auth/me
 
 **Explanation**
-Returns the signed-in **participant** (employee) as JSON: profile fields from the database plus **`auth_group`** from the **JWT** (not the camp descriptive **`role`** on the record). Requires a valid access token whose claim **`auth_group`** is one of `employee`, `staff`, or `admin`. HTTP handler: [`app/auth/routes.py`](../app/auth/routes.py) (`me`); **`AuthService`** — [`app/services/auth.py`](../app/services/auth.py).
+Returns the signed-in **participant** (employee) as JSON: profile fields from the database plus **`auth_group`** from the **JWT** (not the camp descriptive **`role`** on the record), contextual **`full_time`** / **`workday`** / **`shift`**, and derived **`checked_in`**. Requires a valid access token whose claim **`auth_group`** is one of `employee`, `staff`, or `admin`. HTTP handler: [`app/auth/routes.py`](../app/auth/routes.py) (`me`); **`AuthService`** — [`app/services/auth.py`](../app/services/auth.py).
 
 **Parameters**
 None.
@@ -487,6 +493,7 @@ None.
 | `full_time`         | boolean | `true` when the participant has no part-time rows — they work **Monday through Sunday** (every day of the camp week), same **calendar coverage** as a stored **`all-week`** row but modelled as zero rows with **`shift`: `all-day`**, not as part-time data. `false` when at least one `part_times` record exists (part-time schedule; may cover only some days, e.g. **`weekdays`** Mon–Fri). |
 | `workday`           | string or null | Contextual weekday label: **`today`**, a weekday slug (`monday` … `sunday`), or **`null`** when a **part-time** participant has no slot for the context day. When **`full_time`** is **`true`**, always the context label (see [Part-time context on employee responses](#part-time-context-on-employee-responses)). |
 | `shift`             | string or null | Shift on the context **`workday`**: **`all-day`**, **`morning`**, or **`afternoon`**. When **`full_time`** is **`true`**, always **`all-day`**. **`null`** when **`workday`** is **`null`**. Use **`full_time`** to tell full-time **`all-day`** from a part-time row stored as **`all-day`**. |
+| `checked_in`        | boolean | **`true`** when an attendance row exists for **calendar today** in camp timezone; **`false`** otherwise. Derived at response time — not a DB column. **`checkout_at` is ignored** (row exists ⇒ checked in). See [Attendance and `checked_in`](#attendance-and-checked_in). |
 | `auth_group`        | string  | `employee`, `staff`, or `admin` from the JWT. |
 
 Example:
@@ -508,6 +515,7 @@ Example:
   "full_time": false,
   "workday": "today",
   "shift": "morning",
+  "checked_in": false,
   "auth_group": "employee"
 }
 ```
@@ -1113,7 +1121,7 @@ In domain language, each row is a **camp participant** (child or staff). The API
 
 ### Part-time context on employee responses
 
-Employee list, get-one, and **`GET /api/auth/me`** responses include **`full_time`**, **`workday`**, and **`shift`**. These are **derived** from optional **`part_times`** database rows (see [database_design.md](./database_design.md#part_times)), not separate columns on the employee.
+Employee list, get-one, and **`GET /api/auth/me`** responses include **`full_time`**, **`workday`**, **`shift`**, and **`checked_in`**. The first three are **derived** from optional **`part_times`** database rows (see [database_design.md](./database_design.md#part_times)), not separate columns on the employee. **`checked_in`** is derived from **`attendances`** rows — see [Attendance and `checked_in`](#attendance-and-checked_in).
 
 **Two APIs, two jobs:** use **`GET /api/employees`** (and filters) for rosters, kiosk display, and “who works today?” — responses show contextual labels such as **`today`**. Use **`/api/part-time/{employee_number}`** for **admin maintenance** of stored rows (`workday`, `shift`, `notes` as persisted, including aggregate slugs). Do **not** write part-time data via employee POST/PUT. See [Part-time API](#part-time-api).
 
@@ -1253,21 +1261,52 @@ The API **never** returns **`"weekdays"`** or **`"all-week"`** in the employee *
 
 A calendar-day row for a specific day **overrides** the aggregate for that day only (e.g. **`weekdays/morning`** + **`friday/afternoon`** → Friday afternoon, Mon–Thu morning). See [database_design.md — Aggregate workdays](./database_design.md#aggregate-workdays-weekdays-all-week) for precedence edge cases and per-day slot lookup tables.
 
+<a id="attendance-and-checked_in"></a>
+
+### Attendance and `checked_in`
+
+Daily gate check-in is stored in the **`attendances`** table (see [database_design.md — `attendances`](./database_design.md#attendances)). Employee JSON adds a derived boolean **`checked_in`** — same pattern as **`full_time`** / **`workday`** / **`shift`**, not a column on **`employees`**.
+
+| Endpoint | Field |
+| -------- | ----- |
+| **`GET /api/employees`** | each element of **`employees[]`** |
+| **`GET /api/employees/{employee_number}`** | top-level object |
+| **`GET /api/auth/me`** | top-level object |
+
+**Definition:** **`checked_in`: `true`** when an **`attendances`** row exists for **`camp_date` = calendar today** in camp timezone ([`camp_today()`](../app/camp_time.py)). **`false`** when no row exists. **`checkout_at` is ignored** — a participant who checked out early still counts as checked in if today’s row exists.
+
+**Not affected by part-time list filters:** the **`checked_in`** field on each row always reflects **calendar today**, like get-one **`workday`** / **`shift`** context — not the list **`?workday=`** filter.
+
+**List filter:** **`GET /api/employees`** accepts optional **`?checked_in=`** (`true`/`1`/`yes` or `false`/`0`/`no`; omit = no filter). **`true`** returns only participants with an **`attendances`** row for **camp today**; **`false`** returns only those **without** such a row. Same calendar-day rule and **`checkout_at`** semantics as the response field. Combine with **`?active=`**, **`?workday=`**, **`?shift=`**, and **`?auth_group=`** (see [List employees](#list-employees---apiemployees)). For timestamp audit logs (who scanned in and when), use **`GET /api/attendance/check-ins`** instead.
+
+**Who must check in for job center?** Village switches in **`village.ini`** **`[attendance]`** (also under **`attendance`** in **`GET /api/village-data`**) control whether **`POST`** and **`DELETE`** on **`/api/job-assignments`** require today’s check-in row. Check-out is **never** required. See [Job assignments](#job-assignments) and [Attendance API](#attendance-api).
+
+| Participant | JWT `auth_group` | Check-in at job center when… |
+| ----------- | ---------------- | ------------------------------ |
+| Kids | **`employee`** | **`require_attendance_for_kids`** is **`true`** (default) |
+| Staff / admin | **`staff`**, **`admin`** | **`require_attendance_for_staff`** is **`true`** (default **`false`**) |
+
+Staff record check-in via **`POST /api/attendance/check-in/{employee_number}`** (passport scan at the gate). Optional early departure: **`POST /api/attendance/check-out/{employee_number}`**.
+
 ---
 
 ### List employees - /api/employees
 
 **Explanation**
-Lists employees (camp participants), optionally filtered by **`active`**, **`workday`**, and **`shift`**. Each element includes contextual **`full_time`**, **`workday`**, and **`shift`** (see [Part-time context on employee responses](#part-time-context-on-employee-responses)).
+Lists employees (camp participants), optionally filtered by **`active`**, **`workday`**, **`shift`**, **`checked_in`**, and **`auth_group`**. Each element includes contextual **`full_time`**, **`workday`**, **`shift`**, and **`checked_in`** (see [Part-time context on employee responses](#part-time-context-on-employee-responses) and [Attendance and `checked_in`](#attendance-and-checked_in)).
+
+Use this endpoint for **gate rosters** — full profile, company, part-time context, and present flag together. For **check-in timestamps** only, use [List check-ins](#list-check-ins---apiattendancecheck-ins) or [List check-outs](#list-check-outs---apiattendancecheck-outs).
 
 **Parameters** (query)
 
 
-| Name       | Required | Description                                                                                                      |
-| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
-| `active`   | No       | Same semantics as companies: `true`/`1`/`yes`, `false`/`0`/`no`, or omit for all                               |
-| `workday`  | No       | Default **`all`**. **`all`**, **`today`**, or a calendar weekday slug (`monday` … `sunday`). Filters use slot precedence (direct calendar row, then **`weekdays`**, then **`all-week`**). Aggregate slugs **`weekdays`** / **`all-week`** are invalid here. |
-| `shift`    | No       | When **`workday`** is not **`all`**: optional **`all-day`**, **`morning`**, or **`afternoon`**. Ignored for **`workday=all`**. |
+| Name         | Required | Description                                                                                                      |
+| ------------ | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `active`     | No       | Same semantics as companies: `true`/`1`/`yes`, `false`/`0`/`no`, or omit for all                               |
+| `workday`    | No       | Default **`all`**. **`all`**, **`today`**, or a calendar weekday slug (`monday` … `sunday`). Filters use slot precedence (direct calendar row, then **`weekdays`**, then **`all-week`**). Aggregate slugs **`weekdays`** / **`all-week`** are invalid here. |
+| `shift`      | No       | When **`workday`** is not **`all`**: optional **`all-day`**, **`morning`**, or **`afternoon`**. Ignored for **`workday=all`**. |
+| `checked_in` | No       | Filter by today’s **`attendances`** row (camp calendar day — same rule as the **`checked_in`** field on each row; **`checkout_at`** ignored). `true`/`1`/`yes` = has a row; `false`/`0`/`no` = no row; omit = all. Not tied to **`?workday=`**. |
+| `auth_group` | No       | Filter by JWT tier from **`authentications.auth_group`**: **`employee`** (kids; default when no auth row), **`staff`**, or **`admin`**. Invalid value → **`400`** **`INVALID_AUTH_GROUP`**. |
 
 
 **Endpoint sample**
@@ -1282,6 +1321,9 @@ curl -s "http://localhost:5000/api/employees"
 curl -s "http://localhost:5000/api/employees?active=true"
 curl -s "http://localhost:5000/api/employees?workday=tuesday"
 curl -s "http://localhost:5000/api/employees?workday=tuesday&shift=afternoon"
+curl -s "http://localhost:5000/api/employees?active=true&checked_in=false"
+curl -s "http://localhost:5000/api/employees?active=true&checked_in=false&auth_group=employee"
+curl -s "http://localhost:5000/api/employees?active=true&checked_in=true&auth_group=staff"
 ```
 
 **JSON request**
@@ -1307,7 +1349,8 @@ None.
       "updated_at": "2026-01-15T10:00:00+00:00",
       "full_time": false,
       "workday": "today",
-      "shift": "morning"
+      "shift": "morning",
+      "checked_in": true
     },
     {
       "id": 2,
@@ -1324,7 +1367,8 @@ None.
       "updated_at": "2026-01-15T10:00:00+00:00",
       "full_time": true,
       "workday": "today",
-      "shift": "all-day"
+      "shift": "all-day",
+      "checked_in": false
     }
   ],
   "count": 2
@@ -1337,7 +1381,7 @@ None.
 | Code | Meaning |
 | ---- | ------- |
 | 200  | OK |
-| 400  | `{"error": "INVALID_PART_TIME_WORKDAY"}` or `{"error": "INVALID_PART_TIME_SHIFT"}` |
+| 400  | `{"error": "INVALID_PART_TIME_WORKDAY"}`, `{"error": "INVALID_PART_TIME_SHIFT"}`, or `{"error": "INVALID_AUTH_GROUP"}` |
 
 
 ---
@@ -1345,7 +1389,7 @@ None.
 ### Get employee - /api/employees/<employee_number>
 
 **Explanation**
-Returns one camp participant by `employee_number` (one employee record). Checksum validated when `VALIDATE_CHECK_SUM` is enabled. **`workday`** and **`shift`** use **calendar today** in camp timezone (see [Part-time context on employee responses](#part-time-context-on-employee-responses)).
+Returns one camp participant by `employee_number` (one employee record). Checksum validated when `VALIDATE_CHECK_SUM` is enabled. **`workday`** and **`shift`** use **calendar today** in camp timezone (see [Part-time context on employee responses](#part-time-context-on-employee-responses)). **`checked_in`** reflects today’s attendance row (see [Attendance and `checked_in`](#attendance-and-checked_in)).
 
 **Parameters** (path)
 
@@ -1387,7 +1431,8 @@ None.
   "updated_at": "2026-01-15T10:00:00+00:00",
   "full_time": false,
   "workday": "today",
-  "shift": "morning"
+  "shift": "morning",
+  "checked_in": true
 }
 ```
 
@@ -1932,7 +1977,356 @@ None.
 
 ---
 
+<a id="attendance-api"></a>
+
+## Attendance API
+
+Daily **check-in** (gate scan) and optional **check-out** (early pickup) for camp participants. Timestamps are **server-only** — POST endpoints accept **no request body** (including `{}`); any body bytes → **`400`** **`REQUEST_BODY_NOT_ALLOWED`**.
+
+| Need | Call |
+| ---- | ---- |
+| Staff scan at gate | **`POST /api/attendance/check-in/{employee_number}`** (staff or admin JWT) |
+| Record early departure | **`POST /api/attendance/check-out/{employee_number}`** (optional; staff or admin JWT) |
+| Who checked in (with times)? | **`GET /api/attendance/check-ins`** (default **`?workday=today`**) |
+| Who checked out early (with times)? | **`GET /api/attendance/check-outs`** (subset with **`checkout_at`** set) |
+| Who has **not** checked in yet? | **`GET /api/employees?active=true&checked_in=false`** |
+| Not checked in — kids / staff / admin | **`GET /api/employees?…&auth_group=employee`** (etc.; combine with **`checked_in=false`**) |
+| Full roster with present flag | **`GET /api/employees`** — **`checked_in`** on each row (optional **`?checked_in=`** filter) |
+| One person’s history | **`GET /api/attendance/{employee_number}`** |
+
+**Camp calendar:** **`camp_date`** and default **`workday=today`** use **`general.timezone`** from **`village.ini`** ([`camp_today()`](../app/camp_time.py)). List **`?workday=`** accepts **`today`** or a calendar weekday slug (**`monday`** … **`sunday`**) — that weekday in the ISO week containing camp today. Aggregate slugs **`all`**, **`weekdays`**, and **`all-week`** are **invalid** → **`400`** **`INVALID_ATTENDANCE_WORKDAY`**.
+
+**Configuration:** **`[attendance]`** in **`village.ini`** (echoed under **`attendance`** in **`GET /api/village-data`**) controls job-assignment gates — not who may use the check-in POST endpoints (any **active** participant may be checked in or out by staff):
+
+| Key | Default if missing | Effect |
+| --- | ------------------ | ------ |
+| **`require_attendance_for_kids`** | **`true`** | Kids (`auth_group` **`employee`**) need today’s check-in row before **`POST`** / **`DELETE`** **`/api/job-assignments`** |
+| **`require_attendance_for_staff`** | **`false`** | When **`true`**, staff/admin need today’s check-in row for the same gate |
+
+**GET read access:** **`GET /api/attendance/check-ins`**, **`GET /api/attendance/check-outs`**, and **`GET /api/attendance/{employee_number}`** are **public** — no JWT required (same policy as **`GET /api/employees`**). Only **`POST`** check-in and check-out require staff or admin.
+
+Every route validates path **`employee_number`** where applicable (same rules as the Employee API): invalid format/checksum → **`400`** **`EMPLOYEE_NUMBER_WRONG`**; valid number but no employee row → **`404`** **`EMPLOYEE_NOT_FOUND`**.
+
+### Check-in - /api/attendance/check-in/<employee_number>
+
+**Explanation**
+Staff or admin records check-in for **camp today** only. Inserts one **`attendances`** row with **`checkin_at = now()`** (UTC, timezone-aware). Duplicate check-in for the same participant on the same **`camp_date`** → **`409`** **`CONSTRAINT_VIOLATION`**. Inactive participant → **`400`** **`EMPLOYEE_NOT_ACTIVE`** (show the client that the passport belongs to an inactive participant).
+
+**Authorization:** staff or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
+
+**Parameters** (path)
+
+| Name              | Required | Description   |
+| ----------------- | -------- | ------------- |
+| `employee_number` | Yes      | e.g. `M00252` |
+
+**Endpoint sample**
+
+```http
+POST /api/attendance/check-in/M00252 HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X POST "http://localhost:5000/api/attendance/check-in/M00252" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**JSON request**
+None. Do **not** send a body (not even `{}`).
+
+**JSON response** (success — **`201`**)
+
+```json
+{
+  "employee_number": "M00252",
+  "camp_date": "2026-05-18",
+  "checkin_at": "2026-05-18T08:00:00+00:00",
+  "checkout_at": null
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 201  | Created |
+| 400  | `{"error": "REQUEST_BODY_NOT_ALLOWED"}` (any request body), `{"error": "EMPLOYEE_NOT_ACTIVE"}`, or `{"error": "EMPLOYEE_NUMBER_WRONG"}` |
+| 401  | `AUTHORIZATION_REQUIRED` |
+| 403  | `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not staff or admin) |
+| 404  | `{"error": "EMPLOYEE_NOT_FOUND"}` |
+| 409  | `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` (duplicate check-in) |
+
+---
+
+### Check-out - /api/attendance/check-out/<employee_number>
+
+**Explanation**
+Staff or admin records **optional** check-out on **camp today** only. Sets **`checkout_at = now()`** on today’s row. Most participants never check out. No row for today → **`404`** **`ATTENDANCE_NOT_CHECKED_IN`**. Duplicate check-out → **`409`** **`CONSTRAINT_VIOLATION`**.
+
+**Authorization:** staff or higher.
+
+**Parameters** (path)
+
+| Name              | Required | Description   |
+| ----------------- | -------- | ------------- |
+| `employee_number` | Yes      | e.g. `M00252` |
+
+**Endpoint sample**
+
+```http
+POST /api/attendance/check-out/M00252 HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X POST "http://localhost:5000/api/attendance/check-out/M00252" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**JSON request**
+None. Do **not** send a body.
+
+**JSON response** (success — **`200`**)
+
+```json
+{
+  "employee_number": "M00252",
+  "camp_date": "2026-05-18",
+  "checkin_at": "2026-05-18T08:00:00+00:00",
+  "checkout_at": "2026-05-18T14:30:00+00:00"
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 400  | `{"error": "REQUEST_BODY_NOT_ALLOWED"}` or `{"error": "EMPLOYEE_NUMBER_WRONG"}` |
+| 401  | `AUTHORIZATION_REQUIRED` |
+| 403  | Not staff or admin |
+| 404  | `{"error": "EMPLOYEE_NOT_FOUND"}` or `{"error": "ATTENDANCE_NOT_CHECKED_IN"}` |
+| 409  | Duplicate check-out (`CONSTRAINT_VIOLATION`) |
+
+---
+
+### List check-ins - /api/attendance/check-ins
+
+**Explanation**
+Returns all attendance rows for the resolved **`camp_date`** (everyone who checked in), sorted by **`employee_number`** ascending. Each row includes **`checkin_at`** and **`checkout_at`** (often **`null`**). **Authorization:** public — no sign-in needed.
+
+Participants **without** a check-in row do not appear here. For a **full roster** filtered by present / not-present (with company, part-time context, etc.), use **`GET /api/employees`** with **`?checked_in=`** — see [List employees](#list-employees---apiemployees) and [Attendance and `checked_in`](#attendance-and-checked_in).
+
+**Parameters** (query)
+
+| Name      | Required | Description |
+| --------- | -------- | ----------- |
+| `workday` | No       | Default **`today`**. **`today`** or calendar slug **`monday`** … **`sunday`**. Invalid → **`400`** **`INVALID_ATTENDANCE_WORKDAY`**. |
+
+**Endpoint sample**
+
+```http
+GET /api/attendance/check-ins?workday=today HTTP/1.1
+Host: localhost:5000
+```
+
+```bash
+curl -s "http://localhost:5000/api/attendance/check-ins"
+curl -s "http://localhost:5000/api/attendance/check-ins?workday=monday"
+```
+
+**JSON request**
+None.
+
+**JSON response** (example)
+
+```json
+{
+  "workday": "today",
+  "camp_date": "2026-05-18",
+  "check_ins": [
+    {
+      "employee_number": "A00265",
+      "first_name": "Anna",
+      "last_name": "Schmidt",
+      "checkin_at": "2026-05-18T08:05:00+00:00",
+      "checkout_at": null
+    },
+    {
+      "employee_number": "M00252",
+      "first_name": "Monika",
+      "last_name": "Mustermann",
+      "checkin_at": "2026-05-18T08:00:00+00:00",
+      "checkout_at": null
+    },
+    {
+      "employee_number": "P00370",
+      "first_name": "Peter",
+      "last_name": "Krause",
+      "checkin_at": "2026-05-18T08:15:00+00:00",
+      "checkout_at": null
+    }
+  ],
+  "count": 3
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 400  | `{"error": "INVALID_ATTENDANCE_WORKDAY"}` |
+
+---
+
+### List check-outs - /api/attendance/check-outs
+
+**Explanation**
+Same **`workday`** rules as **`GET /api/attendance/check-ins`**, but returns only rows where **`checkout_at IS NOT NULL`** (optional departures). Sorted by **`employee_number`** ascending. **Authorization:** public — no sign-in needed.
+
+**Parameters** (query)
+
+| Name      | Required | Description |
+| --------- | -------- | ----------- |
+| `workday` | No       | Default **`today`**. Same valid values as check-ins list. |
+
+**Endpoint sample**
+
+```http
+GET /api/attendance/check-outs?workday=today HTTP/1.1
+Host: localhost:5000
+```
+
+```bash
+curl -s "http://localhost:5000/api/attendance/check-outs"
+```
+
+**JSON request**
+None.
+
+**JSON response** (example)
+
+```json
+{
+  "workday": "today",
+  "camp_date": "2026-05-18",
+  "check_outs": [
+    {
+      "employee_number": "A00265",
+      "first_name": "Anna",
+      "last_name": "Schmidt",
+      "checkin_at": "2026-05-18T08:05:00+00:00",
+      "checkout_at": "2026-05-18T15:00:00+00:00"
+    },
+    {
+      "employee_number": "M00252",
+      "first_name": "Monika",
+      "last_name": "Mustermann",
+      "checkin_at": "2026-05-18T08:00:00+00:00",
+      "checkout_at": "2026-05-18T14:30:00+00:00"
+    }
+  ],
+  "count": 2
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 400  | `{"error": "INVALID_ATTENDANCE_WORKDAY"}` |
+
+---
+
+### Attendance history - /api/attendance/<employee_number>
+
+**Explanation**
+Returns stored attendance rows for one participant. Without **`?workday=`**, full history ordered by **`camp_date`** descending. With **`?workday=`**, zero or one row for that camp day; response echoes **`workday`** and **`camp_date`**. **Authorization:** public — no sign-in needed.
+
+**Parameters** (path)
+
+| Name              | Required | Description   |
+| ----------------- | -------- | ------------- |
+| `employee_number` | Yes      | e.g. `M00252` |
+
+**Parameters** (query)
+
+| Name      | Required | Description |
+| --------- | -------- | ----------- |
+| `workday` | No       | When set: **`today`** or **`monday`** … **`sunday`**. Omitted → full history. |
+
+**Endpoint sample**
+
+```http
+GET /api/attendance/M00252 HTTP/1.1
+Host: localhost:5000
+```
+
+```bash
+curl -s "http://localhost:5000/api/attendance/M00252"
+curl -s "http://localhost:5000/api/attendance/M00252?workday=today"
+```
+
+**JSON request**
+None.
+
+**JSON response** (full history — no top-level **`workday`** / **`camp_date`**)
+
+```json
+{
+  "employee_number": "M00252",
+  "attendances": [
+    {
+      "camp_date": "2026-05-18",
+      "checkin_at": "2026-05-18T08:00:00+00:00",
+      "checkout_at": null
+    },
+    {
+      "camp_date": "2026-05-17",
+      "checkin_at": "2026-05-17T08:05:00+00:00",
+      "checkout_at": "2026-05-17T15:00:00+00:00"
+    }
+  ],
+  "count": 2
+}
+```
+
+**JSON response** (filtered — **`?workday=today`**)
+
+```json
+{
+  "employee_number": "M00252",
+  "attendances": [
+    {
+      "camp_date": "2026-05-18",
+      "checkin_at": "2026-05-18T08:00:00+00:00",
+      "checkout_at": null
+    }
+  ],
+  "count": 1,
+  "workday": "today",
+  "camp_date": "2026-05-18"
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK ( **`count`** may be **`0`** when filtered day has no row) |
+| 400  | `{"error": "EMPLOYEE_NUMBER_WRONG"}` or `{"error": "INVALID_ATTENDANCE_WORKDAY"}` |
+| 404  | `{"error": "EMPLOYEE_NOT_FOUND"}` |
+
+---
+
 ## Job assignments
+
+When village **`[attendance]`** switches require it (see [Attendance API](#attendance-api)), **`POST /api/job-assignments`** and **`DELETE /api/job-assignments/{job_assignment_number}`** require a **check-in row for camp today** on the **assignment’s participant** — not the JWT caller. The gate checks **row presence only**; **`checkout_at` is ignored** (early check-out does not block quit or take job). **`POST /api/job-assignments/reset`** and **`GET`** list are **not** gated. Missing check-in → **`400`** **`ATTENDANCE_CHECK_IN_REQUIRED`**.
 
 ### List job assignments - /api/job-assignments
 
@@ -1999,7 +2393,7 @@ Each assignment includes `job_assignment_number`: a `*` prefix, the five-digit z
 ### Create job assignment - /api/job-assignments
 
 **Explanation**
-Assigns an active camp participant to an active company, if capacity allows and they have no job yet (`employee_number` in JSON). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
+Assigns an active camp participant to an active company, if capacity allows and they have no job yet (`employee_number` in JSON). When attendance is required for that participant, today’s check-in row must exist first (see [Job assignments](#job-assignments)). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters**
 None.
@@ -2051,7 +2445,7 @@ Same `job_assignment_number` assignment number format as in the list response (`
 | Code | Meaning |
 | ---- | ------- |
 | 201  | Created |
-| 400  | Error: possible `error` values include `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}`, `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}`, `{"error": "EMPLOYEE_NUMBER_WRONG_IN_JSON"}`, `{"error": "COMPANY_NOT_ACTIVE"}`, `{"error": "EMPLOYEE_NOT_ACTIVE"}`, `{"error": "JOB_ALREADY_ASSIGNED"}`, `{"error": "NO_JOB_LEFT"}` |
+| 400  | Error: possible `error` values include `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}`, `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}`, `{"error": "EMPLOYEE_NUMBER_WRONG_IN_JSON"}`, `{"error": "COMPANY_NOT_ACTIVE"}`, `{"error": "EMPLOYEE_NOT_ACTIVE"}`, `{"error": "ATTENDANCE_CHECK_IN_REQUIRED"}`, `{"error": "JOB_ALREADY_ASSIGNED"}`, `{"error": "NO_JOB_LEFT"}` |
 | 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not signed in as employee, staff, or admin) |
 | 404  | Error: `{"error": "COMPANY_NOT_FOUND"}` or `{"error": "EMPLOYEE_NOT_FOUND"}` |
 
@@ -2060,7 +2454,7 @@ Same `job_assignment_number` assignment number format as in the list response (`
 ### Remove job assignment - /api/job-assignments/<job_assignment_number>
 
 **Explanation**
-Deletes the job assignment identified by `job_assignment_number`. The path string must match the assignment number format (`*` + five zero-padded id digits + ISO 7064 Mod 97,10 check digits on those five digits); checksum validation is **always** applied on this route (unlike some participant-number flows, it is not affected by `VALIDATE_CHECK_SUM`). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
+Deletes the job assignment identified by `job_assignment_number`. When attendance is required for the assignment’s participant, today’s check-in row must exist (same gate as create — see [Job assignments](#job-assignments)). The path string must match the assignment number format (`*` + five zero-padded id digits + ISO 7064 Mod 97,10 check digits on those five digits); checksum validation is **always** applied on this route (unlike some participant-number flows, it is not affected by `VALIDATE_CHECK_SUM`). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters** (path)
 
@@ -2100,7 +2494,7 @@ None.
 | Code | Meaning |
 | ---- | ------- |
 | 200  | `{"message": "job deleted"}` |
-| 400  | Error: `{"error": "JOB_ASSIGNMENT_NUMBER_WRONG"}` (malformed assignment number format or failed checksum) |
+| 400  | Error: `{"error": "JOB_ASSIGNMENT_NUMBER_WRONG"}` (malformed assignment number format or failed checksum) or `{"error": "ATTENDANCE_CHECK_IN_REQUIRED"}` |
 | 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not signed in as employee, staff, or admin) |
 | 404  | Error: `{"error": "JOB_ASSIGNMENT_NOT_FOUND"}` (valid format but no matching assignment row) |
 
@@ -2174,7 +2568,9 @@ Camp-specific **name**, **currency** labels, optional **`[village-theme]`** UI p
 
 **Runtime-only `la-server`:** The response always includes a top-level **`la-server`** object built by the server (auth groups, part-time enum lists, whether employee-number checksum validation is enabled, JWT TTL hints in **minutes** for access and refresh, etc.). When checksum validation is off, **`employee_number_checksum_algorithm`** is JSON **`null`**. It is **not** read from `village.ini` and must **not** be configured via a `[la-server]` section in the INI; if that section appears in the file, the server **overwrites** it in the JSON so the payload matches real server behavior. **`la-server.part_time_workdays`** lists **stored** slugs (calendar days plus **`weekdays`** and **`all-week`** for data entry); employee list filters and response **`workday`** labels use calendar slugs only — see [Aggregate part-time patterns](#aggregate-part-time-patterns).
 
-**Camp calendar:** **`general.timezone`** in the INI (also echoed under **`general`** in this JSON) is the IANA time zone the server uses for **`workday=today`** on employee lists and for **`workday`: `"today"`** on employee responses. See [Part-time context on employee responses](#part-time-context-on-employee-responses).
+**Camp calendar:** **`general.timezone`** in the INI (also echoed under **`general`** in this JSON) is the IANA time zone the server uses for **`workday=today`** on employee lists, contextual **`workday`** / **`shift`** on employee responses, attendance **`camp_date`** resolution, and derived **`checked_in`**. See [Part-time context on employee responses](#part-time-context-on-employee-responses) and [Attendance API](#attendance-api).
+
+**Attendance switches:** Optional **`[attendance]`** section (echoed as top-level **`attendance`** above) sets **`require_attendance_for_kids`** and **`require_attendance_for_staff`** — booleans as strings in INI (`"true"` / `"false"`). Defaults when keys are missing: kids **`true`**, staff **`false`**. These control the job-assignment check-in gate only; see [Attendance API](#attendance-api).
 
 **Caching:** The **INI-derived** keys are cached in memory until **`village_data/village.ini`** changes (file modification time). The **`ETag`** on **`GET /api/village-data`** is an MD5 hex digest of a **canonical JSON serialization** of the **entire** object returned to the client (all INI sections **plus** the **`la-server`** block). That way, changes from environment or app config (for example checksum validation) update **`ETag`** even when `village.ini` is unchanged. Send **`If-None-Match`** (quoted, comma-separated, or weak `W/"..."` forms are accepted) to receive **`304 Not Modified`** with an **empty body** when the represented body is unchanged.
 
@@ -2222,6 +2618,10 @@ None.
   "hourly_pay": {
     "increase": "0",
     "tax": "3"
+  },
+  "attendance": {
+    "require_attendance_for_kids": "true",
+    "require_attendance_for_staff": "false"
   },
   "village-images": {
     "logo": "images/logo.png",
@@ -2351,7 +2751,7 @@ Same as **`GET /api/village-data/logo`**: **`200`** returns **binary** image byt
 For typical JSON endpoints the stack is:
 
 - **Route modules** under **`app/`** — Flask Blueprints: HTTP only; validate JSON into **`app/schemas/`** dataclasses or helpers, run work inside **`g.db.begin()`**, return **`jsonify`** responses.
-- **`app/services/`** — Orchestration and rules (companies, employees, job assignments, auth flows); raise **`APIError`** with stable **`error`** tokens and HTTP status codes.
+- **`app/services/`** — Orchestration and rules (companies, employees, attendance, job assignments, auth flows); raise **`APIError`** with stable **`error`** tokens and HTTP status codes.
 - **`app/repositories/`** — SQLAlchemy **`select`** / **`execute`** / **`flush`** / **`delete`** grouped per model or use-case (no Flask imports).
 
 Blueprint handlers stay thin (for example [`app/auth/routes.py`](../app/auth/routes.py) delegates to **`AuthService`** in [`app/services/auth.py`](../app/services/auth.py)). Password hashing and JWT helpers remain in **`app/auth/`** (`utils`, decorators).

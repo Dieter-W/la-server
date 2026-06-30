@@ -22,6 +22,8 @@ Some operations are open to everyone (public). Others need a signed-in user; a f
 
 **Part-time schedules:** roster and kiosk apps read derived **`full_time`**, **`workday`**, and **`shift`** from **`GET /api/employees`**. Admins maintain stored schedule rows via **`/api/part-time/{employee_number}`** (see [developer-guide.md](./docs/developer-guide.md#part-time-api)).
 
+**Gate roster:** use **`GET /api/employees`** with optional **`?checked_in=`** (today’s attendance row) and **`?auth_group=`** (`employee`, `staff`, or `admin`) to list active participants who have or have not checked in yet — full profile on each row. For check-in **timestamps**, use **`GET /api/attendance/check-ins`** (see [developer-guide.md — Attendance API](./docs/developer-guide.md#attendance-api)).
+
 ### Initial password
 
 When an account is **created** (`POST /api/employees`), **imported from CSV** ([CSV bulk import](#csv-bulk-import)), or when **staff or admin runs a password reset** (`POST /api/auth/password/reset-password`), the server sets the login secret from the participant’s **`last_name`** (trimmed, then hashed). **Sign-in treats the password as case-insensitive**, so the surname can be typed in normal spelling. The account stays flagged **`password_must_change`** until the user picks their own password with **`POST /api/auth/password/set-password`**. The **login** response includes that flag so client apps can send new users through “change password” immediately after the first sign-in.
@@ -126,6 +128,7 @@ Before you **run LA-Server**, the camp-specific configuration and branding files
 ### `village.ini` sections
 
 - **`[general]`** — Display context for the Spielstadt: e.g. `name`, `location`, `language`, `year`, `timezone`. Use an [IANA time zone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) (the **TZ identifier** column, such as `Europe/Berlin`) — the same identifiers Python [`zoneinfo`](https://docs.python.org/3/library/zoneinfo.html) accepts. It defines which calendar day is **“today”** for the camp (e.g. employee list `workday=today` and per-employee `workday` / `shift` fields when those API features are enabled).
+- **`[attendance]`** — Optional gate switches for daily check-in at the job center (staff record check-in via **`POST /api/attendance/check-in/{employee_number}`**; check-out via **`POST /api/attendance/check-out/{employee_number}`** and is always optional). Keys: **`require_attendance_for_kids`** (default **`true`**) — when enabled, kids (`auth_group` **`employee`**) need a check-in row for calendar today before **`POST`** or **`DELETE`** on **`/api/job-assignments`**; **`require_attendance_for_staff`** (default **`false`**) — same gate for staff/admin when set to **`true`**. These switches do not restrict who may be checked in at the gate (any active participant). Employee JSON includes derived **`checked_in`** for roster apps. Values are echoed under **`attendance`** in **`GET /api/village-data`**. Details: [docs/developer-guide.md](./docs/developer-guide.md#attendance-api).
 - **`[currency]`** — In-game money label: e.g. `name`, `name_short` (values may be quoted in the INI; the server strips optional double quotes).
 - **`[hourly_pay]`** — Village-wide pay tuning: `increase` is an integer added to each company’s stored hourly pay in **`GET /api/companies`** (and single-company) JSON so clients show a uniform bump; other keys (e.g. `tax`) are passed through to clients via **`GET /api/village-data`** if you define them.
 - **`[village-images]`** — Filenames relative to `village_data/`, for example `logo = images/logo.jpg` and `favicon = images/favicon.png`. Missing files or bad paths result in HTTP 404 from the image endpoints.
@@ -272,7 +275,7 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | POST   | `/api/companies`                               | Create company                              | admin required                   |
 | PUT    | `/api/companies/<company_name>`                | Update company                              | admin required                   |
 | DELETE | `/api/companies/<company_name>`                | Delete company                              | admin required                   |
-| GET    | `/api/employees`                               | List employees                              | public                           |
+| GET    | `/api/employees`                               | List employees (optional `?active=`, `?workday=`, `?shift=`, `?checked_in=`, `?auth_group=`) | public                           |
 | GET    | `/api/employees/<employee_number>`             | List one employee                           | public                           |
 | POST   | `/api/employees`                               | Create employee                             | admin required                   |
 | PUT    | `/api/employees/<employee_number>`             | Update employee                             | admin required                   |
@@ -282,6 +285,11 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | PUT    | `/api/part-time/<employee_number>`             | Update part-time row                        | admin required                   |
 | DELETE | `/api/part-time/<employee_number>`             | Delete all part-time rows                   | admin required                   |
 | DELETE | `/api/part-time/<employee_number>?workday=`    | Delete one part-time row                    | admin required                   |
+| POST   | `/api/attendance/check-in/<employee_number>`   | Record check-in for camp today              | staff or higher                  |
+| POST   | `/api/attendance/check-out/<employee_number>`  | Record optional check-out for camp today    | staff or higher                  |
+| GET    | `/api/attendance/check-ins?workday=`           | List check-ins for a camp day               | public                           |
+| GET    | `/api/attendance/check-outs?workday=`          | List check-outs for a camp day              | public                           |
+| GET    | `/api/attendance/<employee_number>`            | Attendance history (optional day filter)    | public                           |
 | GET    | `/api/job-assignments`                         | List job assignments                        | public                           |
 | POST   | `/api/job-assignments`                         | Create job assignment                       | employee or higher               |
 | DELETE | `/api/job-assignments/<job_assignment_number>` | Remove assignment by assignment number      | employee or higher               |
@@ -289,6 +297,8 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | GET    | `/api/village-data`                            | Spielstadt config JSON (`village.ini`)      | public                           |
 | GET    | `/api/village-data/logo`                       | Logo image (path from INI)                  | public                           |
 | GET    | `/api/village-data/favicon`                    | Favicon image (path from INI)               | public                           |
+| GET    | `/api/openapi.json`                            | OpenAPI 3.0 schema (machine-readable)       | public                           |
+| GET    | `/api/docs`                                    | Swagger UI (interactive explorer)           | public                           |
 
 
 ### API examples
@@ -307,6 +317,18 @@ curl http://localhost:5000/api/employees
 
 ```bash
 curl http://localhost:5000/api/employees?active=true
+```
+
+**Active participants not checked in yet (gate roster)**
+
+```bash
+curl "http://localhost:5000/api/employees?active=true&checked_in=false"
+```
+
+**Kids not checked in yet**
+
+```bash
+curl "http://localhost:5000/api/employees?active=true&checked_in=false&auth_group=employee"
 ```
 
 **List job assignments**

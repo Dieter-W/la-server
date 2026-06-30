@@ -25,6 +25,7 @@ All concrete tables inherit from `BaseModel` (`__abstract__ = True`):
 | `authentications`  | `Authentication` | Optional 1:1 login profile per camp participant: password hash, forced password change flag, app permission group |
 | `job_assignments`  | `JobAssignment`  | Links one camp participant (`employees` row) to one company for a placement |
 | `part_times`       | `PartTime`       | Optional part-time slots per camp participant (0..n rows; see [design decisions](#part-time-design-decisions)) |
+| `attendances`      | `Attendance`     | Daily check-in per camp participant; optional check-out timestamp (see [Attendance](#attendances)) |
 
 ---
 
@@ -61,7 +62,7 @@ All concrete tables inherit from `BaseModel` (`__abstract__ = True`):
 
 **Indexes:** primary key on `id`; unique index on `employee_number`.
 
-**ORM:** `Employee.authentication` is an optional **one-to-one** to [`Authentication`](#authentications) (`uselist=False`; `passive_deletes=True` so the ORM relies on DB `ON DELETE CASCADE` when a participant row is removed). `Employee.part_times` is an optional **one-to-many** to [`part_times`](#part_times); an empty collection means full-time work — see [Part-time design decisions](#part-time-design-decisions).
+**ORM:** `Employee.authentication` is an optional **one-to-one** to [`Authentication`](#authentications) (`uselist=False`; `passive_deletes=True` so the ORM relies on DB `ON DELETE CASCADE` when a participant row is removed). `Employee.part_times` is an optional **one-to-many** to [`part_times`](#part_times); an empty collection means full-time work — see [Part-time design decisions](#part-time-design-decisions). `Employee.attendances` is a **one-to-many** to [`attendances`](#attendances) (check-in rows per camp day; `passive_deletes=True`).
 
 Checksum validation for `employee_number` (ISO 7064 Mod 97,10) is **not** enforced in the database; it is applied in the HTTP API and bulk import when `VALIDATE_CHECK_SUM` is enabled. See [Employee numbers and check digits](./employee-numbers.md).
 
@@ -292,7 +293,100 @@ Employee JSON includes **`full_time`**, **`workday`**, and **`shift`**. These ar
 
 Example: camp calendar is **Wednesday**, list uses **`?workday=tuesday`** → participants match if they have a direct **`tuesday`** row, or **`weekdays`** (+ shift) with no overriding **`tuesday`** row, or **`all-week`** (+ shift) with no overriding calendar or **`weekdays`** match; each returned row shows **`"workday": "tuesday"`** and the effective **`shift`**. With default **`workday=all`**, all employees are listed; each row’s **`workday`** / **`shift`** describe the slot for **Wednesday** (today), so a participant with only **`weekdays/morning`** shows **`"workday": "today"`** and **`"shift": "morning"`** — not **`"weekdays"`**.
 
-List filters (not stored): optional **`shift`** when **`workday`** is not **`all`** restricts to the effective shift for that filter day (same precedence as slot resolution). Filter values **`weekdays`** and **`all-week`** are invalid → **`400`**. Helpers live in [`app/schemas/part_time.py`](../app/schemas/part_time.py) (`camp_day`, `resolve_part_time_slot`, `parse_list_workday_param`, `employee_context_workday_and_shift`); list SQL mirrors precedence in [`app/repositories/employee.py`](../app/repositories/employee.py). Staff-facing filter examples: [developer-guide.md — List filter behavior](./developer-guide.md#aggregate-part-time-patterns).
+List filters (not stored): optional **`shift`** when **`workday`** is not **`all`** restricts to the effective shift for that filter day (same precedence as slot resolution). Filter values **`weekdays`** and **`all-week`** are invalid → **`400`**. Calendar helpers ([`camp_day()`](../app/camp_time.py)) and part-time query resolution ([`resolve_part_time_slot()`](../app/schemas/part_time.py), [`parse_list_workday_param()`](../app/schemas/part_time.py), [`employee_context_workday_and_shift()`](../app/schemas/part_time.py)) live in [`app/camp_time.py`](../app/camp_time.py) and [`app/schemas/part_time.py`](../app/schemas/part_time.py); list SQL mirrors precedence in [`app/repositories/employee.py`](../app/repositories/employee.py). Staff-facing filter examples: [developer-guide.md — List filter behavior](./developer-guide.md#aggregate-part-time-patterns).
+
+---
+
+## `attendances`
+
+| Column        | Type              | Constraints / default                          |
+|---------------|-------------------|------------------------------------------------|
+| `id`          | integer           | PK (from `BaseModel`)                          |
+| `employee_id` | integer           | `NOT NULL`, FK → `employees.id`, `ON DELETE CASCADE` |
+| `camp_date`   | `Date`            | `NOT NULL` — calendar date in camp timezone    |
+| `checkin_at`  | `DateTime(timezone=True)` | `NOT NULL` — server timestamp at check-in |
+| `checkout_at` | `DateTime(timezone=True)` | nullable — set only by check-out API |
+| `created_at`, `updated_at` | datetime (tz) | from `BaseModel`                    |
+
+**Indexes:** primary key on `id`; foreign key on `employee_id`; unique constraint on (`employee_id`, `camp_date`) — at most **one attendance row per camp participant per camp day (`uq_attendances_employee_camp_date`).
+
+**ORM:** `Attendance.employee` ↔ `Employee.attendances` (collection; may be empty).
+
+### One row per participant per camp day
+
+Each check-in creates a row for **camp today** (calendar date in the camp timezone — see [Camp timezone](#camp-timezone-configuration-not-in-mariadb)). A second check-in for the same participant on the same `camp_date` violates the unique constraint and the API returns **`409`** **`CONSTRAINT_VIOLATION`**.
+
+**Check-out is optional.** Most camp participants stay all day and never receive a `checkout_at` value. Staff may record an early departure via **`POST /api/attendance/check-out/{employee_number}`**, which sets `checkout_at` to the server’s current time. Nothing in the application **requires** check-out; job-assignment gates and the derived **`checked_in`** flag look only at whether a row exists for today, not at `checkout_at`.
+
+### `checkin_at` and `checkout_at`
+
+| Column | Set by | Notes |
+|--------|--------|-------|
+| **`checkin_at`** | **`POST /api/attendance/check-in/{employee_number}`** (staff auth) | Always **`NOT NULL`**. Value is the server’s timezone-aware **`now()`** at insert — never supplied by the client. |
+| **`checkout_at`** | **`POST /api/attendance/check-out/{employee_number}`** (staff auth) | Starts **`NULL`**. Updated once when check-out is recorded; remains **`NULL`** if the participant never checks out. A second check-out on the same row → **`409`** **`CONSTRAINT_VIOLATION`**. |
+
+Both POST endpoints reject **any request body** (including `{}`) with **`400`** **`REQUEST_BODY_NOT_ALLOWED`** so clients cannot forge timestamps. See [Security — attendance writes](#security-attendance-writes).
+
+### API projection: `checked_in` (not a stored column) {#api-projection-checked-in}
+
+Employee JSON includes **`checked_in`** (boolean). It is **derived at serialisation time** from `attendances` — it is **not** a column on `employees`.
+
+| Field | Source | Meaning |
+|-------|--------|---------|
+| `checked_in` | Row exists in `attendances` for **`camp_date` = calendar today** in camp timezone | `true` when the participant has checked in today; `false` otherwise. **`checkout_at` is ignored** — a row with check-out still recorded counts as checked in. |
+
+**Context day** is always **calendar today** in camp timezone (same as single-employee / profile part-time context), not the list query’s optional `?workday=` filter.
+
+Endpoints that include **`checked_in`:** `GET /api/employees` (each row), `GET /api/employees/{employee_number}`, and `GET /api/auth/me`. Helpers live in [`app/repositories/attendance.py`](../app/repositories/attendance.py) and [`app/services/employee.py`](../app/services/employee.py).
+
+### Employee list filters (`checked_in`, `auth_group`) {#employee-list-attendance-filters}
+
+`GET /api/employees` accepts optional query filters that use the same **`attendances`** data as the derived **`checked_in`** field. They are applied in list SQL ([`app/repositories/employee.py`](../app/repositories/employee.py) — `_apply_list_filters`) so **`count`** matches **`employees[]`**.
+
+| Query param | Value | SQL effect |
+|-------------|-------|------------|
+| **`checked_in`** | omit | No attendance filter (all rows matching other params) |
+| **`checked_in`** | `true` / `1` / `yes` | **`EXISTS`** row in **`attendances`** for **`camp_date` = calendar today** in camp timezone |
+| **`checked_in`** | `false` / `0` / `no` | **`NOT EXISTS`** such a row |
+| **`auth_group`** | omit | No auth-tier filter |
+| **`auth_group`** | `employee`, `staff`, or `admin` | **`OUTER JOIN authentications`**; match **`auth_group`**, or treat **no auth row** as **`employee`** when filtering for **`employee`** |
+
+**Calendar day:** the **`checked_in`** filter always uses **camp today** ([`camp_today()`](../app/camp_time.py)), not the list’s optional **`?workday=`** part-time filter. **`checkout_at`** is ignored — checked out early still counts as checked in.
+
+**Compose** with existing list filters: **`active`**, **`workday`**, **`shift`**. Invalid **`auth_group`** → **`400`** **`INVALID_AUTH_GROUP`**. Staff-facing examples: [developer-guide.md — List employees](./developer-guide.md#list-employees---apiemployees).
+
+**When to use which read API:**
+
+| Need | Endpoint |
+| ---- | -------- |
+| Gate roster — full profile, filter not checked in / by tier | **`GET /api/employees`** with **`?checked_in=`** / **`?auth_group=`** |
+| Audit log — who scanned in and **when** (`checkin_at`) | **`GET /api/attendance/check-ins`** |
+| Early departures with **`checkout_at`** | **`GET /api/attendance/check-outs`** |
+
+### Attendance list queries (`workday`)
+
+`GET /api/attendance/check-ins`, `GET /api/attendance/check-outs`, and optional `?workday=` on `GET /api/attendance/{employee_number}` resolve a **`camp_date`** from the query slug (default **`today`**). Rules mirror part-time calendar slugs: **`monday` … `sunday`** map to that weekday in the ISO week containing camp today; invalid slugs such as **`all`**, **`weekdays`**, or **`all-week`** → **`400`** **`INVALID_ATTENDANCE_WORKDAY`**. Camp calendar helpers ([`camp_today()`](../app/camp_time.py)) and attendance query resolution ([`resolve_attendance_workday()`](../app/schemas/attendance.py)) live in [`app/camp_time.py`](../app/camp_time.py) and [`app/schemas/attendance.py`](../app/schemas/attendance.py).
+
+| Endpoint | Rows returned for resolved `camp_date` |
+|----------|----------------------------------------|
+| **`GET /api/attendance/check-ins`** | All attendance rows (everyone who checked in) |
+| **`GET /api/attendance/check-outs`** | Rows where **`checkout_at IS NOT NULL`** only |
+
+### Security — attendance writes {#security-attendance-writes}
+
+The `attendances` table is an **audit trail** for daily presence. The API deliberately limits how rows can change:
+
+| Allowed | Forbidden |
+|---------|-----------|
+| **`POST /api/attendance/check-in`** — **INSERT** one row; `checkin_at` = server `now()` | Client-supplied timestamps (any request body on POST → **`400`**) |
+| **`POST /api/attendance/check-out`** — **UPDATE** `checkout_at` only on today’s row; server `now()` | **`PUT`**, **`PATCH`**, or **`DELETE`** on attendance rows |
+| Staff-only auth on both POST paths | Requiring check-out anywhere in the application |
+
+**Direct SQL** (or tools bypassing the HTTP API) can still insert or mutate rows; MariaDB does not enforce the POST-only write policy. Operations should rely on the documented API paths.
+
+**Job-assignment gate:** when village configuration requires attendance for a participant, **`POST`** and **`DELETE`** on **`/api/job-assignments`** require a check-in row for camp today (`checkout_at` not checked). Configuration keys **`require_attendance_for_kids`** and **`require_attendance_for_staff`** live in **`village.ini`** — see the [README](../README.md) and [developer-guide.md](./developer-guide.md).
+
+**Fresh installs only:** like other tables, `attendances` is created by `db.create_all()` on startup or [`scripts/create_database.py`](../scripts/create_database.py). There is no migration path for adding this table to an existing deployment.
 
 ---
 
@@ -348,10 +442,20 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
+    attendances {
+        int id PK
+        int employee_id FK
+        date camp_date
+        datetime checkin_at
+        datetime checkout_at
+        datetime created_at
+        datetime updated_at
+    }
     companies ||--o{ job_assignments : company_id
     employees ||--o{ job_assignments : employee_id
     employees ||--o| authentications : employee_id
     employees ||--o{ part_times : employee_id
+    employees ||--o{ attendances : employee_id
 ```
 
 ---
@@ -387,6 +491,14 @@ erDiagram
 - `workday` (`NOT NULL`): calendar slug (`monday` … `sunday`) or aggregate slug (**`weekdays`**, **`all-week`**).
 - `shift` (`NOT NULL`, default `all-day`): on calendar days, `all-day` = full day; `morning` or `afternoon` = that shift only. On aggregates, only `morning` or `afternoon` is valid.
 - **API projection:** list/get/profile responses add **`full_time`**, **`workday`**, and **`shift`** via slot resolution plus camp timezone — see [API projection: `full_time`, `workday`, and `shift`](#api-projection-workday-shift). JSON **`workday`** is always a **context label** (`today`, calendar name, or `null`); aggregate slugs are **never** exposed in employee responses.
+
+### Attendance (`attendances`)
+
+- Records **daily check-in** for a camp participant. **`camp_date`** is the calendar date in the camp timezone (see [Camp timezone](#camp-timezone-configuration-not-in-mariadb)); **`checkin_at`** is the server timestamp when staff scanned the passport at the gate.
+- **`checkout_at`** is **optional**. Most rows keep it **`NULL`** all day. Early pickup or similar exceptions are recorded with **`POST /api/attendance/check-out`**; check-out is never required by business rules.
+- At most **one row per (`employee_id`, `camp_date`)**. Duplicate check-in or check-out → **`409`** **`CONSTRAINT_VIOLATION`**. **`ON DELETE CASCADE`:** if a camp participant row is removed, all their attendance rows are removed with it.
+- **Write paths:** only **`POST /api/attendance/check-in`** (insert) and **`POST /api/attendance/check-out`** (update `checkout_at` only). No request body; timestamps are server-only — see [Security — attendance writes](#security-attendance-writes).
+- **Read projection:** employee list/get/profile JSON adds **`checked_in`** when a row exists for calendar today — see [API projection: `checked_in`](#api-projection-checked-in). The employee **list** can also **filter** by **`?checked_in=`** and **`?auth_group=`** — see [Employee list filters](#employee-list-attendance-filters). Job-assignment create/delete may require today’s row depending on **`village.ini`** switches (row presence only; `checkout_at` ignored).
 
 ### Job assignment (`job_assignments`)
 
