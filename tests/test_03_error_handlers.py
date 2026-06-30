@@ -17,6 +17,8 @@ def test_operational_error_concurrent_update(app, client):
         )
 
     response = client.get("/__test__/concurrent_update")
+    if response.status_code != 409:
+        print(response.text)
     assert response.status_code == 409
     data = response.get_json()
     assert data["error"] == "CONCURRENT_UPDATE"
@@ -30,6 +32,8 @@ def test_sqlalchemy_error_database(app, client):
         raise SQLAlchemyError("test failure")
 
     response = client.get("/__test__/sqlalchemy_error")
+    if response.status_code != 500:
+        print(response.text)
     assert response.status_code == 500
     data = response.get_json()
 
@@ -47,6 +51,8 @@ def test_sqlalchemy_error_message_in_debug_mode(app, client):
         raise SQLAlchemyError("test failure debug")
 
     response = client.get("/__test__/sqlalchemy_error_debug")
+    if response.status_code != 500:
+        print(response.text)
     assert response.status_code == 500
     data = response.get_json()
 
@@ -64,6 +70,8 @@ def test_unhandled_exception_internal_server_error(app, client):
         raise RuntimeError("unexpected")
 
     response = client.get("/__test__/runtime_error")
+    if response.status_code != 500:
+        print(response.text)
     assert response.status_code == 500
     data = response.get_json()
     assert data["error"] == "INTERNAL_SERVER_ERROR"

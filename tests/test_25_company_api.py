@@ -1,9 +1,8 @@
 """Company API tests"""
 
-import unicodedata
 from urllib.parse import quote
 
-from test_utils import _login_as_admin
+from tests.test_utils import _login_as_admin, nfc
 
 payload_create = {
     "company_name": "TEST_COMPANY",
@@ -23,11 +22,6 @@ payload_put = {
 }
 
 
-def _nfc(s: str) -> str:
-    """Normalize Unicode so DB round-trips match Python string literals (NFC vs NFD)."""
-    return unicodedata.normalize("NFC", s)
-
-
 # ---------------------------------------------------------------------
 # POST /companies — invalid payload
 # ---------------------------------------------------------------------
@@ -39,10 +33,10 @@ def test_companies_create_invalid_payload_error_1(client, sample_authentication,
         headers={"Authorization": f"Bearer {token}"},
         json="{wrong = JSON}",
     )
-    data = response.get_json()
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
+    data = response.get_json()
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
@@ -172,7 +166,7 @@ def test_companies_query_all(client, sample_company, sample_job_assignment): # f
         company_data["id"] == sample_company.id for company_data in data["companies"]
     )
     assert any(
-        _nfc(company_data["company_name"]) == _nfc(sample_company.company_name)
+        nfc(company_data["company_name"]) == nfc(sample_company.company_name)
         for company_data in data["companies"]
     )
     assert any(
@@ -200,6 +194,7 @@ def test_companies_query_all_true(client, sample_company, ): # fmt: skip
     response = client.get("/api/companies?active=true")
     if response.status_code != 200:
         print(response.text)
+    assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data["companies"], list)
     assert len(data["companies"]) == 3
@@ -210,6 +205,7 @@ def test_companies_query_all_false(client, sample_company,): # fmt: skip
     response = client.get("/api/companies?active=false")
     if response.status_code != 200:
         print(response.text)
+    assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data["companies"], list)
     assert len(data["companies"]) == 1
@@ -220,6 +216,7 @@ def test_companies_query_all_empty(client, db_session,): # fmt: skip
     response = client.get("/api/companies")
     if response.status_code != 200:
         print(response.text)
+    assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data["companies"], list)
     assert len(data["companies"]) == 0
@@ -235,6 +232,7 @@ def test_companies_query(client, sample_company, sample_job_assignment,): # fmt:
     response = client.get(f"/api/companies/{quote(company_name, safe='')}")
     if response.status_code != 200:
         print(response.text)
+    assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
     assert len(data) == 8
@@ -331,18 +329,20 @@ def test_companies_update(client, sample_authentication, sample_company, sample_
     )
     if response.status_code != 200:
         print(response.text)
+    assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
     assert len(data) == 8
     assert data["id"] == sample_company.id
-    assert _nfc(data["company_name"]) == _nfc(payload_put["company_name"])
+    assert nfc(data["company_name"]) == nfc(payload_put["company_name"])
     assert data["hourly_pay"] == payload_put["hourly_pay"]
     assert data["active"] == payload_put["active"]
     assert data["notes"] == payload_put["notes"]
 
     response2 = client.get("/api/companies/Kitchen")
-    if response.status_code != 200:
-        print(response.text)
+    if response2.status_code != 200:
+        print(response2.text)
+    assert response2.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
     assert len(data2) == 8
@@ -395,6 +395,7 @@ def test_companies_delete(client, sample_authentication, sample_company, sample_
     )
     if response.status_code != 200:
         print(response.text)
+    assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
     assert data["message"] == "company deleted permanently"

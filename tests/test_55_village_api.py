@@ -77,6 +77,8 @@ def test_village_data_get_ok_la_server(client):
 def test_village_data_get_ok_server_config_changes(client, app):
     """Changing server config updates ETag; a stale If-None-Match returns fresh 200 JSON."""
     response1 = client.get("/api/village-data")
+    if response1.status_code != 200:
+        print(response1.text)
     assert response1.status_code == 200
     etag_before = response1.headers["ETag"]
 
@@ -84,6 +86,8 @@ def test_village_data_get_ok_server_config_changes(client, app):
     app.config["VALIDATE_CHECK_SUM"] = not prev
 
     response2 = client.get("/api/village-data")
+    if response2.status_code != 200:
+        print(response2.text)
     assert response2.status_code == 200
     etag_after = response2.headers["ETag"]
     assert etag_before != etag_after
@@ -91,6 +95,8 @@ def test_village_data_get_ok_server_config_changes(client, app):
     stale = client.get(
         "/api/village-data", headers={"If-None-Match": f'"{etag_before}"'}
     )
+    if stale.status_code != 200:
+        print(stale.text)
     assert stale.status_code == 200
     assert stale.get_json() is not None
 
@@ -103,6 +109,8 @@ def test_village_data_get_ok_ini_file_changes(client):
     }
     with patch.object(village_data_module, "load_village_data", return_value=fake_ini):
         response = client.get("/api/village-data")
+    if response.status_code != 200:
+        print(response.text)
     assert response.status_code == 200
     data = response.get_json()
     assert "should_not_appear" not in data["la-server"]
@@ -152,7 +160,8 @@ def test_village_get_logo_error_1(client):
     if response.status_code != 404:
         print(response.text)
     assert response.status_code == 404
-    assert response.get_json()["error"] == "VILLAGE_LOGO_NOT_CONFIGURED"
+    data = response.get_json()
+    assert data["error"] == "VILLAGE_LOGO_NOT_CONFIGURED"
 
 
 # ---------------------------------------------------------------------
@@ -201,4 +210,5 @@ def test_village_get_favicon_error_1(client):
     if response.status_code != 404:
         print(response.text)
     assert response.status_code == 404
-    assert response.get_json()["error"] == "VILLAGE_FAVICON_NOT_CONFIGURED"
+    data = response.get_json()
+    assert data["error"] == "VILLAGE_FAVICON_NOT_CONFIGURED"

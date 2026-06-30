@@ -3,10 +3,9 @@
 import sys
 import subprocess
 
-import unicodedata
 from urllib.parse import quote
 
-from test_utils import _login_as_admin
+from tests.test_utils import _login_as_admin, nfc
 
 company_check = {
     "company_name": "Küche",
@@ -25,11 +24,6 @@ payload_put = {
     "active": True,
     "notes": "Updated by test",
 }
-
-
-def _nfc(s: str) -> str:
-    """Normalize Unicode so DB round-trips match Python string literals (NFC vs NFD)."""
-    return unicodedata.normalize("NFC", s)
 
 
 # ---------------------------------------------------------------------
@@ -60,7 +54,7 @@ def test_bulk_import_companies_create_ok(client,): # fmt: skip
     assert data["count"] == 4
 
     assert any(
-        _nfc(company_data["company_name"]) == _nfc(company_check["company_name"])
+        nfc(company_data["company_name"]) == nfc(company_check["company_name"])
         for company_data in data["companies"]
     )
     assert any(
@@ -136,13 +130,13 @@ def test_bulk_import_companies_update_ok(client, sample_authentication, sample_e
     # Check if the original content again available
     company_name = company_check["company_name"]
     response2 = client.get(f"/api/companies/{quote(company_name, safe='')}")
-    if response.status_code != 200:
-        print(response.text)
-    assert response.status_code == 200
+    if response2.status_code != 200:
+        print(response2.text)
+    assert response2.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
     assert len(data2) == 8
-    assert _nfc(data2["company_name"]) == _nfc(company_check["company_name"])
+    assert nfc(data2["company_name"]) == nfc(company_check["company_name"])
     assert data["jobs"]["max"] == payload_put["jobs_max"]
     assert data["jobs"]["available"] == payload_put["jobs_max"]
     assert data2["hourly_pay"] == company_check["hourly_pay"]

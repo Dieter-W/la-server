@@ -1,6 +1,6 @@
 """Authentication API tests"""
 
-from test_utils import (
+from tests.test_utils import (
     _login_as_admin,
     _login_as_employee,
     _login_as_staff,
