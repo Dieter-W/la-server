@@ -9,12 +9,12 @@ import pytest
 
 import app.village_config as village_config_module
 from app.errors import APIError
+from app.camp_time import camp_day
 from app.schemas.part_time import (
     ALL_WEEK_WORKDAY,
     PART_TIME_CALENDAR_WORKDAYS,
     WEEKDAYS_CALENDAR_WORKDAYS,
     WEEKDAYS_WORKDAY,
-    camp_day,
     is_weekdays_calendar_day,
     parse_list_workday_param,
     project_api_workday_label,
@@ -29,7 +29,7 @@ from tests.test_part_time_helpers import (
     part_time_row,
     seed_part_time_rows,
 )
-from tests.test_utils import assert_status
+from tests.test_utils import _login_as_admin, _login_as_employee
 
 # Camp timezone anchors: ``tests.test_camp_time`` (shared with conftest).
 
@@ -108,7 +108,11 @@ def test_employees_list_workday_all_labels_today_on_monday(
     sample_employee,
     sample_job_assignment,
 ):
-    data = assert_status(client.get("/api/employees"), 200)
+    response = client.get("/api/employees")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
     assert data["count"] == 4
 
     by_number = {e["employee_number"]: e for e in data["employees"]}
@@ -130,7 +134,11 @@ def test_employees_list_workday_tuesday_filter_and_label(
     sample_employee,
     sample_job_assignment,
 ):
-    data = assert_status(client.get("/api/employees?workday=tuesday"), 200)
+    response = client.get("/api/employees?workday=tuesday")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
     assert data["count"] == 1
     assert len(data["employees"]) == 1
     row = data["employees"][0]
@@ -147,20 +155,20 @@ def test_employees_list_workday_tuesday_shift_filter(
     sample_employee,
     sample_job_assignment,
 ):
-    data = assert_status(
-        client.get("/api/employees?workday=tuesday&shift=afternoon"),
-        200,
-    )
+    response = client.get("/api/employees?workday=tuesday&shift=afternoon")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
     assert data["count"] == 1
     assert data["employees"][0]["shift"] == "afternoon"
 
-    assert (
-        assert_status(
-            client.get("/api/employees?workday=tuesday&shift=morning"),
-            200,
-        )["count"]
-        == 0
-    )
+    response = client.get("/api/employees?workday=tuesday&shift=morning")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 0
 
 
 def test_employees_list_workday_today_filters_monday_slot(
@@ -171,7 +179,11 @@ def test_employees_list_workday_today_filters_monday_slot(
     sample_employee,
     sample_job_assignment,
 ):
-    data = assert_status(client.get("/api/employees?workday=today"), 200)
+    response = client.get("/api/employees?workday=today")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
     assert data["count"] == 1
     row = data["employees"][0]
     assert row["employee_number"] == "M00252"
@@ -180,20 +192,21 @@ def test_employees_list_workday_today_filters_monday_slot(
 
 
 def test_employees_list_invalid_workday(client, sample_employee):
-    assert (
-        assert_status(client.get("/api/employees?workday=notaday"), 400)["error"]
-        == "INVALID_PART_TIME_WORKDAY"
-    )
+    response = client.get("/api/employees?workday=notaday")
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_PART_TIME_WORKDAY"
 
 
 def test_employees_list_invalid_shift(client, sample_employee):
-    assert (
-        assert_status(
-            client.get("/api/employees?workday=tuesday&shift=evening"),
-            400,
-        )["error"]
-        == "INVALID_PART_TIME_SHIFT"
-    )
+    response = client.get("/api/employees?workday=tuesday&shift=evening")
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_PART_TIME_SHIFT"
 
 
 def test_employees_list_shift_all_day_filter_and_response(
@@ -205,10 +218,11 @@ def test_employees_list_shift_all_day_filter_and_response(
     sample_job_assignment,
 ):
     """Default part-time shift is all-day; filter and JSON use the same slug."""
-    data = assert_status(
-        client.get("/api/employees?workday=today&shift=all-day"),
-        200,
-    )
+    response = client.get("/api/employees?workday=today&shift=all-day")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
     assert data["count"] == 1
     row = data["employees"][0]
     assert row["employee_number"] == "A00265"
@@ -216,15 +230,19 @@ def test_employees_list_shift_all_day_filter_and_response(
     assert row["shift"] == "all-day"
     assert row["full_time"] is False
 
-    assert (
-        assert_status(
-            client.get("/api/employees?workday=today&shift=morning"),
-            200,
-        )["count"]
-        == 0
-    )
+    response = client.get("/api/employees?workday=today&shift=morning")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 0
 
-    assert assert_status(client.get("/api/employees/A00265"), 200)["shift"] == "all-day"
+    response = client.get("/api/employees/A00265")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["shift"] == "all-day"
 
 
 # ---------------------------------------------------------------------
@@ -238,7 +256,11 @@ def test_employees_get_one_workday_today_on_monday(
     sample_employee,
     sample_job_assignment,
 ):
-    data = assert_status(client.get("/api/employees/M00252"), 200)
+    response = client.get("/api/employees/M00252")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
     assert data["workday"] == "today"
     assert data["shift"] == "morning"
 
@@ -250,7 +272,11 @@ def test_employees_get_one_full_time_projects_today_all_day(
     sample_employee,
     sample_job_assignment,
 ):
-    data = assert_status(client.get("/api/employees/P00370"), 200)
+    response = client.get("/api/employees/P00370")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
     assert data["workday"] == "today"
     assert data["shift"] == "all-day"
     assert data["full_time"] is True
@@ -260,15 +286,20 @@ def test_auth_me_workday_today_on_monday(
     client,
     camp_is_monday,
     part_time_monika,
-    employee_headers,
+    sample_authentication,
     sample_company,
     sample_employee,
     sample_job_assignment,
 ):
-    data = assert_status(
-        client.get("/api/auth/me", headers=employee_headers),
-        200,
+    token = _login_as_employee(client, sample_authentication, sample_employee)
+    response = client.get(
+        "/api/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
     )
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
     assert data["employee_number"] == "M00252"
     assert data["workday"] == "today"
     assert data["shift"] == "morning"
@@ -277,15 +308,20 @@ def test_auth_me_workday_today_on_monday(
 def test_auth_me_full_time_projects_today_all_day(
     client,
     camp_is_monday,
-    admin_headers,
+    sample_authentication,
     sample_company,
     sample_employee,
     sample_job_assignment,
 ):
-    data = assert_status(
-        client.get("/api/auth/me", headers=admin_headers),
-        200,
+    token = _login_as_admin(client, sample_authentication, sample_employee)
+    response = client.get(
+        "/api/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
     )
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
     assert data["employee_number"] == "P00370"
     assert data["full_time"] is True
     assert data["workday"] == "today"
@@ -372,16 +408,20 @@ def test_employee_json_never_exposes_aggregate_workday_slugs(
     request.getfixturevalue(camp_fixture)
 
     for workday_param in list_workday_params:
-        data = assert_status(
-            client.get(f"/api/employees?workday={workday_param}"),
-            200,
-        )
+        response = client.get(f"/api/employees?workday={workday_param}")
+        if response.status_code != 200:
+            print(response.text)
+        assert response.status_code == 200
+        data = response.get_json()
         for row in data["employees"]:
             assert_no_aggregate_workday_in_payload(row)
 
-    assert_no_aggregate_workday_in_payload(
-        assert_status(client.get("/api/employees/A00265"), 200)
-    )
+    response = client.get("/api/employees/A00265")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert_no_aggregate_workday_in_payload(data)
 
 
 def test_resolve_part_time_slot_precedence_calendar_over_weekdays_over_all_week():
@@ -429,7 +469,11 @@ def test_employees_list_weekdays_morning_wednesday_filter_and_label(
     sample_employee,
     sample_job_assignment,
 ):
-    data = assert_status(client.get("/api/employees?workday=wednesday"), 200)
+    response = client.get("/api/employees?workday=wednesday")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
     assert data["count"] == 1
     row = data["employees"][0]
     assert row["employee_number"] == "A00265"
@@ -447,14 +491,19 @@ def test_employees_list_weekdays_morning_excluded_on_saturday(
     sample_job_assignment,
 ):
     """``weekdays`` does not match Saturday in list filter or response projection."""
-    assert (
-        assert_status(client.get("/api/employees?workday=saturday"), 200)["count"] == 0
-    )
+    response = client.get("/api/employees?workday=saturday")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 0
 
-    by_number = {
-        e["employee_number"]: e
-        for e in assert_status(client.get("/api/employees"), 200)["employees"]
-    }
+    response = client.get("/api/employees")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    list_data = response.get_json()
+    by_number = {e["employee_number"]: e for e in list_data["employees"]}
     assert by_number["A00265"]["workday"] is None
     assert by_number["A00265"]["shift"] is None
 
@@ -467,7 +516,11 @@ def test_employees_list_all_week_morning_included_on_saturday(
     sample_employee,
     sample_job_assignment,
 ):
-    data = assert_status(client.get("/api/employees?workday=saturday"), 200)
+    response = client.get("/api/employees?workday=saturday")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
     assert data["count"] == 1
     row = data["employees"][0]
     assert row["employee_number"] == "A00265"
@@ -483,24 +536,30 @@ def test_employees_list_weekdays_plus_friday_afternoon_precedence(
     sample_employee,
     sample_job_assignment,
 ):
-    data = assert_status(client.get("/api/employees?workday=friday"), 200)
+    response = client.get("/api/employees?workday=friday")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
     assert data["count"] == 1
     row = data["employees"][0]
     assert row["employee_number"] == "A00265"
     assert row["workday"] == "friday"
     assert row["shift"] == "afternoon"
 
-    assert (
-        assert_status(
-            client.get("/api/employees?workday=friday&shift=morning"),
-            200,
-        )["count"]
-        == 0
-    )
+    response = client.get("/api/employees?workday=friday&shift=morning")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 0
 
-    thursday = assert_status(client.get("/api/employees?workday=thursday"), 200)[
-        "employees"
-    ][0]
+    response = client.get("/api/employees?workday=thursday")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    thursday = data["employees"][0]
     assert thursday["shift"] == "morning"
 
 
@@ -513,17 +572,23 @@ def test_employees_list_weekdays_included_on_friday(
     sample_job_assignment,
 ):
     """``weekdays`` matches Friday in list filter and projects ``today`` on ``workday=all``."""
-    data = assert_status(client.get("/api/employees?workday=friday"), 200)
+    response = client.get("/api/employees?workday=friday")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
     assert data["count"] == 1
     row = data["employees"][0]
     assert row["employee_number"] == "A00265"
     assert row["workday"] == "friday"
     assert row["shift"] == "morning"
 
-    by_number = {
-        e["employee_number"]: e
-        for e in assert_status(client.get("/api/employees"), 200)["employees"]
-    }
+    response = client.get("/api/employees")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    list_data = response.get_json()
+    by_number = {e["employee_number"]: e for e in list_data["employees"]}
     assert by_number["A00265"]["workday"] == "today"
     assert by_number["A00265"]["shift"] == "morning"
 
@@ -537,32 +602,37 @@ def test_employees_list_weekdays_morning_excluded_on_sunday(
     sample_job_assignment,
 ):
     """``weekdays`` does not match Sunday in list filter or response projection."""
-    assert assert_status(client.get("/api/employees?workday=sunday"), 200)["count"] == 0
+    response = client.get("/api/employees?workday=sunday")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 0
 
-    by_number = {
-        e["employee_number"]: e
-        for e in assert_status(client.get("/api/employees"), 200)["employees"]
-    }
+    response = client.get("/api/employees")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    list_data = response.get_json()
+    by_number = {e["employee_number"]: e for e in list_data["employees"]}
     assert by_number["A00265"]["workday"] is None
     assert by_number["A00265"]["shift"] is None
 
 
 def test_employees_list_invalid_aggregate_workday_params(client, sample_employee):
-    assert (
-        assert_status(
-            client.get(f"/api/employees?workday={WEEKDAYS_WORKDAY}"),
-            400,
-        )["error"]
-        == "INVALID_PART_TIME_WORKDAY"
-    )
+    response = client.get(f"/api/employees?workday={WEEKDAYS_WORKDAY}")
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_PART_TIME_WORKDAY"
 
-    assert (
-        assert_status(
-            client.get(f"/api/employees?workday={ALL_WEEK_WORKDAY}"),
-            400,
-        )["error"]
-        == "INVALID_PART_TIME_WORKDAY"
-    )
+    response = client.get(f"/api/employees?workday={ALL_WEEK_WORKDAY}")
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_PART_TIME_WORKDAY"
 
 
 # ---------------------------------------------------------------------
@@ -603,10 +673,12 @@ def test_list_filter_matches_resolve_helper(
         expected = count_employees_matching_workday_filter(session, filter_day)
         session.close()
 
-    api_count = assert_status(
-        client.get(f"/api/employees?workday={filter_day}"),
-        200,
-    )["count"]
+    response = client.get(f"/api/employees?workday={filter_day}")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    api_count = data["count"]
 
     assert (
         api_count == expected

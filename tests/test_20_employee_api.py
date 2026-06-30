@@ -1,6 +1,6 @@
 """Employee API tests"""
 
-from tests.test_utils import _login_as_admin
+from tests.test_utils import _login_as_admin, _login_as_staff
 
 payload_create = {
     "first_name": "Test",
@@ -636,6 +636,161 @@ def test_employees_query_all_false(client, sample_employee):
     assert data["count"] == 1
 
 
+# ---------------------------------------------------------------------
+# GET /employees — checked_in and auth_group list filters
+# ---------------------------------------------------------------------
+def test_employees_list_checked_in_filter_default_unchanged(
+    client,
+    sample_employee,
+    camp_today_is_monday,
+):
+    """List without attendance filters still returns the full roster."""
+    response = client.get("/api/employees")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 4
+    assert len(data["employees"]) == 4
+
+
+def test_employees_list_active_checked_in_false(
+    client,
+    sample_employee,
+    camp_today_is_monday,
+):
+    """Active participants without today's check-in; inactive M00155 excluded."""
+    response = client.get("/api/employees?active=true&checked_in=false")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    numbers = {row["employee_number"] for row in data["employees"]}
+    assert data["count"] == 3
+    assert numbers == {"M00252", "A00265", "P00370"}
+    assert all(row["checked_in"] is False for row in data["employees"])
+
+
+def test_employees_list_checked_in_false_drops_after_check_in(
+    client,
+    sample_authentication,
+    sample_employee,
+    camp_today_is_monday,
+):
+    """After one check-in, unchecked roster count drops by one."""
+    response = client.get("/api/employees?active=true&checked_in=false")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    before = response.get_json()
+    assert before["count"] == 3
+
+    token = _login_as_staff(client, sample_authentication, sample_employee)
+    response = client.post(
+        "/api/attendance/check-in/M00252",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 201:
+        print(response.text)
+    assert response.status_code == 201
+
+    response = client.get("/api/employees?active=true&checked_in=false")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    after = response.get_json()
+    assert after["count"] == 2
+    numbers = {row["employee_number"] for row in after["employees"]}
+    assert numbers == {"A00265", "P00370"}
+
+
+def test_employees_list_checked_in_false_auth_group_employee(
+    client,
+    sample_authentication,
+    sample_employee,
+    camp_today_is_monday,
+):
+    """Kids tier without today's check-in — only M00252 among active roster."""
+    response = client.get(
+        "/api/employees?active=true&checked_in=false&auth_group=employee",
+    )
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 1
+    assert data["employees"][0]["employee_number"] == "M00252"
+    assert data["employees"][0]["checked_in"] is False
+
+
+def test_employees_list_checked_in_true_auth_group_staff(
+    client,
+    sample_authentication,
+    sample_employee,
+    camp_today_is_monday,
+):
+    """Checked-in staff only after gate scan."""
+    token = _login_as_staff(client, sample_authentication, sample_employee)
+    response = client.post(
+        "/api/attendance/check-in/A00265",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 201:
+        print(response.text)
+    assert response.status_code == 201
+
+    response = client.get(
+        "/api/employees?active=true&checked_in=true&auth_group=staff",
+    )
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 1
+    assert data["employees"][0]["employee_number"] == "A00265"
+    assert data["employees"][0]["checked_in"] is True
+
+
+def test_employees_list_invalid_auth_group(
+    client,
+    sample_authentication,
+    sample_employee,
+    camp_today_is_monday,
+):
+    response = client.get("/api/employees?auth_group=kid")
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_AUTH_GROUP"
+
+
+def test_employees_list_checked_in_maybe_treated_as_false(
+    client,
+    sample_authentication,
+    sample_employee,
+    camp_today_is_monday,
+):
+    """Unknown checked_in values follow active semantics (false, not no filter)."""
+    token = _login_as_staff(client, sample_authentication, sample_employee)
+    response = client.post(
+        "/api/attendance/check-in/M00252",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 201:
+        print(response.text)
+    assert response.status_code == 201
+
+    response = client.get("/api/employees?active=true&checked_in=maybe")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 2
+    numbers = {row["employee_number"] for row in data["employees"]}
+    assert numbers == {"A00265", "P00370"}
+
+
 def test_employees_query_all_empty(client, db_session,): # fmt: skip
     response = client.get("/api/employees")
     if response.status_code != 200:
@@ -659,8 +814,9 @@ def test_employees_query(client, sample_company, sample_employee, sample_job_ass
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 15
+    assert len(data) == 16
     assert data["full_time"] is True
+    assert data["checked_in"] is False
     assert data["first_name"] == sample_employee.first_name
     assert data["last_name"] == sample_employee.last_name
     assert data["employee_number"] == sample_employee.employee_number
@@ -790,7 +946,7 @@ def test_employees_update(client, sample_authentication, sample_company, sample_
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 15
+    assert len(data) == 16
     assert data["first_name"] == payload_put["first_name"]
     assert data["last_name"] == payload_put["last_name"]
     assert data["employee_number"] == payload_put["employee_number"]
@@ -809,7 +965,7 @@ def test_employees_update(client, sample_authentication, sample_company, sample_
     assert response2.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
-    assert len(data2) == 15
+    assert len(data2) == 16
     assert data2["employee_number"] == payload_put["employee_number"]
 
 
@@ -894,7 +1050,7 @@ def test_employees_delete_soft(client, sample_authentication, sample_company, sa
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 15
+    assert len(data) == 16
     assert data["first_name"] == sample_employee.first_name
     assert data["last_name"] == sample_employee.last_name
     assert data["employee_number"] == sample_employee.employee_number
@@ -909,6 +1065,8 @@ def test_employees_delete_soft(client, sample_authentication, sample_company, sa
     assert data["shift"] == "all-day"
 
     response = client.get(f"/api/employees/{employee_number}")
+    if response.status_code != 200:
+        print(response.text)
     assert response.status_code == 200
     data = response.get_json()
     assert data["active"] is not True

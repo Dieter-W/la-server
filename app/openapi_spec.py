@@ -3,6 +3,7 @@
 import tomllib
 from pathlib import Path
 
+from app.schemas.attendance import ATTENDANCE_API_WORKDAY_LABELS
 from app.schemas.part_time import (
     PART_TIME_API_WORKDAY_LABELS,
     PART_TIME_CALENDAR_WORKDAYS,
@@ -32,10 +33,10 @@ def _read_project_version() -> str:
 API_TITLE = "LA-Server API"
 API_DESCRIPTION = (
     "Kinderspielstadt Los Ämmerles JSON REST API (companies, employees, part-time schedule "
-    "maintenance, job assignments, village configuration, auth). Employee responses expose "
-    "derived **`full_time`** / **`workday`** / **`shift`**; stored schedule rows are maintained "
-    "via **`/api/part-time`**. For request/response shapes and error codes see "
-    "[developer-guide.md](docs/developer-guide.md)."
+    "maintenance, check-in / check-out attendance, job assignments, village configuration, auth). "
+    "Employee responses expose derived **`full_time`** / **`workday`** / **`shift`** / **`checked_in`**; "
+    "stored schedule rows are maintained via **`/api/part-time`**. For request/response shapes and "
+    "error codes see [developer-guide.md](docs/developer-guide.md)."
 )
 API_VERSION = _read_project_version()
 
@@ -194,6 +195,37 @@ def build_openapi_dict() -> dict:
                 "Ignored when **`workday=all`**. Invalid values → `400` **`INVALID_PART_TIME_SHIFT`**."
             ),
         },
+        {
+            "name": "checked_in",
+            "in": "query",
+            "required": False,
+            "schema": {"type": "string"},
+            "description": (
+                "Filter by today's attendance row (calendar today in camp timezone — same rule as the "
+                "derived **`checked_in`** field on each employee). "
+                "Filter: `true`/`1`/`yes` (has an **`attendances`** row for today), "
+                "`false`/`0`/`no` (no row), or omit for all. "
+                "**`checkout_at`** is ignored — checked out early still counts as checked in. "
+                "Not tied to the list's **`?workday=`** filter. "
+                "For timestamp audit logs use **Attendance** list endpoints instead."
+            ),
+        },
+        {
+            "name": "auth_group",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "type": "string",
+                "enum": ["employee", "staff", "admin"],
+            },
+            "description": (
+                "Filter by JWT tier from **`authentications.auth_group`**. "
+                "**`employee`**: kids (default tier when no auth row). "
+                "**`staff`** / **`admin`**: staff and admin tiers. "
+                "Invalid value → `400` **`INVALID_AUTH_GROUP`**. "
+                "Combine with **`checked_in=false`** for gate rosters (e.g. kids not checked in yet)."
+            ),
+        },
     ]
     query_hard_delete = [
         {
@@ -216,6 +248,40 @@ def build_openapi_dict() -> dict:
             "description": (
                 "Stored workday slug. When set, delete one row for that key; omit to delete all "
                 "part-time rows for the employee (restores full-time when none remain)."
+            ),
+        }
+    ]
+    query_attendance_workday = [
+        {
+            "name": "workday",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "type": "string",
+                "default": "today",
+                "enum": ATTENDANCE_API_WORKDAY_LABELS,
+            },
+            "description": (
+                "Camp calendar day (default **`today`**). Calendar slugs **`monday`** … **`sunday`** "
+                "resolve to that weekday in the ISO week containing camp today in "
+                "**`la-server.camp_timezone`**. Aggregate slugs **`all`**, **`weekdays`**, and "
+                "**`all-week`** are not valid (→ `400` **`INVALID_ATTENDANCE_WORKDAY`**)."
+            ),
+        }
+    ]
+    query_attendance_history_workday = [
+        {
+            "name": "workday",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "type": "string",
+                "enum": ATTENDANCE_API_WORKDAY_LABELS,
+            },
+            "description": (
+                "Optional camp-day filter. Omit for full attendance history (newest **`camp_date`** "
+                "first). When set, same resolution rules as list endpoints; response echoes "
+                "**`workday`** and **`camp_date`**. Invalid slugs → `400` **`INVALID_ATTENDANCE_WORKDAY`**."
             ),
         }
     ]
@@ -369,16 +435,24 @@ def build_openapi_dict() -> dict:
     )
 
     # --- Employees ---
+    _list_employees_get = _op(
+        "get",
+        "List employees",
+        tag="Employees",
+        parameters=query_employee_list,
+        response_schema="EmployeeListResponse",
+    )
+    _list_employees_get["get"]["description"] = (
+        "Paginated participant roster with company, part-time context, and derived **`checked_in`**. "
+        "Filter by **`active`**, **`workday`** / **`shift`**, **`checked_in`** (today's attendance row), "
+        "and **`auth_group`** (JWT tier). "
+        "For who scanned in **with timestamps**, use **`GET /api/attendance/check-ins`** "
+        "(see **Attendance**); use **`checked_in=false`** here for participants without a row yet."
+    )
     merge_path(
         "/api/employees",
         {
-            **_op(
-                "get",
-                "List employees",
-                tag="Employees",
-                parameters=query_employee_list,
-                response_schema="EmployeeListResponse",
-            ),
+            **_list_employees_get,
             **_op(
                 "post",
                 "Create employee (and authentication row)",
@@ -526,6 +600,14 @@ def build_openapi_dict() -> dict:
                 security=_BEARER,
                 request_schema="CreateJobAssignmentRequest",
                 response_schema="JobAssignmentResponse",
+                responses={
+                    "200": _response_200("JobAssignmentResponse", "Assignment created"),
+                    **{
+                        k: v
+                        for k, v in _RESPONSES_DEFAULT.items()
+                        if k in ("400", "401", "403", "404", "409")
+                    },
+                },
             ),
         },
     )
@@ -537,6 +619,14 @@ def build_openapi_dict() -> dict:
             tag="Job assignments",
             security=_BEARER,
             parameters=parameters_job_assignment_number,
+            responses={
+                "200": {"description": "Assignment removed"},
+                **{
+                    k: v
+                    for k, v in _RESPONSES_DEFAULT.items()
+                    if k in ("400", "401", "403", "404")
+                },
+            },
         ),
     )
     merge_path(
@@ -555,6 +645,119 @@ def build_openapi_dict() -> dict:
         },
     )
 
+    # --- Attendance (check-in / check-out) ---
+    merge_path(
+        "/api/attendance/check-in/{employee_number}",
+        {
+            "post": {
+                "tags": ["Attendance"],
+                "summary": "Record check-in for camp today (staff passport scan)",
+                "description": (
+                    "Inserts one **`attendances`** row for calendar today in camp timezone; "
+                    "**`checkin_at`** is server **`now()`** (UTC, ISO 8601 in responses). "
+                    "**No request body** — any body bytes (including `{}`) → `400` "
+                    "**`REQUEST_BODY_NOT_ALLOWED`**. Inactive participant → `400` **`EMPLOYEE_NOT_ACTIVE`**. "
+                    "Duplicate check-in for the same camp day → `409` **`CONSTRAINT_VIOLATION`**."
+                ),
+                "security": _BEARER,
+                "parameters": parameters_employee_number,
+                "responses": {
+                    "201": {
+                        "description": "Check-in recorded",
+                        "content": _content_block("AttendanceMutationResponse"),
+                    },
+                    **{
+                        k: v
+                        for k, v in _RESPONSES_DEFAULT.items()
+                        if k in ("400", "401", "403", "404", "409")
+                    },
+                },
+            }
+        },
+    )
+    merge_path(
+        "/api/attendance/check-out/{employee_number}",
+        {
+            "post": {
+                "tags": ["Attendance"],
+                "summary": "Record optional check-out on today's attendance row",
+                "description": (
+                    "Sets **`checkout_at`** on today's row; optional for early pickup or exceptions. "
+                    "**No request body** — any body bytes → `400` **`REQUEST_BODY_NOT_ALLOWED`**. "
+                    "No check-in row for today → `404` **`ATTENDANCE_NOT_CHECKED_IN`**. "
+                    "Duplicate check-out → `409` **`CONSTRAINT_VIOLATION`**."
+                ),
+                "security": _BEARER,
+                "parameters": parameters_employee_number,
+                "responses": {
+                    "200": _response_200(
+                        "AttendanceMutationResponse",
+                        "Check-out recorded",
+                    ),
+                    **{
+                        k: v
+                        for k, v in _RESPONSES_DEFAULT.items()
+                        if k in ("400", "401", "403", "404", "409")
+                    },
+                },
+            }
+        },
+    )
+    merge_path(
+        "/api/attendance/check-ins",
+        _op(
+            "get",
+            "List all check-ins for a camp day",
+            tag="Attendance",
+            security=[],
+            parameters=query_attendance_workday,
+            response_schema="ListCheckInsResponse",
+            responses={
+                "200": _response_200(
+                    "ListCheckInsResponse",
+                    "All attendance rows for the resolved camp day, sorted by `employee_number`",
+                ),
+                **{k: v for k, v in _RESPONSES_DEFAULT.items() if k in ("400",)},
+            },
+        ),
+    )
+    merge_path(
+        "/api/attendance/check-outs",
+        _op(
+            "get",
+            "List optional check-outs for a camp day",
+            tag="Attendance",
+            security=[],
+            parameters=query_attendance_workday,
+            response_schema="ListCheckOutsResponse",
+            responses={
+                "200": _response_200(
+                    "ListCheckOutsResponse",
+                    "Rows with `checkout_at` set for the resolved camp day, sorted by `employee_number`",
+                ),
+                **{k: v for k, v in _RESPONSES_DEFAULT.items() if k in ("400",)},
+            },
+        ),
+    )
+    merge_path(
+        "/api/attendance/{employee_number}",
+        _op(
+            "get",
+            "Attendance history for one participant",
+            tag="Attendance",
+            security=[],
+            parameters=parameters_employee_number + query_attendance_history_workday,
+            response_schema="ListAttendanceResponse",
+            responses={
+                "200": _response_200(
+                    "ListAttendanceResponse",
+                    "Full history or 0–1 row when `?workday=` is set",
+                ),
+                **{k: v for k, v in _RESPONSES_DEFAULT.items() if k in ("400", "404")},
+            },
+        ),
+    )
+
     # --- Village ---
     merge_path(
         "/api/village-data",
@@ -564,10 +767,11 @@ def build_openapi_dict() -> dict:
                 "summary": "Spielstadt config JSON (`village.ini`)",
                 "description": (
                     "Loads **`village.ini`** as JSON (one object per section, string-valued keys). "
-                    "Typical sections include **`general`**, **`currency`**, **`hourly_pay`**, **`village-images`**, "
-                    "and **`village-theme`** (hex UI colors for clients; server does not render them). "
-                    "Adds a **`la-server`** object with JWT TTLs, auth groups, part-time enums, camp timezone, "
-                    "and employee-number checksum settings."
+                    "Typical sections include **`general`**, **`currency`**, **`hourly_pay`**, **`attendance`** "
+                    "(**`require_attendance_for_kids`** / **`require_attendance_for_staff`** switches), "
+                    "**`village-images`**, and **`village-theme`** (hex UI colors for clients; server does not "
+                    "render them). Adds a **`la-server`** object with JWT TTLs, auth groups, part-time enums, "
+                    "camp timezone, and employee-number checksum settings."
                 ),
                 "responses": {
                     "200": {
@@ -625,10 +829,11 @@ def build_openapi_dict() -> dict:
             {
                 "name": "Employees",
                 "description": (
-                    "Camp participants (employees). List supports **`workday`** / **`shift`** filters; "
-                    "responses include derived contextual **`full_time`**, **`workday`**, and **`shift`** "
-                    "(see **`EmployeeResponse`**). To edit stored schedule rows, use **Part-time** — "
-                    "not employee POST/PUT."
+                    "Camp participants (employees). List supports **`workday`** / **`shift`**, "
+                    "**`checked_in`**, and **`auth_group`** filters; "
+                    "responses include derived contextual **`full_time`**, **`workday`**, **`shift`**, and "
+                    "**`checked_in`** (attendance row for calendar today in camp timezone — see **Attendance**). "
+                    "To edit stored schedule rows, use **Part-time** — not employee POST/PUT."
                 ),
             },
             {
@@ -641,7 +846,21 @@ def build_openapi_dict() -> dict:
             },
             {
                 "name": "Job assignments",
-                "description": "Participant–company placements",
+                "description": (
+                    "Participant–company placements. When **`village.ini`** attendance switches require "
+                    "check-in for a participant tier, **`POST`** create and **`DELETE`** terminate require "
+                    "today's check-in row (→ `400` **`ATTENDANCE_CHECK_IN_REQUIRED`**); **`checkout_at`** is "
+                    "not checked. Bulk **`/reset`** is not gated."
+                ),
+            },
+            {
+                "name": "Attendance",
+                "description": (
+                    "Gate check-in / optional check-out for camp participants. **`POST`** endpoints are "
+                    "staff-only and accept **no request body** (server timestamps only). List and history "
+                    "**`GET`** endpoints are public for now (auth may change). Job-assignment create/delete "
+                    "may require today's check-in per **`[attendance]`** in **`village.ini`**."
+                ),
             },
             {
                 "name": "Village data",
@@ -887,6 +1106,11 @@ def build_openapi_dict() -> dict:
                 "CreateJobAssignmentRequest": {
                     "type": "object",
                     "required": ["company_name", "employee_number"],
+                    "description": (
+                        "When attendance is required for the participant (see **`[attendance]`** in "
+                        "**`village.ini`**), today's check-in row must exist or the server returns "
+                        "`400` **`ATTENDANCE_CHECK_IN_REQUIRED`**."
+                    ),
                     "properties": {
                         "company_name": {
                             "type": "string",
@@ -1061,6 +1285,7 @@ def build_openapi_dict() -> dict:
                         "full_time",
                         "workday",
                         "shift",
+                        "checked_in",
                     ],
                     "properties": {
                         "id": {"type": "integer", "example": 7},
@@ -1133,6 +1358,16 @@ def build_openapi_dict() -> dict:
                                 "**`null`** when **`workday`** is **`null`** (part-time, not scheduled on context day)."
                             ),
                             "example": "all-day",
+                        },
+                        "checked_in": {
+                            "type": "boolean",
+                            "description": (
+                                "Derived attendance flag: **`true`** when an **`attendances`** row exists for "
+                                "calendar **today** in camp timezone (**`la-server.camp_timezone`**). "
+                                "**`checkout_at`** is ignored — a row counts as checked in even after optional "
+                                "check-out. Not affected by employee list **`?workday=`** filter."
+                            ),
+                            "example": False,
                         },
                         "notes": {"type": "string", "nullable": True, "example": None},
                         "created_at": {
@@ -1331,6 +1566,157 @@ def build_openapi_dict() -> dict:
                     "items": _schema_ref("JobAssignmentResponse"),
                 },
                 # ----------------------------------------------------------
+                # Attendance — response schemas
+                # ----------------------------------------------------------
+                "AttendanceMutationResponse": {
+                    "type": "object",
+                    "required": [
+                        "employee_number",
+                        "camp_date",
+                        "checkin_at",
+                        "checkout_at",
+                    ],
+                    "properties": {
+                        "employee_number": {"type": "string", "example": "M00252"},
+                        "camp_date": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "Camp calendar date (camp timezone).",
+                            "example": "2026-05-18",
+                        },
+                        "checkin_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Server-recorded check-in instant (UTC, ISO 8601).",
+                            "example": "2026-05-18T08:00:00+00:00",
+                        },
+                        "checkout_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": True,
+                            "description": (
+                                "Server-recorded check-out instant when set; **`null`** until optional "
+                                "check-out or when only check-in was recorded."
+                            ),
+                            "example": None,
+                        },
+                    },
+                },
+                "AttendanceListEntryResponse": {
+                    "type": "object",
+                    "required": [
+                        "employee_number",
+                        "first_name",
+                        "last_name",
+                        "checkin_at",
+                        "checkout_at",
+                    ],
+                    "properties": {
+                        "employee_number": {"type": "string", "example": "M00252"},
+                        "first_name": {"type": "string", "example": "Monika"},
+                        "last_name": {"type": "string", "example": "Mustermann"},
+                        "checkin_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "example": "2026-05-18T08:00:00+00:00",
+                        },
+                        "checkout_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": True,
+                            "example": None,
+                        },
+                    },
+                },
+                "ListCheckInsResponse": {
+                    "type": "object",
+                    "required": ["workday", "camp_date", "check_ins", "count"],
+                    "properties": {
+                        "workday": {
+                            "type": "string",
+                            "enum": ATTENDANCE_API_WORKDAY_LABELS,
+                            "example": "today",
+                        },
+                        "camp_date": {
+                            "type": "string",
+                            "format": "date",
+                            "example": "2026-05-18",
+                        },
+                        "check_ins": {
+                            "type": "array",
+                            "items": _schema_ref("AttendanceListEntryResponse"),
+                        },
+                        "count": {"type": "integer", "example": 1},
+                    },
+                },
+                "ListCheckOutsResponse": {
+                    "type": "object",
+                    "required": ["workday", "camp_date", "check_outs", "count"],
+                    "properties": {
+                        "workday": {
+                            "type": "string",
+                            "enum": ATTENDANCE_API_WORKDAY_LABELS,
+                            "example": "today",
+                        },
+                        "camp_date": {
+                            "type": "string",
+                            "format": "date",
+                            "example": "2026-05-18",
+                        },
+                        "check_outs": {
+                            "type": "array",
+                            "items": _schema_ref("AttendanceListEntryResponse"),
+                        },
+                        "count": {"type": "integer", "example": 1},
+                    },
+                },
+                "AttendanceRowResponse": {
+                    "type": "object",
+                    "required": ["camp_date", "checkin_at", "checkout_at"],
+                    "properties": {
+                        "camp_date": {
+                            "type": "string",
+                            "format": "date",
+                            "example": "2026-05-18",
+                        },
+                        "checkin_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "example": "2026-05-18T08:00:00+00:00",
+                        },
+                        "checkout_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": True,
+                            "example": None,
+                        },
+                    },
+                },
+                "ListAttendanceResponse": {
+                    "type": "object",
+                    "required": ["employee_number", "attendances", "count"],
+                    "properties": {
+                        "employee_number": {"type": "string", "example": "M00252"},
+                        "attendances": {
+                            "type": "array",
+                            "items": _schema_ref("AttendanceRowResponse"),
+                        },
+                        "count": {"type": "integer", "example": 2},
+                        "workday": {
+                            "type": "string",
+                            "enum": ATTENDANCE_API_WORKDAY_LABELS,
+                            "description": "Present only when `?workday=` was set on the request.",
+                            "example": "today",
+                        },
+                        "camp_date": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "Present only when `?workday=` was set on the request.",
+                            "example": "2026-05-18",
+                        },
+                    },
+                },
+                # ----------------------------------------------------------
                 # Village data — response schemas
                 # ----------------------------------------------------------
                 "LAServerRuntime": {
@@ -1437,7 +1823,16 @@ def build_openapi_dict() -> dict:
                 "ErrorBody": {
                     "type": "object",
                     "properties": {
-                        "error": {"type": "string"},
+                        "error": {
+                            "type": "string",
+                            "description": (
+                                "Machine-readable token. Attendance-related values include "
+                                "**`REQUEST_BODY_NOT_ALLOWED`**, **`INVALID_ATTENDANCE_WORKDAY`**, "
+                                "**`ATTENDANCE_NOT_CHECKED_IN`**, **`ATTENDANCE_CHECK_IN_REQUIRED`**, "
+                                "plus shared tokens such as **`EMPLOYEE_NOT_FOUND`**, **`EMPLOYEE_NOT_ACTIVE`**, "
+                                "and **`CONSTRAINT_VIOLATION`**."
+                            ),
+                        },
                         "message": {"type": "string"},
                     },
                 },

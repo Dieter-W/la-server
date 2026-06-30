@@ -13,8 +13,10 @@ from app.auth.utils import (
     verify_password,
 )
 from app.errors import APIError
+from app.repositories.attendance import AttendanceRepository
 from app.repositories.auth import AuthRepository
 from app.repositories.employee import EmployeeRepository
+import app.camp_time as camp_time
 from app.schemas.auth import (
     AuthenticateRequest,
     LoginResponse,
@@ -34,6 +36,7 @@ class AuthService:
         """Repos for auth lookups and employee/company joins."""
         self.auth_repo = AuthRepository(db)
         self.employee_repo = EmployeeRepository(db)
+        self.attendance_repo = AttendanceRepository(db)
 
     # ---------------------------------------------------------------------
     # Login
@@ -84,8 +87,16 @@ class AuthService:
         emp, company_name = result
         if emp.active is False:
             raise APIError("EMPLOYEE_NOT_ACTIVE", 400)
+        checked_in = self.attendance_repo.has_checkin_for_date(
+            emp.id, camp_time.camp_today()
+        )
         logger.debug("User: %s, with auth group: %s", employee_number, auth_group)
-        return EmployeeResponse.from_orm(emp, company_name, auth_group)
+        return EmployeeResponse.from_orm(
+            emp,
+            company_name,
+            auth_group,
+            checked_in=checked_in,
+        )
 
     # ---------------------------------------------------------------------
     # Set auth group

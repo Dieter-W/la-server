@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy import and_, distinct, exists, func, or_, select
 from sqlalchemy.orm import selectinload
 
-from app.models import Company, Employee, JobAssignment, PartTime
+from app.models import (
+    Attendance,
+    Authentication,
+    Company,
+    Employee,
+    JobAssignment,
+    PartTime,
+)
 from app.repositories.base import BaseRepository
 from app.schemas.part_time import (
     ALL_WEEK_WORKDAY,
@@ -24,6 +33,9 @@ class EmployeeRepository(BaseRepository[Employee]):
         *,
         workday_filter: str | None = None,
         shift: str | None = None,
+        checked_in: bool | None = None,
+        auth_group: str | None = None,
+        camp_date: date | None = None,
     ) -> list[tuple[Employee, str | None]]:
         """Employees with company name from current assignment; optional filters."""
         stmt = (
@@ -33,7 +45,15 @@ class EmployeeRepository(BaseRepository[Employee]):
             .outerjoin(JobAssignment.companies)
             .order_by(Employee.employee_number)
         )
-        stmt = self._apply_list_filters(stmt, active, workday_filter, shift)
+        stmt = self._apply_list_filters(
+            stmt,
+            active,
+            workday_filter,
+            shift,
+            checked_in=checked_in,
+            auth_group=auth_group,
+            camp_date=camp_date,
+        )
         return list(self.db.execute(stmt).all())
 
     def count(
@@ -42,6 +62,9 @@ class EmployeeRepository(BaseRepository[Employee]):
         *,
         workday_filter: str | None = None,
         shift: str | None = None,
+        checked_in: bool | None = None,
+        auth_group: str | None = None,
+        camp_date: date | None = None,
     ) -> int:
         """Distinct employee count matching the same filter as list_with_company."""
         stmt = (
@@ -50,7 +73,15 @@ class EmployeeRepository(BaseRepository[Employee]):
             .outerjoin(Employee.job_assignments)
             .outerjoin(JobAssignment.companies)
         )
-        stmt = self._apply_list_filters(stmt, active, workday_filter, shift)
+        stmt = self._apply_list_filters(
+            stmt,
+            active,
+            workday_filter,
+            shift,
+            checked_in=checked_in,
+            auth_group=auth_group,
+            camp_date=camp_date,
+        )
         n = self.db.execute(stmt).scalar_one()
         return int(n)
 
@@ -60,8 +91,12 @@ class EmployeeRepository(BaseRepository[Employee]):
         active: bool | None,
         workday_filter: str | None,
         shift: str | None,
+        *,
+        checked_in: bool | None = None,
+        auth_group: str | None = None,
+        camp_date: date | None = None,
     ):
-        """Shared active + part-time workday/shift constraints for list and count."""
+        """Shared list/count constraints: active, part-time, attendance, auth tier."""
         if active is True:
             stmt = stmt.where(Employee.active.is_(True))
         elif active is False:
@@ -113,6 +148,40 @@ class EmployeeRepository(BaseRepository[Employee]):
             )
 
             stmt = stmt.where(or_(direct, weekdays_fallback, all_week_fallback))
+
+        if checked_in is True:
+            attendance_row = (
+                select(Attendance.id)
+                .where(
+                    Attendance.employee_id == Employee.id,
+                    Attendance.camp_date == camp_date,
+                )
+                .correlate(Employee)
+            )
+            stmt = stmt.where(exists(attendance_row))
+        elif checked_in is False:
+            attendance_row = (
+                select(Attendance.id)
+                .where(
+                    Attendance.employee_id == Employee.id,
+                    Attendance.camp_date == camp_date,
+                )
+                .correlate(Employee)
+            )
+            stmt = stmt.where(~exists(attendance_row))
+
+        if auth_group is not None:
+            stmt = stmt.outerjoin(Employee.authentication)
+            if auth_group == "employee":
+                stmt = stmt.where(
+                    or_(
+                        Authentication.auth_group == "employee",
+                        Authentication.id.is_(None),
+                    )
+                )
+            else:
+                stmt = stmt.where(Authentication.auth_group == auth_group)
+
         return stmt
 
     # ---------------------------------------------------------------------

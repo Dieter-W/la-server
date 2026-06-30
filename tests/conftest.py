@@ -21,7 +21,8 @@ from app.models import Authentication, Company, Employee, JobAssignment, PartTim
 from app.auth.utils import hash_password
 
 from app.config import Config
-from app.schemas.part_time import ALL_WEEK_WORKDAY, WEEKDAYS_WORKDAY, camp_day
+from app.camp_time import camp_day
+from app.schemas.part_time import ALL_WEEK_WORKDAY, WEEKDAYS_WORKDAY
 from tests.test_camp_time import (
     BERLIN,
     CAMP_FRIDAY,
@@ -29,9 +30,9 @@ from tests.test_camp_time import (
     CAMP_SATURDAY,
     CAMP_SUNDAY,
     CAMP_WEDNESDAY,
+    camp_today_patch,
 )
 from tests.test_part_time_helpers import seed_part_time_rows
-from tests.test_utils import _login_as_admin, _login_as_employee, _login_as_staff
 
 
 def _camp_day_patch(camp_instant: datetime):
@@ -40,7 +41,7 @@ def _camp_day_patch(camp_instant: datetime):
     def _fixed(*, now=None, tz=None):
         return camp_day(now=camp_instant, tz=tz or BERLIN)
 
-    return patch("app.schemas.part_time.camp_day", side_effect=_fixed)
+    return patch("app.camp_time.camp_day", side_effect=_fixed)
 
 
 def _mariadb_test_database_name(worker_id: str) -> str:
@@ -356,6 +357,13 @@ def camp_is_monday():
 
 
 @pytest.fixture
+def camp_today_is_monday():
+    """Pin ``camp_today()`` to Monday 2026-05-18 across all camp targets."""
+    with camp_today_patch(CAMP_MONDAY):
+        yield
+
+
+@pytest.fixture
 def camp_is_wednesday():
     """Pin calendar today to Wednesday via fixed ``now`` in camp timezone."""
     with _camp_day_patch(CAMP_WEDNESDAY):
@@ -458,42 +466,3 @@ def part_time_monika_unsorted_rows(app, sample_employee):
             ],
         )
         session.close()
-
-
-# ---------------------------------------------------------
-# 7. Auth token fixtures (wrappers around tests.test_utils login helpers)
-# ---------------------------------------------------------
-@pytest.fixture
-def admin_token(client, sample_authentication, sample_employee):
-    """Seeded admin ``P00370`` access token."""
-    return _login_as_admin(client, sample_authentication, sample_employee)
-
-
-@pytest.fixture
-def admin_headers(admin_token):
-    """``Authorization`` header for admin requests."""
-    return {"Authorization": f"Bearer {admin_token}"}
-
-
-@pytest.fixture
-def employee_token(client, sample_authentication, sample_employee):
-    """Seeded employee ``M00252`` access token."""
-    return _login_as_employee(client, sample_authentication, sample_employee)
-
-
-@pytest.fixture
-def employee_headers(employee_token):
-    """``Authorization`` header for employee requests."""
-    return {"Authorization": f"Bearer {employee_token}"}
-
-
-@pytest.fixture
-def staff_token(client, sample_authentication, sample_employee):
-    """Seeded staff ``A00265`` access token."""
-    return _login_as_staff(client, sample_authentication, sample_employee)
-
-
-@pytest.fixture
-def staff_headers(staff_token):
-    """``Authorization`` header for staff requests."""
-    return {"Authorization": f"Bearer {staff_token}"}

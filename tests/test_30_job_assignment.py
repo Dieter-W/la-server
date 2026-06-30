@@ -1,10 +1,14 @@
 """Company API tests"""
 
-import unicodedata
+from unittest.mock import patch
 
 from app.utils import create_job_assignment_number
 
-from tests.test_utils import _login_as_admin, _login_as_employee
+from tests.test_utils import (
+    _login_as_admin,
+    _login_as_employee,
+    _login_as_staff,
+)
 
 # from urllib.parse import quote
 
@@ -22,11 +26,6 @@ payload_put = {
     "active": False,
     "notes": "Updated by test",
 }
-
-
-def _nfc(s: str) -> str:
-    """Normalize Unicode so DB round-trips match Python string literals (NFC vs NFD)."""
-    return unicodedata.normalize("NFC", s)
 
 
 # ---------------------------------------------------------------------
@@ -229,6 +228,8 @@ def test_job_assignments_create_ok(client, sample_authentication, sample_company
     token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
 
     response = client.get("/api/job-assignments")
+    if response.status_code != 200:
+        print(response.text)
     assert response.status_code == 200
     data = response.get_json()
     assert data["count"] == 2
@@ -251,6 +252,8 @@ def test_job_assignments_create_ok(client, sample_authentication, sample_company
     assert data["updated_at"] is not None
 
     response = client.get("/api/job-assignments")
+    if response.status_code != 200:
+        print(response.text)
     assert response.status_code == 200
     data = response.get_json()
     assert data["count"] == 3
@@ -336,6 +339,8 @@ def test_job_assignments_create_error_5(client, sample_authentication, sample_co
         headers={"Authorization": f"Bearer {token}"},
         json=payload_create,
     )
+    if response.status_code != 201:
+        print(response.text)
     assert response.status_code == 201
 
     response = client.post(
@@ -500,3 +505,313 @@ def test_job_assignments_reset_error_1(client, sample_authentication, sample_com
     assert response.status_code == 404
     data = response.get_json()
     assert data["error"] == "COMPANY_NOT_FOUND"
+
+
+# ---------------------------------------------------------------------
+# Job assignment — attendance check-in gate (POST + DELETE)
+# ---------------------------------------------------------------------
+KID_JOB_PAYLOAD = {
+    "company_name": "Arbeitsamt",
+    "employee_number": "M00252",
+}
+
+STAFF_JOB_PAYLOAD = {
+    "company_name": "Arbeitsamt",
+    "employee_number": "A00265",
+}
+
+
+def test_job_assignments_gate_kids_switch_on_blocks_without_check_in(
+    client,
+    sample_authentication,
+    sample_company,
+    sample_employee,
+    sample_job_assignment,
+    camp_today_is_monday,
+):
+    """Kids switch on: POST and DELETE return ATTENDANCE_CHECK_IN_REQUIRED without check-in."""
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    with patch("app.schemas.attendance.require_attendance_for_kids", return_value=True):
+        response = client.post(
+            "/api/job-assignments",
+            headers={"Authorization": f"Bearer {token}"},
+            json=KID_JOB_PAYLOAD,
+        )
+        if response.status_code != 400:
+            print(response.text)
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "ATTENDANCE_CHECK_IN_REQUIRED"
+
+        with patch(
+            "app.schemas.attendance.require_attendance_for_kids", return_value=False
+        ):
+            response = client.post(
+                "/api/job-assignments",
+                headers={"Authorization": f"Bearer {token}"},
+                json=KID_JOB_PAYLOAD,
+            )
+            if response.status_code != 201:
+                print(response.text)
+            assert response.status_code == 201
+            data = response.get_json()
+            kid_job_number = data["job_assignment_number"]
+
+        response = client.delete(
+            f"/api/job-assignments/{kid_job_number}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if response.status_code != 400:
+            print(response.text)
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "ATTENDANCE_CHECK_IN_REQUIRED"
+
+
+def test_job_assignments_gate_kids_switch_on_succeeds_after_check_in(
+    client,
+    sample_authentication,
+    sample_company,
+    sample_employee,
+    sample_job_assignment,
+    camp_today_is_monday,
+):
+    """Kids switch on: POST and DELETE succeed after today's check-in."""
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    staff_token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/attendance/check-in/M00252",
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
+    if response.status_code != 201:
+        print(response.text)
+    assert response.status_code == 201
+
+    with patch("app.schemas.attendance.require_attendance_for_kids", return_value=True):
+        response = client.post(
+            "/api/job-assignments",
+            headers={"Authorization": f"Bearer {token}"},
+            json=KID_JOB_PAYLOAD,
+        )
+        if response.status_code != 201:
+            print(response.text)
+        assert response.status_code == 201
+        data = response.get_json()
+
+        response = client.delete(
+            f"/api/job-assignments/{data['job_assignment_number']}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if response.status_code != 200:
+            print(response.text)
+        assert response.status_code == 200
+
+
+def test_job_assignments_gate_kids_switch_off_allows_without_check_in(
+    client,
+    sample_authentication,
+    sample_company,
+    sample_employee,
+    sample_job_assignment,
+    camp_today_is_monday,
+):
+    """Kids switch off: create and delete job assignments without check-in."""
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    with patch(
+        "app.schemas.attendance.require_attendance_for_kids", return_value=False
+    ):
+        response = client.post(
+            "/api/job-assignments",
+            headers={"Authorization": f"Bearer {token}"},
+            json=KID_JOB_PAYLOAD,
+        )
+        if response.status_code != 201:
+            print(response.text)
+        assert response.status_code == 201
+        data = response.get_json()
+
+        response = client.delete(
+            f"/api/job-assignments/{data['job_assignment_number']}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if response.status_code != 200:
+            print(response.text)
+        assert response.status_code == 200
+
+
+def test_job_assignments_gate_staff_switch_off_allows_without_check_in(
+    client,
+    sample_authentication,
+    sample_company,
+    sample_employee,
+    sample_job_assignment,
+    camp_today_is_monday,
+):
+    """Staff switch off: staff POST and admin DELETE proceed without check-in."""
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    staff_token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+    with patch(
+        "app.schemas.attendance.require_attendance_for_staff", return_value=False
+    ):
+        response = client.post(
+            "/api/job-assignments",
+            headers={"Authorization": f"Bearer {staff_token}"},
+            json=STAFF_JOB_PAYLOAD,
+        )
+        if response.status_code != 201:
+            print(response.text)
+        assert response.status_code == 201
+
+        admin_job_number = create_job_assignment_number(sample_job_assignment.id)
+        response = client.delete(
+            f"/api/job-assignments/{admin_job_number}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if response.status_code != 200:
+            print(response.text)
+        assert response.status_code == 200
+
+
+def test_job_assignments_gate_staff_switch_on_blocks_without_check_in(
+    client,
+    sample_authentication,
+    sample_company,
+    sample_employee,
+    sample_job_assignment,
+    camp_today_is_monday,
+):
+    """Staff switch on: POST and DELETE return ATTENDANCE_CHECK_IN_REQUIRED without check-in."""
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    staff_token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+    with patch(
+        "app.schemas.attendance.require_attendance_for_staff", return_value=True
+    ):
+        response = client.post(
+            "/api/job-assignments",
+            headers={"Authorization": f"Bearer {staff_token}"},
+            json=STAFF_JOB_PAYLOAD,
+        )
+        if response.status_code != 400:
+            print(response.text)
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "ATTENDANCE_CHECK_IN_REQUIRED"
+
+        admin_job_number = create_job_assignment_number(sample_job_assignment.id)
+        response = client.delete(
+            f"/api/job-assignments/{admin_job_number}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if response.status_code != 400:
+            print(response.text)
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "ATTENDANCE_CHECK_IN_REQUIRED"
+
+
+def test_job_assignments_gate_staff_switch_on_succeeds_after_check_in(
+    client,
+    sample_authentication,
+    sample_company,
+    sample_employee,
+    sample_job_assignment,
+    camp_today_is_monday,
+):
+    """Staff switch on: POST and DELETE succeed after today's check-in."""
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    staff_token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/attendance/check-in/A00265",
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
+    if response.status_code != 201:
+        print(response.text)
+    assert response.status_code == 201
+
+    response = client.post(
+        "/api/attendance/check-in/P00370",
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
+    if response.status_code != 201:
+        print(response.text)
+    assert response.status_code == 201
+
+    with patch(
+        "app.schemas.attendance.require_attendance_for_staff", return_value=True
+    ):
+        response = client.post(
+            "/api/job-assignments",
+            headers={"Authorization": f"Bearer {staff_token}"},
+            json=STAFF_JOB_PAYLOAD,
+        )
+        if response.status_code != 201:
+            print(response.text)
+        assert response.status_code == 201
+        data = response.get_json()
+
+        response = client.delete(
+            f"/api/job-assignments/{data['job_assignment_number']}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if response.status_code != 200:
+            print(response.text)
+        assert response.status_code == 200
+
+        admin_job_number = create_job_assignment_number(sample_job_assignment.id)
+        response = client.delete(
+            f"/api/job-assignments/{admin_job_number}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if response.status_code != 200:
+            print(response.text)
+        assert response.status_code == 200
+
+
+def test_job_assignments_gate_kid_checked_out_still_allows_post_and_delete(
+    client,
+    sample_authentication,
+    sample_company,
+    sample_employee,
+    sample_job_assignment,
+    camp_today_is_monday,
+):
+    """Optional check-out does not block job POST/DELETE when today's check-in row exists."""
+    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    staff_token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+
+    response = client.post(
+        "/api/attendance/check-in/M00252",
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
+    if response.status_code != 201:
+        print(response.text)
+    assert response.status_code == 201
+
+    response = client.post(
+        "/api/attendance/check-out/M00252",
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+
+    with patch("app.schemas.attendance.require_attendance_for_kids", return_value=True):
+        response = client.post(
+            "/api/job-assignments",
+            headers={"Authorization": f"Bearer {token}"},
+            json=KID_JOB_PAYLOAD,
+        )
+        if response.status_code != 201:
+            print(response.text)
+        assert response.status_code == 201
+        data = response.get_json()
+
+        response = client.delete(
+            f"/api/job-assignments/{data['job_assignment_number']}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if response.status_code != 200:
+            print(response.text)
+        assert response.status_code == 200

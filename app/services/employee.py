@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 from app.auth.utils import hash_password
 from app.errors import APIError
 from app.models import Authentication, Employee
+from app.repositories.attendance import AttendanceRepository
 from app.repositories.employee import EmployeeRepository
+import app.camp_time as camp_time
 from app.schemas.employee import (
     CreateEmployeeRequest,
     EmployeeResponse,
@@ -24,6 +26,7 @@ class EmployeeService:
     def __init__(self, db: Session) -> None:
         """Repository for employee CRUD joined with assignment/company data."""
         self.repo = EmployeeRepository(db)
+        self.attendance_repo = AttendanceRepository(db)
 
     # ---------------------------------------------------------------------
     # Employees — list
@@ -33,19 +36,32 @@ class EmployeeService:
     ) -> tuple[list[EmployeeResponse], int]:
         """List rows with resolved company column and distinct-headcount."""
         filter_workday = query.workday_context.filter_workday
+        camp_date = camp_time.camp_today()
         rows = self.repo.list_with_company(
             query.active,
             workday_filter=filter_workday,
             shift=query.shift,
+            checked_in=query.checked_in,
+            auth_group=query.auth_group,
+            camp_date=camp_date,
         )
         count = self.repo.count(
             query.active,
             workday_filter=filter_workday,
             shift=query.shift,
+            checked_in=query.checked_in,
+            auth_group=query.auth_group,
+            camp_date=camp_date,
+        )
+        checked_in_ids = self.attendance_repo.employee_ids_with_checkin_on_date(
+            camp_date
         )
         responses = [
             EmployeeResponse.from_orm(
-                emp, company_name, workday_context=query.workday_context
+                emp,
+                company_name,
+                workday_context=query.workday_context,
+                checked_in=emp.id in checked_in_ids,
             )
             for emp, company_name in rows
         ]
@@ -60,7 +76,14 @@ class EmployeeService:
         if result is None:
             raise APIError("EMPLOYEE_NOT_FOUND", 404)
         emp, company_name = result
-        return EmployeeResponse.from_orm(emp, company_name)
+        checked_in = self.attendance_repo.has_checkin_for_date(
+            emp.id, camp_time.camp_today()
+        )
+        return EmployeeResponse.from_orm(
+            emp,
+            company_name,
+            checked_in=checked_in,
+        )
 
     # ---------------------------------------------------------------------
     # Employees — create
@@ -87,8 +110,14 @@ class EmployeeService:
         logger.info(
             "Employee created id=%s employee_number=%s", emp.id, emp.employee_number
         )
+        checked_in = self.attendance_repo.has_checkin_for_date(
+            emp.id, camp_time.camp_today()
+        )
         return EmployeeResponse.from_orm(
-            emp, "", auth_group=emp.authentication.auth_group
+            emp,
+            "",
+            auth_group=emp.authentication.auth_group,
+            checked_in=checked_in,
         )
 
     # ---------------------------------------------------------------------
@@ -119,12 +148,17 @@ class EmployeeService:
             emp.active = req.active
         if "notes" in req:
             emp.notes = req.notes
-
-        # codeql[py/clear-text-logging-sensitive-data]
+        checked_in = self.attendance_repo.has_checkin_for_date(
+            emp.id, camp_time.camp_today()
+        )
         logger.info(
             "Employee updated id=%s employee_number=%s", emp.id, emp.employee_number
         )
-        return EmployeeResponse.from_orm(emp, company_name)
+        return EmployeeResponse.from_orm(
+            emp,
+            company_name,
+            checked_in=checked_in,
+        )
 
     # ---------------------------------------------------------------------
     # Employees — soft delete (deactivate)
@@ -140,7 +174,14 @@ class EmployeeService:
         logger.info(
             "Employee deactivated id=%s employee_number=%s", emp.id, emp.employee_number
         )
-        return EmployeeResponse.from_orm(emp, company_name)
+        checked_in = self.attendance_repo.has_checkin_for_date(
+            emp.id, camp_time.camp_today()
+        )
+        return EmployeeResponse.from_orm(
+            emp,
+            company_name,
+            checked_in=checked_in,
+        )
 
     # ---------------------------------------------------------------------
     # Employees — hard delete

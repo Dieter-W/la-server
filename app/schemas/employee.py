@@ -85,6 +85,10 @@ class ListEmployeesQuery:
     workday_context: ListWorkdayContext
     shift: str | None
     """``part_times.shift`` filter when ``shift`` query is set and ``workday`` ≠ ``all``."""
+    checked_in: bool | None
+    """Filter by today's attendance row (camp calendar day); omit = no filter."""
+    auth_group: str | None
+    """Filter by JWT tier from ``authentications.auth_group``; omit = no filter."""
 
     @classmethod
     def from_query(cls, args: Any) -> ListEmployeesQuery:
@@ -93,6 +97,12 @@ class ListEmployeesQuery:
             active = None
         else:
             active = value.lower() in ("true", "1", "yes")
+
+        checked_in_value = args.get("checked_in")
+        if checked_in_value is None:
+            checked_in = None
+        else:
+            checked_in = checked_in_value.lower() in ("true", "1", "yes")
 
         workday_context = parse_list_workday_param(args.get("workday"))
 
@@ -108,10 +118,21 @@ class ListEmployeesQuery:
                 raise APIError(err or "INVALID_PART_TIME_SHIFT", 400)
             shift = PartTimeShift(str(shift_raw).strip().lower()).value
 
+        auth_group_raw = args.get("auth_group")
+        auth_group: str | None = None
+        if auth_group_raw is not None and str(auth_group_raw).strip():
+            auth_group_value = str(auth_group_raw).strip().lower()
+            valid, err = verify_access_group(auth_group_value)
+            if not valid:
+                raise APIError(err or "INVALID_AUTH_GROUP", 400)
+            auth_group = auth_group_value
+
         return cls(
             active=active,
             workday_context=workday_context,
             shift=shift,
+            checked_in=checked_in,
+            auth_group=auth_group,
         )
 
 
@@ -281,6 +302,7 @@ class EmployeeResponse:
     full_time: bool
     workday: str | None
     shift: str | None
+    checked_in: bool
     auth_group: str | None = None
 
     @classmethod
@@ -291,6 +313,7 @@ class EmployeeResponse:
         auth_group: str | None = None,
         *,
         workday_context: ListWorkdayContext | None = None,
+        checked_in: bool = False,
     ) -> EmployeeResponse:
         """Map Employee ORM (+ optional auth_group) to API response shape."""
         ctx = workday_context or parse_list_workday_param("today")
@@ -315,6 +338,7 @@ class EmployeeResponse:
             full_time=employee_is_full_time(emp),
             workday=workday,
             shift=shift,
+            checked_in=checked_in,
             auth_group=auth_group,
         )
 
@@ -336,6 +360,7 @@ class EmployeeResponse:
             "full_time": self.full_time,
             "workday": self.workday,
             "shift": self.shift,
+            "checked_in": self.checked_in,
         }
         if self.auth_group is not None:
             result["auth_group"] = self.auth_group

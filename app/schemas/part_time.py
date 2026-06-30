@@ -6,12 +6,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
-from zoneinfo import ZoneInfo
 
+import app.camp_time as camp_time
+from app.camp_time import CALENDAR_WEEKDAY_SLUGS
 from app.errors import APIError
 from app.models import Employee, PartTime
 from app.schemas import _UNSET
-from app.village_config import get_camp_timezone
 
 
 # ---------------------------------------------------------------------
@@ -48,14 +48,15 @@ _PART_TIME_AGGREGATE_WORKDAYS = frozenset(
 PART_TIME_AGGREGATE_STORED_SLUGS = frozenset(
     {PartTimeWorkday.WEEKDAYS.value, PartTimeWorkday.ALL_WEEK.value}
 )
-PART_TIME_CALENDAR_WORKDAYS = [
-    d.value for d in PartTimeWorkday if d not in _PART_TIME_AGGREGATE_WORKDAYS
-]
+PART_TIME_CALENDAR_WORKDAYS = list(CALENDAR_WEEKDAY_SLUGS)
 PART_TIME_API_WORKDAY_LABELS = ["today", *PART_TIME_CALENDAR_WORKDAYS]
 # Mon–Fri subset; shared by ``is_weekdays_calendar_day``, slot resolution, and list SQL.
 WEEKDAYS_CALENDAR_WORKDAYS = PART_TIME_CALENDAR_WORKDAYS[:5]
 PART_TIME_STORED_WORKDAYS = [d.value for d in PartTimeWorkday]
 PART_TIME_SHIFTS = [s.value for s in PartTimeShift]
+
+camp_day = camp_time.camp_day
+camp_instant = camp_time.camp_instant
 
 
 def is_weekdays_calendar_day(day: str) -> bool:
@@ -140,21 +141,6 @@ class ListWorkdayContext:
     """API ``workday`` value when a matching slot exists (``today`` or weekday name)."""
 
 
-def camp_day(*, now: datetime | None = None, tz: ZoneInfo | None = None) -> str:
-    """Current weekday (``monday`` … ``sunday``) in camp timezone."""
-    if tz is None:
-        tz = get_camp_timezone()
-    if now is None:
-        instant = datetime.now(tz)
-    elif now.tzinfo is None:
-        instant = now.replace(tzinfo=tz)
-    else:
-        instant = now.astimezone(tz)
-    # Must not include aggregate stored slugs.
-    # ``PART_TIME_CALENDAR_WORKDAYS`` order matches ``datetime.weekday()`` (0 = Monday).
-    return PART_TIME_CALENDAR_WORKDAYS[instant.weekday()]
-
-
 def parse_list_workday_param(
     param: str | None,
     *,
@@ -162,7 +148,7 @@ def parse_list_workday_param(
 ) -> ListWorkdayContext:
     """Resolve ``GET /api/employees`` ``workday`` query (default ``all``)."""
     raw = (param or "all").strip().lower()
-    today = camp_day(now=now)
+    today = camp_time.camp_day(now=now)
 
     if raw == "all":
         return ListWorkdayContext(None, today, "today")

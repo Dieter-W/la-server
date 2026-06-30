@@ -132,3 +132,25 @@ def get_camp_timezone() -> ZoneInfo:
             _DEFAULT_CAMP_TIMEZONE,
         )
         return ZoneInfo(_DEFAULT_CAMP_TIMEZONE)
+
+
+def _attendance_bool(key: str, *, default: bool) -> bool:
+    """Read a boolean switch from ``[attendance]`` in village.ini."""
+    village_data = load_village_data()
+    if village_data:
+        section = village_data.get("attendance")
+        if isinstance(section, dict):
+            raw = section.get(key)
+            if raw is not None and str(raw).strip():
+                return str(raw).strip().lower() in ("true", "1", "yes")
+    return default
+
+
+def require_attendance_for_kids() -> bool:
+    """When true, kids must check in before job assignment create/delete."""
+    return _attendance_bool("require_attendance_for_kids", default=True)
+
+
+def require_attendance_for_staff() -> bool:
+    """When true, staff/admin must check in before job assignment create/delete."""
+    return _attendance_bool("require_attendance_for_staff", default=False)

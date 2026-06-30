@@ -3,11 +3,10 @@
 import sys
 import subprocess
 
-import unicodedata
 from pathlib import Path
 from urllib.parse import quote
 
-from test_utils import _login_as_admin
+from tests.test_utils import _login_as_admin, nfc
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,11 +28,6 @@ payload_put = {
     "active": False,
     "notes": "Updated by test",
 }
-
-
-def _nfc(s: str) -> str:
-    """Normalize Unicode so DB round-trips match Python string literals (NFC vs NFD)."""
-    return unicodedata.normalize("NFC", s)
 
 
 # ---------------------------------------------------------------------
@@ -67,11 +61,11 @@ def test_bulk_import_employees_create_ok(client,): # fmt: skip
 
     by_number = {e["employee_number"]: e for e in data["employees"]}
     peter = by_number[employee_check["employee_number"]]
-    assert _nfc(peter["first_name"]) == _nfc(employee_check["first_name"])
-    assert _nfc(peter["last_name"]) == _nfc(employee_check["last_name"])
+    assert nfc(peter["first_name"]) == nfc(employee_check["first_name"])
+    assert nfc(peter["last_name"]) == nfc(employee_check["last_name"])
     assert peter["age"] == employee_check["age"]
     assert peter["can_leave_alone"] is employee_check["can_leave_alone"]
-    assert _nfc(peter["role"]) == _nfc(employee_check["role"])
+    assert nfc(peter["role"]) == nfc(employee_check["role"])
     assert peter["active"] is employee_check["active"]
     assert peter["notes"] == employee_check["notes"]
 
@@ -113,12 +107,12 @@ def test_bulk_import_employees_update_ok(client,): # fmt: skip
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 15
-    assert _nfc(data["first_name"]) == _nfc(payload_put["first_name"])
-    assert _nfc(data["last_name"]) == _nfc(payload_put["last_name"])
-    assert _nfc(data["role"]) == _nfc(payload_put["role"])
+    assert len(data) == 16
+    assert nfc(data["first_name"]) == nfc(payload_put["first_name"])
+    assert nfc(data["last_name"]) == nfc(payload_put["last_name"])
+    assert nfc(data["role"]) == nfc(payload_put["role"])
     assert data["active"] is payload_put["active"]
-    assert _nfc(data["notes"]) == _nfc(payload_put["notes"])
+    assert nfc(data["notes"]) == nfc(payload_put["notes"])
     assert data["full_time"] is True
     assert data["workday"] == "today"
     assert data["shift"] == "all-day"
@@ -145,15 +139,15 @@ def test_bulk_import_employees_update_ok(client,): # fmt: skip
     assert response2.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
-    assert len(data2) == 15
-    assert _nfc(data2["first_name"]) == _nfc(employee_check["first_name"])
-    assert _nfc(data2["last_name"]) == _nfc(employee_check["last_name"])
+    assert len(data2) == 16
+    assert nfc(data2["first_name"]) == nfc(employee_check["first_name"])
+    assert nfc(data2["last_name"]) == nfc(employee_check["last_name"])
     assert data2["employee_number"] == employee_check["employee_number"]
     assert data2["age"] == employee_check["age"]
     assert data2["can_leave_alone"] is employee_check["can_leave_alone"]
-    assert _nfc(data2["role"]) == _nfc(employee_check["role"])
+    assert nfc(data2["role"]) == nfc(employee_check["role"])
     assert data2["active"] == employee_check["active"]
-    assert _nfc(data2["notes"]) == _nfc(employee_check["notes"])
+    assert nfc(data2["notes"]) == nfc(employee_check["notes"])
     assert data2["full_time"] is True
     assert data2["workday"] == "today"
     assert data2["shift"] == "all-day"

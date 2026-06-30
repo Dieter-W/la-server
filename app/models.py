@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -114,6 +116,10 @@ class Employee(BaseModel):
         back_populates="employee",
         passive_deletes=True,
     )
+    attendances: Mapped[list[Attendance]] = relationship(
+        back_populates="employee",
+        passive_deletes=True,
+    )
 
 
 # ---------------------------------------------------------------------
@@ -161,5 +167,37 @@ class PartTime(BaseModel):
 
     employee: Mapped[Employee] = relationship(
         back_populates="part_times",
+        passive_deletes=True,
+    )
+
+
+# ---------------------------------------------------------------------
+# Attendance
+# ---------------------------------------------------------------------
+class Attendance(BaseModel):
+    """Daily check-in / optional check-out for one camp participant."""
+
+    __tablename__ = "attendances"
+    __table_args__ = (
+        UniqueConstraint(
+            "employee_id",
+            "camp_date",
+            name="uq_attendances_employee_camp_date",
+        ),
+        Index("ix_attendances_camp_date", "camp_date"),
+    )
+
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="CASCADE"),
+    )
+    camp_date: Mapped[date] = mapped_column(Date)
+    checkin_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    checkout_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    employee: Mapped[Employee] = relationship(
+        back_populates="attendances",
         passive_deletes=True,
     )

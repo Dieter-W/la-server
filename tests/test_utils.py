@@ -1,19 +1,17 @@
 """Helpers for JWT login and token fixtures used by API tests."""
 
+import unicodedata
 from datetime import timedelta
 
 from flask_jwt_extended import create_access_token, create_refresh_token
 
 
 # ---------------------------------------------------------------------
-# HTTP response helpers
+# Unicode — normalize for DB round-trip comparisons
 # ---------------------------------------------------------------------
-def assert_status(response, expected: int) -> dict:
-    """Assert HTTP status; print body on mismatch; return parsed JSON."""
-    if response.status_code != expected:
-        print(response.text)
-    assert response.status_code == expected
-    return response.get_json()
+def nfc(s: str) -> str:
+    """Normalize Unicode so DB round-trips match Python string literals (NFC vs NFD)."""
+    return unicodedata.normalize("NFC", s)
 
 
 # ---------------------------------------------------------------------

@@ -7,10 +7,13 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.errors import APIError
-from app.models import JobAssignment
+from app.models import Employee, JobAssignment
+from app.repositories.attendance import AttendanceRepository
 from app.repositories.company import CompanyRepository
 from app.repositories.employee import EmployeeRepository
 from app.repositories.job_assignment import JobAssignmentRepository
+import app.camp_time as camp_time
+from app.schemas.attendance import participant_requires_attendance
 from app.schemas.job_assignment import (
     CreateJobAssignmentRequest,
     JobAssignmentResponse,
@@ -26,6 +29,15 @@ class JobAssignmentService:
         self.repo = JobAssignmentRepository(db)
         self.company_repo = CompanyRepository(db)
         self.employee_repo = EmployeeRepository(db)
+        self.attendance_repo = AttendanceRepository(db)
+
+    def _require_today_checkin(self, emp: Employee) -> None:
+        """Reject job create/delete when attendance is required but missing for camp today."""
+        if participant_requires_attendance(emp):
+            if not self.attendance_repo.has_checkin_for_date(
+                emp.id, camp_time.camp_today()
+            ):
+                raise APIError("ATTENDANCE_CHECK_IN_REQUIRED", 400)
 
     # ---------------------------------------------------------------------
     # Job assignments — list
@@ -56,6 +68,8 @@ class JobAssignmentService:
         if emp.active is False:
             raise APIError("EMPLOYEE_NOT_ACTIVE", 400)
 
+        self._require_today_checkin(emp)
+
         if self.repo.get_by_employee_id(emp.id) is not None:
             raise APIError("JOB_ALREADY_ASSIGNED", 400)
 
@@ -82,6 +96,13 @@ class JobAssignmentService:
         job = self.repo.get_by_id(job_assignment_id)
         if job is None:
             raise APIError("JOB_ASSIGNMENT_NOT_FOUND", 404)
+
+        # The check-in gate intentionally keys on the assignment's own employee
+        # (the job owner), not the requesting/authenticated user. This mirrors
+        # create_assignment, which gates on the employee being assigned, so a
+        # job can only be created or removed while its owner is checked in.
+        if job.employees is not None:
+            self._require_today_checkin(job.employees)
 
         employee_id = job.employee_id
         employee_number = (
