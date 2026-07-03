@@ -18,7 +18,7 @@ company_jobs_max_bp = Blueprint("company_jobs_max", __name__)
 # ---------------------------------------------------------------------
 # Company jobs max — list
 # ---------------------------------------------------------------------
-@company_jobs_max_bp.route("/<string:company_name>", methods=["GET"])
+@company_jobs_max_bp.route("/company-jobs-max/<string:company_name>", methods=["GET"])
 def list_company_jobs_max(company_name: str):
     """List stored schedule rows for one company."""
     path_req = CompanyNameRequest.from_path(company_name)
@@ -36,7 +36,7 @@ def list_company_jobs_max(company_name: str):
 # ---------------------------------------------------------------------
 # Company jobs max — create
 # ---------------------------------------------------------------------
-@company_jobs_max_bp.route("/<string:company_name>", methods=["POST"])
+@company_jobs_max_bp.route("/company-jobs-max/<string:company_name>", methods=["POST"])
 @admin_required
 def create_company_jobs_max(company_name: str):
     """Create a schedule row from JSON payload."""
@@ -52,7 +52,7 @@ def create_company_jobs_max(company_name: str):
 # ---------------------------------------------------------------------
 # Company jobs max — update
 # ---------------------------------------------------------------------
-@company_jobs_max_bp.route("/<string:company_name>", methods=["PUT"])
+@company_jobs_max_bp.route("/company-jobs-max/<string:company_name>", methods=["PUT"])
 @admin_required
 def update_company_jobs_max(company_name: str):
     """Update jobs_max/notes for one stored workday + shift row."""
@@ -68,7 +68,9 @@ def update_company_jobs_max(company_name: str):
 # ---------------------------------------------------------------------
 # Company jobs max — delete
 # ---------------------------------------------------------------------
-@company_jobs_max_bp.route("/<string:company_name>", methods=["DELETE"])
+@company_jobs_max_bp.route(
+    "/company-jobs-max/<string:company_name>", methods=["DELETE"]
+)
 @admin_required
 def delete_company_jobs_max(company_name: str):
     """Delete all schedule rows, or one row when ``?workday=&shift=`` is set."""
