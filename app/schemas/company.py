@@ -146,7 +146,7 @@ class CompanyResponse:
             default_jobs_max=default_jobs_max,
             workday=workday,
             shift=shift,
-            jobs={"available": jobs_max - assigned_jobs, "max": jobs_max},
+            jobs={"available": max(0, jobs_max - assigned_jobs), "max": jobs_max},
             hourly_pay=comp.hourly_pay + hourly_pay_increase,
             active=comp.active,
             notes=comp.notes,

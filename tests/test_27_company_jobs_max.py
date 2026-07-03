@@ -205,7 +205,7 @@ def test_companies_get_allday_row_does_not_match_morning_shift(
     assert data["jobs"]["max"] == 5
 
 
-def test_companies_get_negative_jobs_available_when_cap_below_assignments(
+def test_companies_get_jobs_available_enforced_to_zero_when_cap_below_assignments(
     client,
     sample_company,
     sample_job_assignment,
@@ -213,14 +213,14 @@ def test_companies_get_negative_jobs_available_when_cap_below_assignments(
     camp_shift_morning,
     company_jobs_max_bank_morning_zero,
 ):
-    """``jobs.available`` may be negative when the effective cap is below assigned count."""
+    """``jobs.available`` is enforced to 0 when the effective cap is below assigned count."""
     response = client.get(f"/api/companies/{quote('Bank', safe='')}")
     if response.status_code != 200:
         print(response.text)
     assert response.status_code == 200
     data = response.get_json()
     assert data["jobs"]["max"] == 0
-    assert data["jobs"]["available"] == -1
+    assert data["jobs"]["available"] == 0
 
 
 # ---------------------------------------------------------------------
