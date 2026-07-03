@@ -35,7 +35,7 @@ def create_app(config_object=None) -> Flask:
     # Logging & database
     # ---------------------------------------------------------------------
     configure_logging(app)
-    init_db(app)
+    init_db(app, create_schema=not app.config.get("TESTING"))
 
     # ---------------------------------------------------------------------
     # JWT lifecycle callbacks

@@ -85,6 +85,40 @@ class Company(BaseModel):
     job_assignments: Mapped[list[JobAssignment]] = relationship(
         back_populates="companies",
     )
+    company_jobs_max: Mapped[list[CompanyJobsMax]] = relationship(
+        back_populates="company",
+        passive_deletes=True,
+    )
+
+
+# ---------------------------------------------------------------------
+# Company jobs max
+# ---------------------------------------------------------------------
+class CompanyJobsMax(BaseModel):
+    """Workday + shift override for a company's job capacity."""
+
+    __tablename__ = "company_jobs_max"
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id",
+            "workday",
+            "shift",
+            name="uq_company_jobs_max_company_workday_shift",
+        ),
+    )
+
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"),
+    )
+    workday: Mapped[str] = mapped_column(String(20))
+    shift: Mapped[str] = mapped_column(String(20), default="all-day")
+    jobs_max: Mapped[int] = mapped_column(Integer)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    company: Mapped[Company] = relationship(
+        back_populates="company_jobs_max",
+        passive_deletes=True,
+    )
 
 
 # ---------------------------------------------------------------------

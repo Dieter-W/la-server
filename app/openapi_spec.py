@@ -33,10 +33,12 @@ def _read_project_version() -> str:
 API_TITLE = "LA-Server API"
 API_DESCRIPTION = (
     "Kinderspielstadt Los Ämmerles JSON REST API (companies, employees, part-time schedule "
-    "maintenance, check-in / check-out attendance, job assignments, village configuration, auth). "
-    "Employee responses expose derived **`full_time`** / **`workday`** / **`shift`** / **`checked_in`**; "
-    "stored schedule rows are maintained via **`/api/part-time`**. For request/response shapes and "
-    "error codes see [developer-guide.md](docs/developer-guide.md)."
+    "maintenance, company job-capacity schedules, check-in / check-out attendance, job assignments, "
+    "village configuration, auth). Employee responses expose derived **`full_time`** / **`workday`** / "
+    "**`shift`** / **`checked_in`**; stored part-time rows are maintained via **`/api/part-time`**. "
+    "Company responses expose derived **`default_jobs_max`** / **`workday`** / **`shift`** and "
+    "effective **`jobs.max`**; stored capacity overrides are maintained via **`/api/company-jobs-max`**. "
+    "For request/response shapes and error codes see [developer-guide.md](docs/developer-guide.md)."
 )
 API_VERSION = _read_project_version()
 
@@ -250,6 +252,34 @@ def build_openapi_dict() -> dict:
                 "part-time rows for the employee (restores full-time when none remain)."
             ),
         }
+    ]
+    query_company_jobs_max_delete = [
+        {
+            "name": "workday",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "type": "string",
+                "enum": PART_TIME_STORED_WORKDAYS,
+            },
+            "description": (
+                "Stored workday slug. When set together with **`shift`**, delete one schedule row; "
+                "omit both to delete all **`company_jobs_max`** rows for the company."
+            ),
+        },
+        {
+            "name": "shift",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "type": "string",
+                "enum": ["all-day", "morning", "afternoon"],
+            },
+            "description": (
+                "Stored shift slug. Required together with **`workday`** for delete-one; omit both "
+                "for delete-all. Setting only one query param → `400`."
+            ),
+        },
     ]
     query_attendance_workday = [
         {
@@ -583,6 +613,104 @@ def build_openapi_dict() -> dict:
         },
     )
 
+    # --- Company jobs max (stored capacity schedule rows) ---
+    merge_path(
+        "/api/company-jobs-max/{company_name}",
+        {
+            **_op(
+                "get",
+                "List stored company jobs max rows",
+                tag="Company jobs max",
+                parameters=parameters_company_name,
+                response_schema="ListCompanyJobsMaxResponse",
+                responses={
+                    "200": _response_200(
+                        "ListCompanyJobsMaxResponse",
+                        "Stored rows ordered by workday then shift",
+                    ),
+                    **{
+                        k: v
+                        for k, v in _RESPONSES_DEFAULT.items()
+                        if k in ("400", "404")
+                    },
+                },
+            ),
+            **_op(
+                "post",
+                "Create company jobs max row",
+                tag="Company jobs max",
+                security=_BEARER,
+                parameters=parameters_company_name,
+                request_schema="CreateCompanyJobsMaxRequest",
+                responses={
+                    "201": {
+                        "description": "Created",
+                        "content": _content_block("CompanyJobsMaxRowResponse"),
+                    },
+                    **{
+                        k: v
+                        for k, v in _RESPONSES_DEFAULT.items()
+                        if k in ("400", "401", "403", "404", "409")
+                    },
+                },
+            ),
+            **_op(
+                "put",
+                "Update company jobs max row (partial)",
+                tag="Company jobs max",
+                security=_BEARER,
+                parameters=parameters_company_name,
+                request_schema="UpdateCompanyJobsMaxRequest",
+                response_schema="CompanyJobsMaxRowResponse",
+                responses={
+                    "200": _response_200("CompanyJobsMaxRowResponse", "Updated row"),
+                    **{
+                        k: v
+                        for k, v in _RESPONSES_DEFAULT.items()
+                        if k in ("400", "401", "403", "404")
+                    },
+                },
+            ),
+            **_op(
+                "delete",
+                "Delete all schedule rows, or one when `?workday=&shift=` is set",
+                tag="Company jobs max",
+                security=_BEARER,
+                parameters=parameters_company_name + query_company_jobs_max_delete,
+                responses={
+                    "200": {
+                        "description": (
+                            "All rows deleted (`DeleteAllCompanyJobsMaxResponse`) or one row "
+                            "(`DeleteOneCompanyJobsMaxResponse` when `?workday=` and `?shift=` are set)."
+                        ),
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        _schema_ref("DeleteAllCompanyJobsMaxResponse"),
+                                        _schema_ref("DeleteOneCompanyJobsMaxResponse"),
+                                    ]
+                                }
+                            }
+                        },
+                    },
+                    **{
+                        k: v
+                        for k, v in _RESPONSES_DEFAULT.items()
+                        if k in ("400", "401", "403", "404")
+                    },
+                },
+            ),
+        },
+    )
+    _list_company_jobs_max_get = paths["/api/company-jobs-max/{company_name}"]["get"]
+    _list_company_jobs_max_get["description"] = (
+        "Returns stored slugs (including aggregates **`weekdays`** / **`all-week`**), not "
+        "contextual **`today`**. Query params **`?workday=`** or **`?shift=`** are rejected "
+        "(→ `400` **`INVALID_PART_TIME_WORKDAY`** / **`INVALID_PART_TIME_SHIFT`**). "
+        "Effective caps for camp now appear on **Companies** list/get responses."
+    )
+
     # --- Job assignments ---
     merge_path(
         "/api/job-assignments",
@@ -825,7 +953,15 @@ def build_openapi_dict() -> dict:
                 "name": "Authentication",
                 "description": "JWT sign-in, profile, passwords, refresh, logout",
             },
-            {"name": "Companies", "description": "Job-center companies"},
+            {
+                "name": "Companies",
+                "description": (
+                    "Job-center companies. List/get responses include derived **`default_jobs_max`**, "
+                    "**`workday`**, **`shift`**, and effective **`jobs.max`** / **`jobs.available`** "
+                    "for camp calendar today and current shift. Edit stored capacity overrides via "
+                    "**Company jobs max**."
+                ),
+            },
             {
                 "name": "Employees",
                 "description": (
@@ -842,6 +978,15 @@ def build_openapi_dict() -> dict:
                     "Admin CRUD on stored **`part_times`** rows for one employee. "
                     "Returns stored slugs (including aggregates **`weekdays`** / **`all-week`**), not "
                     "contextual **`today`**. Rosters and filters continue to use **Employees**."
+                ),
+            },
+            {
+                "name": "Company jobs max",
+                "description": (
+                    "Admin CRUD on stored **`company_jobs_max`** rows for one company. "
+                    "Unique key is **`(workday, shift)`** so morning and afternoon caps can coexist. "
+                    "Returns stored slugs; effective **`jobs.max`** on **Companies** and assignment "
+                    "capacity checks use camp calendar today + current shift (13:00 boundary)."
                 ),
             },
             {
@@ -1213,6 +1358,9 @@ def build_openapi_dict() -> dict:
                     "required": [
                         "id",
                         "company_name",
+                        "default_jobs_max",
+                        "workday",
+                        "shift",
                         "jobs",
                         "hourly_pay",
                         "active",
@@ -1223,18 +1371,62 @@ def build_openapi_dict() -> dict:
                     "properties": {
                         "id": {"type": "integer", "example": 3},
                         "company_name": {"type": "string", "example": "Bank"},
+                        "default_jobs_max": {
+                            "type": "boolean",
+                            "description": (
+                                "True when the company has no **`company_jobs_max`** schedule rows — "
+                                "the stored **`companies.jobs_max`** default applies every camp day "
+                                "(parallel to employee **`full_time`**)."
+                            ),
+                            "example": False,
+                        },
+                        "workday": {
+                            "type": "string",
+                            "nullable": True,
+                            "enum": ["today", None],
+                            "description": (
+                                "Contextual weekday label for camp calendar **today** in "
+                                "**`la-server.camp_timezone`**. **`today`** when a schedule slot applies "
+                                "or when **`default_jobs_max`** is **`true`**. **`null`** when schedule "
+                                "rows exist but none match camp now (cap falls back to stored default). "
+                                "Never exposes stored aggregate slugs (**`weekdays`**, **`all-week`**)."
+                            ),
+                            "example": "today",
+                        },
+                        "shift": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": (
+                                "Shift on the context **`workday`**: **`all-day`**, **`morning`**, or "
+                                "**`afternoon`**. When **`default_jobs_max`** is **`true`**, always "
+                                "**`all-day`**. When a matching schedule row applies, echoes that row's "
+                                "shift. **`null`** when **`workday`** is **`null`**. "
+                                "**`all-day`** schedule rows do not match morning/afternoon camp shifts."
+                            ),
+                            "example": "morning",
+                        },
                         "jobs": {
                             "type": "object",
                             "required": ["available", "max"],
                             "properties": {
                                 "available": {
                                     "type": "integer",
-                                    "description": "Free job slots (max − assigned).",
+                                    "description": (
+                                        "Effective free slots (**`jobs.max`** − current assignment count). "
+                                        "May be negative if the cap was lowered below existing assignments."
+                                    ),
                                     "example": 3,
                                 },
                                 "max": {
                                     "type": "integer",
-                                    "description": "Total job slots.",
+                                    "description": (
+                                        "Effective job-capacity limit **right now**: resolved from "
+                                        "**`company_jobs_max`** schedule rows for camp calendar today and "
+                                        "current shift (morning before 13:00 camp-local, afternoon from "
+                                        "13:00 inclusive), or **`companies.jobs_max`** when no rows exist "
+                                        "or no row matches. Not the raw stored default alone when overrides "
+                                        "apply."
+                                    ),
                                     "example": 5,
                                 },
                             },
@@ -1522,6 +1714,160 @@ def build_openapi_dict() -> dict:
                         "message": {
                             "type": "string",
                             "example": "part-time row deleted",
+                        },
+                    },
+                },
+                # ----------------------------------------------------------
+                # Company jobs max — request schemas
+                # ----------------------------------------------------------
+                "CreateCompanyJobsMaxRequest": {
+                    "type": "object",
+                    "required": ["workday", "jobs_max"],
+                    "properties": {
+                        "workday": {
+                            "type": "string",
+                            "enum": PART_TIME_STORED_WORKDAYS,
+                            "description": (
+                                "Stored schedule key (calendar day or aggregate). "
+                                "See **`la-server.company_jobs_max_workdays`** on **`GET /api/village-data`**."
+                            ),
+                            "example": "weekdays",
+                        },
+                        "shift": {
+                            "type": "string",
+                            "enum": ["all-day", "morning", "afternoon"],
+                            "description": (
+                                "Defaults to **`all-day`** when omitted (calendar workdays only; "
+                                "**`weekdays`**/**`all-week`** + **`all-day`** is invalid)."
+                            ),
+                            "example": "morning",
+                        },
+                        "jobs_max": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Maximum simultaneous job slots for this workday + shift.",
+                            "example": 5,
+                        },
+                        "notes": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": "Optional free-text notes.",
+                            "example": None,
+                        },
+                    },
+                },
+                "UpdateCompanyJobsMaxRequest": {
+                    "type": "object",
+                    "required": ["workday", "shift"],
+                    "description": (
+                        "Partial update. **`workday`** and **`shift`** are lookup keys only (not renamable). "
+                        "Include **`jobs_max`** and/or **`notes`** to change them."
+                    ),
+                    "properties": {
+                        "workday": {
+                            "type": "string",
+                            "enum": PART_TIME_STORED_WORKDAYS,
+                            "description": "Stored row to update.",
+                            "example": "weekdays",
+                        },
+                        "shift": {
+                            "type": "string",
+                            "enum": ["all-day", "morning", "afternoon"],
+                            "example": "morning",
+                        },
+                        "jobs_max": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "New capacity cap for this row.",
+                            "example": 2,
+                        },
+                        "notes": {
+                            "type": "string",
+                            "nullable": True,
+                            "description": "Send `null` to clear.",
+                            "example": "Reduced afternoon staffing.",
+                        },
+                    },
+                },
+                # ----------------------------------------------------------
+                # Company jobs max — response schemas
+                # ----------------------------------------------------------
+                "CompanyJobsMaxRowResponse": {
+                    "type": "object",
+                    "required": [
+                        "id",
+                        "workday",
+                        "shift",
+                        "jobs_max",
+                        "notes",
+                        "created_at",
+                        "updated_at",
+                    ],
+                    "properties": {
+                        "id": {"type": "integer", "example": 1},
+                        "workday": {
+                            "type": "string",
+                            "enum": PART_TIME_STORED_WORKDAYS,
+                            "description": "Stored slug as persisted in `company_jobs_max.workday`.",
+                            "example": "weekdays",
+                        },
+                        "shift": {
+                            "type": "string",
+                            "enum": ["all-day", "morning", "afternoon"],
+                            "example": "morning",
+                        },
+                        "jobs_max": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "example": 5,
+                        },
+                        "notes": {"type": "string", "nullable": True, "example": None},
+                        "created_at": {
+                            "type": "string",
+                            "nullable": True,
+                            "example": "2026-05-14T08:00:00",
+                        },
+                        "updated_at": {
+                            "type": "string",
+                            "nullable": True,
+                            "example": "2026-05-14T09:15:00",
+                        },
+                    },
+                },
+                "ListCompanyJobsMaxResponse": {
+                    "type": "object",
+                    "required": ["company_name", "company_jobs_max", "count"],
+                    "properties": {
+                        "company_name": {"type": "string", "example": "Bank"},
+                        "company_jobs_max": {
+                            "type": "array",
+                            "items": _schema_ref("CompanyJobsMaxRowResponse"),
+                        },
+                        "count": {"type": "integer", "example": 1},
+                    },
+                },
+                "DeleteAllCompanyJobsMaxResponse": {
+                    "type": "object",
+                    "required": ["message", "count"],
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "example": "company jobs max rows deleted",
+                        },
+                        "count": {
+                            "type": "integer",
+                            "description": "Number of rows removed (0 when already empty).",
+                            "example": 2,
+                        },
+                    },
+                },
+                "DeleteOneCompanyJobsMaxResponse": {
+                    "type": "object",
+                    "required": ["message"],
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "example": "company jobs max row deleted",
                         },
                     },
                 },
@@ -1828,9 +2174,13 @@ def build_openapi_dict() -> dict:
                             "description": (
                                 "Machine-readable token. Attendance-related values include "
                                 "**`REQUEST_BODY_NOT_ALLOWED`**, **`INVALID_ATTENDANCE_WORKDAY`**, "
-                                "**`ATTENDANCE_NOT_CHECKED_IN`**, **`ATTENDANCE_CHECK_IN_REQUIRED`**, "
-                                "plus shared tokens such as **`EMPLOYEE_NOT_FOUND`**, **`EMPLOYEE_NOT_ACTIVE`**, "
-                                "and **`CONSTRAINT_VIOLATION`**."
+                                "**`ATTENDANCE_NOT_CHECKED_IN`**, **`ATTENDANCE_CHECK_IN_REQUIRED`**. "
+                                "Company jobs max values include **`COMPANY_JOBS_MAX_NOT_FOUND`**, "
+                                "**`INVALID_JOBS_MAX`**, plus reused part-time tokens "
+                                "**`INVALID_PART_TIME_WORKDAY`**, **`INVALID_PART_TIME_SHIFT`**, "
+                                "**`INVALID_PART_TIME_COMBINATION`**. Shared tokens include "
+                                "**`EMPLOYEE_NOT_FOUND`**, **`EMPLOYEE_NOT_ACTIVE`**, and "
+                                "**`CONSTRAINT_VIOLATION`**."
                             ),
                         },
                         "message": {"type": "string"},

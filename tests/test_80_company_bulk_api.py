@@ -109,7 +109,7 @@ def test_bulk_import_companies_update_ok(client, sample_authentication, sample_e
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 8
+    assert len(data) == 11
     assert data["jobs"]["max"] == payload_put["jobs_max"]
     assert data["jobs"]["available"] == payload_put["jobs_max"]
     assert data["hourly_pay"] == payload_put["hourly_pay"]
@@ -135,7 +135,7 @@ def test_bulk_import_companies_update_ok(client, sample_authentication, sample_e
     assert response2.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
-    assert len(data2) == 8
+    assert len(data2) == 11
     assert nfc(data2["company_name"]) == nfc(company_check["company_name"])
     assert data["jobs"]["max"] == payload_put["jobs_max"]
     assert data["jobs"]["available"] == payload_put["jobs_max"]

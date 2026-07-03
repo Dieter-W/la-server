@@ -373,6 +373,33 @@ def test_job_assignments_create_error_6(client, sample_authentication, sample_co
     assert data["error"] == "NO_JOB_LEFT"
 
 
+def test_job_assignments_create_error_7_effective_schedule_cap(
+    client,
+    sample_authentication,
+    sample_company,
+    sample_employee,
+    sample_job_assignment,
+    camp_is_wednesday,
+    camp_shift_morning,
+    company_jobs_max_bauhof_morning_only,
+):
+    """POST respects ``company_jobs_max`` schedule cap, not only ``companies.jobs_max``."""
+    token = _login_as_employee(client, sample_authentication, sample_employee)
+    response = client.post(
+        "/api/job-assignments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "company_name": "Bauhof",
+            "employee_number": "A00265",
+            "notes": "Schedule cap exceeded",
+        },
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "NO_JOB_LEFT"
+
+
 # ---------------------------------------------------------------------
 # Deleted job_assignment API
 # ---------------------------------------------------------------------

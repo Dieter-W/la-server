@@ -14,6 +14,7 @@ from app.repositories.employee import EmployeeRepository
 from app.repositories.job_assignment import JobAssignmentRepository
 import app.camp_time as camp_time
 from app.schemas.attendance import participant_requires_attendance
+from app.schemas.company_jobs_max import effective_jobs_max
 from app.schemas.job_assignment import (
     CreateJobAssignmentRequest,
     JobAssignmentResponse,
@@ -74,7 +75,7 @@ class JobAssignmentService:
             raise APIError("JOB_ALREADY_ASSIGNED", 400)
 
         assigned_count = self.repo.count_by_company_id(comp.id)
-        if assigned_count >= comp.jobs_max:
+        if assigned_count >= effective_jobs_max(comp):
             raise APIError("NO_JOB_LEFT", 400)
 
         job = JobAssignment(company_id=comp.id, employee_id=emp.id)

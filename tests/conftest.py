@@ -32,7 +32,7 @@ from tests.test_camp_time import (
     CAMP_WEDNESDAY,
     camp_today_patch,
 )
-from tests.test_part_time_helpers import seed_part_time_rows
+from tests.test_part_time_helpers import seed_company_jobs_max_rows, seed_part_time_rows
 
 
 def _camp_day_patch(camp_instant: datetime):
@@ -391,6 +391,25 @@ def camp_is_sunday():
         yield
 
 
+def _camp_shift_patch(shift: str):
+    """Pin ``camp_shift()`` to a fixed slug for company projection tests."""
+    return patch("app.camp_time.camp_shift", return_value=shift)
+
+
+@pytest.fixture
+def camp_shift_morning():
+    """Pin current camp shift to ``morning``."""
+    with _camp_shift_patch("morning"):
+        yield
+
+
+@pytest.fixture
+def camp_shift_afternoon():
+    """Pin current camp shift to ``afternoon``."""
+    with _camp_shift_patch("afternoon"):
+        yield
+
+
 # ---------------------------------------------------------
 # 6. Part-time scenario fixtures (employee projection tests)
 # ---------------------------------------------------------
@@ -465,4 +484,108 @@ def part_time_monika_unsorted_rows(app, sample_employee):
                 (2, ALL_WEEK_WORKDAY, "afternoon"),
             ],
         )
+        session.close()
+
+
+# ---------------------------------------------------------
+# 7. Company jobs max scenario fixtures
+# ---------------------------------------------------------
+@pytest.fixture
+def company_jobs_max_bank_weekdays(app, sample_company):
+    """Bank (id 1): ``weekdays`` morning cap 2 + afternoon cap 1."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_company_jobs_max_rows(
+            session,
+            [
+                (1, WEEKDAYS_WORKDAY, "morning", 2),
+                (1, WEEKDAYS_WORKDAY, "afternoon", 1),
+            ],
+        )
+        session.close()
+
+
+@pytest.fixture
+def company_jobs_max_bank_wednesday_override(app, sample_company):
+    """Bank (id 1): ``weekdays`` morning 2 + Wednesday morning override 5."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_company_jobs_max_rows(
+            session,
+            [
+                (1, WEEKDAYS_WORKDAY, "morning", 2),
+                (1, "wednesday", "morning", 5),
+            ],
+        )
+        session.close()
+
+
+@pytest.fixture
+def company_jobs_max_bauhof_morning_only(app, sample_company):
+    """Bauhof (id 4): ``weekdays`` morning cap 1 (for NO_JOB_LEFT assignment tests)."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_company_jobs_max_rows(session, [(4, WEEKDAYS_WORKDAY, "morning", 1)])
+        session.close()
+
+
+@pytest.fixture
+def company_jobs_max_bauhof_weekdays(app, sample_company):
+    """Bauhof (id 4): ``weekdays`` morning cap 2 + afternoon cap 1."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_company_jobs_max_rows(
+            session,
+            [
+                (4, WEEKDAYS_WORKDAY, "morning", 2),
+                (4, WEEKDAYS_WORKDAY, "afternoon", 1),
+            ],
+        )
+        session.close()
+
+
+@pytest.fixture
+def company_jobs_max_bank_morning_only(app, sample_company):
+    """Bank (id 1): ``weekdays`` morning cap 1 (for NO_JOB_LEFT assignment tests)."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_company_jobs_max_rows(session, [(1, WEEKDAYS_WORKDAY, "morning", 1)])
+        session.close()
+
+
+@pytest.fixture
+def bank_active(app, sample_company):
+    """Bank (id 1): set ``active=True`` so assignment tests can target Bank."""
+    with app.app_context():
+        session = app.SessionLocal()
+        bank = session.get(Company, 1)
+        bank.active = True
+        session.commit()
+        session.close()
+
+
+@pytest.fixture
+def company_jobs_max_bank_all_week_morning(app, sample_company):
+    """Bank (id 1): ``all-week`` morning cap 4."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_company_jobs_max_rows(session, [(1, ALL_WEEK_WORKDAY, "morning", 4)])
+        session.close()
+
+
+@pytest.fixture
+def company_jobs_max_bank_wednesday_allday(app, sample_company):
+    """Bank (id 1): Wednesday ``all-day`` cap 3 (does not match morning/afternoon)."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_company_jobs_max_rows(session, [(1, "wednesday", "all-day", 3)])
+        session.close()
+
+
+@pytest.fixture
+def company_jobs_max_bank_morning_zero(app, sample_company):
+    """Bank (id 1): ``weekdays`` morning cap 0 (available may go negative)."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_company_jobs_max_rows(session, [(1, WEEKDAYS_WORKDAY, "morning", 0)])
         session.close()

@@ -43,12 +43,15 @@ def _register_pool_peak_listeners(engine, counter: PeakCounter) -> None:
 # ---------------------------------------------------------------------
 # Flask app initialization
 # ---------------------------------------------------------------------
-def init_db(app) -> None:
+def init_db(app, *, create_schema: bool = True) -> None:
     """Initialize database with Flask app.
 
     Uses Flask-SQLAlchemy's engine (from ``SQLALCHEMY_DATABASE_URI`` and
     ``SQLALCHEMY_ENGINE_OPTIONS``) as the single pool for both ``db`` metadata
     operations and per-request ``SessionLocal`` sessions on ``g.db``.
+
+    When ``create_schema`` is false (pytest sets ``TESTING``), schema creation
+    is deferred to the test ``app`` fixture so each worker uses a fresh DB.
     """
     db.init_app(app)
 
@@ -68,7 +71,8 @@ def init_db(app) -> None:
 
         import app.models  # noqa: F401 - register models before create_all
 
-        # create_all ensures schema for dev, tests, and fresh installs
-        # (see scripts/create_database.py for explicit bootstrap).
-        db.create_all()
-        logger.debug("Database schema ensured (create_all).")
+        if create_schema:
+            # create_all ensures schema for dev, tests, and fresh installs
+            # (see scripts/create_database.py for explicit bootstrap).
+            db.create_all()
+            logger.debug("Database schema ensured (create_all).")

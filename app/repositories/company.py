@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 from app.models import Company, JobAssignment
 from app.repositories.base import BaseRepository
@@ -17,6 +18,7 @@ class CompanyRepository(BaseRepository[Company]):
         stmt = (
             select(Company, func.count(JobAssignment.id).label("assigned_jobs"))
             .outerjoin(JobAssignment)
+            .options(selectinload(Company.company_jobs_max))
             .group_by(Company.id)
             .order_by(Company.company_name)
         )
@@ -40,7 +42,11 @@ class CompanyRepository(BaseRepository[Company]):
     # ---------------------------------------------------------------------
     def get_by_name(self, company_name: str) -> Company | None:
         """One company by unique name; or None."""
-        stmt = select(Company).where(Company.company_name == company_name)
+        stmt = (
+            select(Company)
+            .where(Company.company_name == company_name)
+            .options(selectinload(Company.company_jobs_max))
+        )
         return self.db.execute(stmt).scalar_one_or_none()
 
     def get_by_name_with_lock(self, company_name: str) -> Company | None:
@@ -48,6 +54,7 @@ class CompanyRepository(BaseRepository[Company]):
         stmt = (
             select(Company)
             .where(Company.company_name == company_name)
+            .options(selectinload(Company.company_jobs_max))
             .with_for_update()
         )
         return self.db.execute(stmt).scalar_one_or_none()

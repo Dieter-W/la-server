@@ -188,6 +188,12 @@ def test_companies_query_all(client, sample_company, sample_job_assignment): # f
         company_data["notes"] == sample_company.notes
         for company_data in data["companies"]
     )
+    assert all("default_jobs_max" in company_data for company_data in data["companies"])
+    assert all(
+        company_data["workday"] == "today" and company_data["shift"] == "all-day"
+        for company_data in data["companies"]
+        if company_data["default_jobs_max"]
+    )
 
 
 def test_companies_query_all_true(client, sample_company, ): # fmt: skip
@@ -235,8 +241,11 @@ def test_companies_query(client, sample_company, sample_job_assignment,): # fmt:
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 8
+    assert len(data) == 11
     assert data["company_name"] == sample_company.company_name
+    assert data["default_jobs_max"] is True
+    assert data["workday"] == "today"
+    assert data["shift"] == "all-day"
     assert data["jobs"]["available"] == 0
     assert data["jobs"]["max"] == sample_company.jobs_max
     assert data["hourly_pay"] == sample_company.hourly_pay
@@ -277,8 +286,11 @@ def test_companies_create(client, sample_authentication, sample_company, sample_
     assert response.status_code == 201
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 8
+    assert len(data) == 11
     assert data["company_name"] == payload_create["company_name"]
+    assert data["default_jobs_max"] is True
+    assert data["workday"] == "today"
+    assert data["shift"] == "all-day"
     assert data["jobs"]["available"] == payload_create["jobs_max"]
     assert data["jobs"]["max"] == payload_create["jobs_max"]
     assert data["hourly_pay"] == payload_create["hourly_pay"]
@@ -332,8 +344,11 @@ def test_companies_update(client, sample_authentication, sample_company, sample_
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, dict)
-    assert len(data) == 8
+    assert len(data) == 11
     assert data["id"] == sample_company.id
+    assert data["default_jobs_max"] is True
+    assert data["workday"] == "today"
+    assert data["shift"] == "all-day"
     assert nfc(data["company_name"]) == nfc(payload_put["company_name"])
     assert data["hourly_pay"] == payload_put["hourly_pay"]
     assert data["active"] == payload_put["active"]
@@ -345,7 +360,7 @@ def test_companies_update(client, sample_authentication, sample_company, sample_
     assert response2.status_code == 200
     data2 = response2.get_json()
     assert isinstance(data2, dict)
-    assert len(data2) == 8
+    assert len(data2) == 11
     assert data2["company_name"] == payload_put["company_name"]
 
 

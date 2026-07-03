@@ -51,6 +51,8 @@ def test_village_data_get_ok_la_server(client):
     assert ls["auth_groups"] == AUTH_GROUPS
     assert ls["part_time_shifts"] == PART_TIME_SHIFTS
     assert ls["part_time_workdays"] == PART_TIME_STORED_WORKDAYS
+    assert ls["company_jobs_max_shifts"] == PART_TIME_SHIFTS
+    assert ls["company_jobs_max_workdays"] == PART_TIME_STORED_WORKDAYS
     assert "weekdays" in ls["part_time_workdays"]
     assert "all-week" in ls["part_time_workdays"]
     calendar_only = [
@@ -117,6 +119,8 @@ def test_village_data_get_ok_ini_file_changes(client):
     assert data["la-server"]["auth_groups"] == AUTH_GROUPS
     assert data["la-server"]["part_time_shifts"] == PART_TIME_SHIFTS
     assert data["la-server"]["part_time_workdays"] == PART_TIME_STORED_WORKDAYS
+    assert data["la-server"]["company_jobs_max_shifts"] == PART_TIME_SHIFTS
+    assert data["la-server"]["company_jobs_max_workdays"] == PART_TIME_STORED_WORKDAYS
 
 
 # ---------------------------------------------------------------------

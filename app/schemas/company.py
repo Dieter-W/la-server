@@ -5,9 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import app.camp_time as camp_time
 from app.errors import APIError
 from app.models import Company
 from app.schemas import _UNSET
+from app.schemas.company_jobs_max import (
+    company_context_workday_and_shift,
+    effective_jobs_max,
+)
 
 
 # ---------------------------------------------------------------------
@@ -109,6 +114,9 @@ class UpdateCompanyRequest:
 class CompanyResponse:
     id: int
     company_name: str
+    default_jobs_max: bool
+    workday: str | None
+    shift: str | None
     jobs: dict
     hourly_pay: float
     active: bool
@@ -119,10 +127,26 @@ class CompanyResponse:
     @classmethod
     def from_orm(cls, comp: Company, assigned_jobs: int, hourly_pay_increase: int) -> CompanyResponse: # fmt: skip
         """Map Company plus aggregates to wire-shaped response model."""
+        lookup_workday = camp_time.camp_day()
+        lookup_shift = camp_time.camp_shift()
+        default_jobs_max, workday, shift = company_context_workday_and_shift(
+            comp,
+            lookup_workday=lookup_workday,
+            lookup_shift=lookup_shift,
+            response_label="today",
+        )
+        jobs_max = effective_jobs_max(
+            comp,
+            lookup_workday=lookup_workday,
+            lookup_shift=lookup_shift,
+        )
         return cls(
             id=comp.id,
             company_name=comp.company_name,
-            jobs={"available": comp.jobs_max - assigned_jobs, "max": comp.jobs_max},
+            default_jobs_max=default_jobs_max,
+            workday=workday,
+            shift=shift,
+            jobs={"available": jobs_max - assigned_jobs, "max": jobs_max},
             hourly_pay=comp.hourly_pay + hourly_pay_increase,
             active=comp.active,
             notes=comp.notes,
@@ -135,6 +159,9 @@ class CompanyResponse:
         return {
             "id": self.id,
             "company_name": self.company_name,
+            "default_jobs_max": self.default_jobs_max,
+            "workday": self.workday,
+            "shift": self.shift,
             "jobs": self.jobs,
             "hourly_pay": self.hourly_pay,
             "active": self.active,

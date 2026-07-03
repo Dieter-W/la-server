@@ -49,6 +49,9 @@ def _build_la_server_block() -> dict:
     aggregate ``weekdays`` / ``all-week``). Those aggregates are for data entry and DB
     storage only — employee list ``?workday=`` filters and response ``workday`` labels
     never use them (OpenAPI and developer guide describe the split).
+
+    ``company_jobs_max_workdays`` / ``company_jobs_max_shifts`` reuse the same stored
+    slug lists for ``company_jobs_max`` schedule CRUD.
     """
     cfg = current_app.config
     validate = bool(cfg.get("VALIDATE_CHECK_SUM", True))
@@ -58,6 +61,8 @@ def _build_la_server_block() -> dict:
         "auth_groups": list(AUTH_GROUPS),
         "part_time_shifts": list(PART_TIME_SHIFTS),
         "part_time_workdays": list(PART_TIME_STORED_WORKDAYS),
+        "company_jobs_max_shifts": list(PART_TIME_SHIFTS),
+        "company_jobs_max_workdays": list(PART_TIME_STORED_WORKDAYS),
         "validate_employee_number_checksum": validate,
         "employee_number_checksum_algorithm": (
             "ISO_7064_MOD_97_10" if validate else None

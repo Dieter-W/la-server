@@ -8,21 +8,20 @@ from enum import StrEnum
 from typing import Any
 
 import app.camp_time as camp_time
-from app.camp_time import CALENDAR_WEEKDAY_SLUGS
+from app.camp_time import (
+    CALENDAR_WEEKDAY_SLUGS,
+    CAMP_SHIFTS,
+    CampShift,
+    verify_camp_shift,
+)
 from app.errors import APIError
 from app.models import Employee, PartTime
 from app.schemas import _UNSET
 
-
 # ---------------------------------------------------------------------
 # Part-time primitives — enums, constants, helpers
 # ---------------------------------------------------------------------
-class PartTimeShift(StrEnum):
-    """When on a workday the participant is on part-time (stored and exposed as the same slug)."""
-
-    ALL_DAY = "all-day"
-    MORNING = "morning"
-    AFTERNOON = "afternoon"
+PartTimeShift = CampShift
 
 
 class PartTimeWorkday(StrEnum):
@@ -53,7 +52,7 @@ PART_TIME_API_WORKDAY_LABELS = ["today", *PART_TIME_CALENDAR_WORKDAYS]
 # Mon–Fri subset; shared by ``is_weekdays_calendar_day``, slot resolution, and list SQL.
 WEEKDAYS_CALENDAR_WORKDAYS = PART_TIME_CALENDAR_WORKDAYS[:5]
 PART_TIME_STORED_WORKDAYS = [d.value for d in PartTimeWorkday]
-PART_TIME_SHIFTS = [s.value for s in PartTimeShift]
+PART_TIME_SHIFTS = CAMP_SHIFTS
 
 camp_day = camp_time.camp_day
 camp_instant = camp_time.camp_instant
@@ -70,10 +69,7 @@ def is_weekdays_calendar_day(day: str) -> bool:
 
 def verify_part_time_shift(shift: str) -> tuple[bool, str | None]:
     """Verify if the part-time shift is valid (case-insensitive)."""
-    if shift.strip().lower() not in PART_TIME_SHIFTS:
-        return False, "INVALID_PART_TIME_SHIFT"
-
-    return True, None
+    return verify_camp_shift(shift)
 
 
 def verify_part_time_workday(workday: str) -> tuple[bool, str | None]:
