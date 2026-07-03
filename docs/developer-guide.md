@@ -127,7 +127,7 @@ curl -s http://localhost:5000/api/auth/me \
 - Database constraint issues may return `**409`** with `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` (duplicate / unique violation) or `{"error": "CONSTRAINT_VIOLATION", "message": "Delete failed, because related entries in JobAssignment table"}` (delete blocked by related rows), as implemented in [`app/errors.py`](../app/errors.py).
 - Uncaught DB errors: `**500**` with `DATABASE_ERROR`. Unhandled exceptions: `**500**` with `INTERNAL_SERVER_ERROR`, per [`app/errors.py`](../app/errors.py). For both, a **`message`** field is included in the JSON **only when** server **`DEBUG`** is enabled (otherwise the body is just `{"error": "<CODE>"}`).
 
-**Common error codes** include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUEST_BODY_NOT_ALLOWED`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `INVALID_AGE_IN_JSON`, `INVALID_JSON_BOOLEAN_IN_JSON`, `INVALID_PART_TIME_WORKDAY`, `INVALID_PART_TIME_SHIFT`, `INVALID_PART_TIME_COMBINATION`, `INVALID_ATTENDANCE_WORKDAY`, `PART_TIME_NOT_FOUND`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `ATTENDANCE_NOT_CHECKED_IN`, `ATTENDANCE_CHECK_IN_REQUIRED`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, `BAD_CREDENTIALS`, `FORBIDDEN_WRONG_AUTH_GROUP`, `OLD_PASSWORD_IS_INCORRECT`, `AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`, and variants with `_IN_JSON` where applicable.
+**Common error codes** include: `REQUEST_BODY_MUST_BE_A_JSON_OBJECT`, `REQUEST_BODY_NOT_ALLOWED`, `REQUIRED_JSON_INPUT_MISSING_OR_EMPTY`, `INVALID_AGE_IN_JSON`, `INVALID_JSON_BOOLEAN_IN_JSON`, `INVALID_PART_TIME_WORKDAY`, `INVALID_PART_TIME_SHIFT`, `INVALID_PART_TIME_COMBINATION`, `INVALID_JOBS_MAX`, `INVALID_ATTENDANCE_WORKDAY`, `PART_TIME_NOT_FOUND`, `COMPANY_JOBS_MAX_NOT_FOUND`, `COMPANY_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `COMPANY_NOT_ACTIVE`, `EMPLOYEE_NOT_ACTIVE`, `ATTENDANCE_NOT_CHECKED_IN`, `ATTENDANCE_CHECK_IN_REQUIRED`, `JOB_ALREADY_ASSIGNED`, `NO_JOB_LEFT`, `NO_JOB_ASSIGNED`, `EMPLOYEE_NUMBER_WRONG`, `BAD_CREDENTIALS`, `FORBIDDEN_WRONG_AUTH_GROUP`, `OLD_PASSWORD_IS_INCORRECT`, `AUTHORIZATION_REQUIRED`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`, and variants with `_IN_JSON` where applicable.
 
 JWT responses from Flask-JWT-Extended include a `message` next to `error` where applicable; see [`app/__init__.py`](../app/__init__.py). **HTTP mapping:** missing `Authorization` / Bearer → **`401`** `AUTHORIZATION_REQUIRED`; expired JWT → **`401`** `EXPIRED_TOKEN`; malformed or invalid Bearer / wrong token type for the loader → **`422`** `INVALID_TOKEN`.
 
@@ -169,6 +169,11 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | POST   | `/api/companies`                               | Create company                              | admin required                   |
 | PUT    | `/api/companies/<company_name>`                | Update company                              | admin required                   |
 | DELETE | `/api/companies/<company_name>`                | Delete company                              | admin required                   |
+| GET    | `/api/company-jobs-max/<company_name>`         | List stored job-capacity schedule rows      | public                           |
+| POST   | `/api/company-jobs-max/<company_name>`         | Create schedule row                         | admin required                   |
+| PUT    | `/api/company-jobs-max/<company_name>`         | Update schedule row                         | admin required                   |
+| DELETE | `/api/company-jobs-max/<company_name>`         | Delete all schedule rows                    | admin required                   |
+| DELETE | `/api/company-jobs-max/<company_name>?workday=&shift=` | Delete one schedule row           | admin required                   |
 | GET    | `/api/employees`                               | List employees                              | public                           |
 | GET    | `/api/employees/<employee_number>`             | List one employee                           | public                           |
 | POST   | `/api/employees`                               | Create employee                             | admin required                   |
@@ -800,6 +805,26 @@ JWT handling errors match [Errors and status codes](#errors-and-status-codes).
 
 ## Companies
 
+<a id="company-jobs-max-context-on-company-responses"></a>
+
+### Company jobs max context on company responses
+
+**Two APIs, two jobs:** use **`GET /api/companies`** for kiosk / job-center display — responses show **`default_jobs_max`**, contextual **`workday`** / **`shift`**, and effective **`jobs.max`** / **`jobs.available`**. Use **`/api/company-jobs-max/{company_name}`** for **admin maintenance** of stored schedule rows (`workday`, `shift`, `jobs_max`, `notes` as persisted, including aggregate slugs). Do **not** write schedule data via company POST/PUT. See [Company jobs max API](#company-jobs-max-api).
+
+**Camp timezone and shift:** **`general.timezone`** in **`village_data/village.ini`** defines which calendar day is **“today”**. **`camp_shift()`** (code constant **`13:00`** camp-local — morning before 13:00, afternoon from 13:00 inclusive) defines the current shift. Neither accepts client query parameters on company GET. See [database_design.md — Camp shift boundary](./database_design.md#camp-shift-boundary).
+
+| Field | Meaning |
+|-------|---------|
+| **`default_jobs_max`** | `true` when the company has **zero** schedule rows — effective cap is always **`companies.jobs_max`**. Parallel to employee **`full_time`**. |
+| **`workday`** | **`today`** when a schedule row matches camp now; **`null`** when rows exist but none match (cap still falls back to stored default). **Never** aggregate slugs. |
+| **`shift`** | **`all-day`** when **`default_jobs_max`**; matching row shift otherwise; **`null`** when no slot matches. |
+| **`jobs.max`** | Effective cap **right now** (override or fallback). |
+| **`jobs.available`** | **`jobs.max`** minus current assignment count; may be **negative** if the cap was lowered below existing assignments. |
+
+**Example:** Bank has `jobs_max` = 10 (stored default), plus rows `weekdays/morning` → 5 and `weekdays/afternoon` → 2. On Wednesday at **12:59** camp time → **`jobs.max`: 5**, **`workday`: `"today"`**, **`shift`: `"morning"`**. At **13:00** → **`jobs.max`: 2**, **`shift`: `"afternoon"`**. On Saturday (no matching row) → **`jobs.max`: 10**, **`workday`/`shift`: `null`**, **`default_jobs_max`: false**.
+
+Allowed **stored** workday and shift values are listed under **`la-server.company_jobs_max_workdays`** and **`la-server.company_jobs_max_shifts`** on **`GET /api/village-data`**.
+
 ### List companies - /api/companies
 
 **Explanation**
@@ -837,7 +862,10 @@ None.
     {
       "id": 1,
       "company_name": "Bank",
-      "jobs": { "available": 6, "max": 8 },
+      "default_jobs_max": false,
+      "workday": "today",
+      "shift": "morning",
+      "jobs": { "available": 3, "max": 5 },
       "hourly_pay": 10,
       "active": true,
       "notes": null,
@@ -847,6 +875,9 @@ None.
     {
       "id": 2,
       "company_name": "Bauhof",
+      "default_jobs_max": true,
+      "workday": "today",
+      "shift": "all-day",
       "jobs": { "available": 4, "max": 4 },
       "hourly_pay": 10,
       "active": false,
@@ -902,7 +933,10 @@ None.
 {
   "id": 1,
   "company_name": "Bank",
-  "jobs": { "available": 6, "max": 8 },
+  "default_jobs_max": false,
+  "workday": "today",
+  "shift": "morning",
+  "jobs": { "available": 3, "max": 5 },
   "hourly_pay": 10,
   "active": true,
   "notes": null,
@@ -975,6 +1009,9 @@ Example:
 {
   "id": 1,
   "company_name": "Bank",
+  "default_jobs_max": true,
+  "workday": "today",
+  "shift": "all-day",
   "jobs": { "available": 8, "max": 8 },
   "hourly_pay": 10,
   "active": true,
@@ -1110,6 +1147,308 @@ None.
 | 404  | Error: `{"error": "COMPANY_NOT_FOUND"}`                    |
 | 409  | Error: `{"error": "CONSTRAINT_VIOLATION", "message": "Delete failed, because related entries in JobAssignment table"}` |
 
+
+---
+
+<a id="company-jobs-max-api"></a>
+
+## Company jobs max API
+
+Admin CRUD on stored **`company_jobs_max`** rows at **`/api/company-jobs-max/{company_name}`**. Normal camp processing (company lists, job center, assignment capacity) continues to use **`/api/companies`** for derived **`default_jobs_max`**, **`workday`**, **`shift`**, and effective **`jobs.max`** — see [Company jobs max context on company responses](#company-jobs-max-context-on-company-responses).
+
+| Need | Call |
+| ---- | ---- |
+| Effective cap / availability right now | **`GET /api/companies`** (derived fields) |
+| What schedule rows are stored for editing? | **`GET /api/company-jobs-max/{company_name}`** |
+| Admin edit schedule | **`POST`** / **`PUT`** / **`DELETE /api/company-jobs-max/{company_name}`** |
+
+**Default cap everywhere** = **delete all** schedule rows (`DELETE /api/company-jobs-max/{company_name}` with no query), not an aggregate **`all-day`** row. The stored default remains **`companies.jobs_max`**.
+
+Every route validates path **`company_name`** before database access (same rules as the Company API): empty name → **`400`** **`COMPANY_NAME_PATH_EMPTY`**; unknown company → **`404`** **`COMPANY_NOT_FOUND`**.
+
+**Write validation** (POST, PUT, and DELETE-one **`?workday=&shift=`**):
+
+1. **`verify_part_time_stored_workday`** → **`400`** **`INVALID_PART_TIME_WORKDAY`**
+2. **`verify_part_time_shift`** → **`400`** **`INVALID_PART_TIME_SHIFT`**
+3. **`validate_part_time_combination`** → **`400`** **`INVALID_PART_TIME_COMBINATION`**
+4. **`verify_jobs_max`** (POST/PUT when `jobs_max` present) → **`400`** **`INVALID_JOBS_MAX`**
+
+Allowed stored **`workday`** and **`shift`** values are listed under **`la-server.company_jobs_max_workdays`** and **`la-server.company_jobs_max_shifts`** on **`GET /api/village-data`**.
+
+### List stored schedule rows - /api/company-jobs-max/<company_name>
+
+**Explanation**
+Returns **stored** slugs for one company — not contextual **`today`**. Rows are ordered by workday then shift. Reject any **`?workday=`** or **`?shift=`** query on GET → **`400`** **`INVALID_PART_TIME_WORKDAY`** / **`INVALID_PART_TIME_SHIFT`**.
+
+**Parameters** (path)
+
+| Name           | Required | Description   |
+| -------------- | -------- | ------------- |
+| `company_name` | Yes      | e.g. `Bank` |
+
+**Endpoint sample**
+
+```http
+GET /api/company-jobs-max/Bank HTTP/1.1
+Host: localhost:5000
+```
+
+```bash
+curl -s "http://localhost:5000/api/company-jobs-max/Bank"
+```
+
+**JSON request**
+None.
+
+**JSON response** (example)
+
+```json
+{
+  "company_name": "Bank",
+  "company_jobs_max": [
+    {
+      "id": 1,
+      "workday": "weekdays",
+      "shift": "morning",
+      "jobs_max": 5,
+      "notes": null,
+      "created_at": "2026-01-15T10:00:00+00:00",
+      "updated_at": "2026-01-15T10:00:00+00:00"
+    },
+    {
+      "id": 2,
+      "workday": "weekdays",
+      "shift": "afternoon",
+      "jobs_max": 2,
+      "notes": null,
+      "created_at": "2026-01-15T10:00:00+00:00",
+      "updated_at": "2026-01-15T10:00:00+00:00"
+    }
+  ],
+  "count": 2
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 400  | `{"error": "INVALID_PART_TIME_WORKDAY"}` or `{"error": "INVALID_PART_TIME_SHIFT"}` (spurious query params) |
+| 404  | `{"error": "COMPANY_NOT_FOUND"}` |
+
+---
+
+### Create schedule row - /api/company-jobs-max/<company_name>
+
+**Explanation**
+Creates one stored row. **`workday`** and **`jobs_max`** are required; **`shift`** defaults to **`all-day`**; **`notes`** is optional. Duplicate **`(workday, shift)`** for the same company → **`409`** **`CONSTRAINT_VIOLATION`** (`uq_company_jobs_max_company_workday_shift`). **Authorization:** admin required.
+
+**Parameters** (path)
+
+| Name           | Required | Description   |
+| -------------- | -------- | ------------- |
+| `company_name` | Yes      | Target company |
+
+**Endpoint sample**
+
+```http
+POST /api/company-jobs-max/Bank HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X POST "http://localhost:5000/api/company-jobs-max/Bank" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"workday":"weekdays","shift":"morning","jobs_max":5}'
+```
+
+**JSON request**
+
+| Field      | Required | Description |
+| ---------- | -------- | ----------- |
+| `workday`  | Yes      | Stored slug (`monday` … `sunday`, `weekdays`, `all-week`) |
+| `jobs_max` | Yes      | Override cap (non-negative integer) |
+| `shift`    | No       | Default **`all-day`** |
+| `notes`    | No       | Optional free text |
+
+**JSON response** (created row — **`201`**)
+
+```json
+{
+  "id": 3,
+  "workday": "weekdays",
+  "shift": "morning",
+  "jobs_max": 5,
+  "notes": null,
+  "created_at": "2026-01-15T10:00:00+00:00",
+  "updated_at": "2026-01-15T10:00:00+00:00"
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 201  | Created |
+| 400  | Validation errors (`INVALID_PART_TIME_WORKDAY`, `INVALID_PART_TIME_SHIFT`, `INVALID_PART_TIME_COMBINATION`, `INVALID_JOBS_MAX`, …) |
+| 403  | `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
+| 404  | `{"error": "COMPANY_NOT_FOUND"}` |
+| 409  | `{"error": "CONSTRAINT_VIOLATION", "message": "Create failed, because entry is already in database"}` |
+
+---
+
+### Update schedule row - /api/company-jobs-max/<company_name>
+
+**Explanation**
+Partial update by stored **`workday`** + **`shift`** lookup keys (neither is renamable). Include **`jobs_max`** and/or **`notes`** to change them. Unknown row → **`404`** **`COMPANY_JOBS_MAX_NOT_FOUND`**. **Authorization:** admin required.
+
+**Parameters** (path)
+
+| Name           | Required | Description   |
+| -------------- | -------- | ------------- |
+| `company_name` | Yes      | Target company |
+
+**Endpoint sample**
+
+```http
+PUT /api/company-jobs-max/Bank HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X PUT "http://localhost:5000/api/company-jobs-max/Bank" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"workday":"weekdays","shift":"morning","jobs_max":6,"notes":"Peak hours"}'
+```
+
+**JSON request**
+
+| Field      | Required | Description |
+| ---------- | -------- | ----------- |
+| `workday`  | Yes      | Lookup key (stored slug) |
+| `shift`    | Yes      | Lookup key (stored slug) |
+| `jobs_max` | No       | New cap when present |
+| `notes`    | No       | New notes; send `null` to clear |
+
+**JSON response**
+Same shape as create (**`200`**).
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 400  | Validation errors |
+| 403  | Not admin |
+| 404  | `{"error": "COMPANY_NOT_FOUND"}` or `{"error": "COMPANY_JOBS_MAX_NOT_FOUND"}` |
+
+---
+
+### Delete all schedule rows - /api/company-jobs-max/<company_name>
+
+**Explanation**
+Removes every stored row for the company (idempotent when already empty). Restores default-cap behaviour: **`GET /api/companies/{company_name}`** then shows **`default_jobs_max`: true**, **`workday`: `"today"`**, **`shift`: `"all-day"`**, and **`jobs.max`** from **`companies.jobs_max`**. **Authorization:** admin required. When **`?workday=&shift=`** is present, see [Delete one schedule row](#delete-one-schedule-row---apicompanys-jobs-maxcompany_nameworkdayshift).
+
+**Parameters** (path)
+
+| Name           | Required | Description   |
+| -------------- | -------- | ------------- |
+| `company_name` | Yes      | Target company |
+
+**Endpoint sample**
+
+```http
+DELETE /api/company-jobs-max/Bank HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X DELETE "http://localhost:5000/api/company-jobs-max/Bank" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**JSON request**
+None.
+
+**JSON response**
+
+```json
+{
+  "message": "company jobs max rows deleted",
+  "count": 2
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 403  | Not admin |
+| 404  | `{"error": "COMPANY_NOT_FOUND"}` |
+
+---
+
+<a id="delete-one-schedule-row---apicompanys-jobs-maxcompany_nameworkdayshift"></a>
+
+### Delete one schedule row - /api/company-jobs-max/<company_name>?workday=&shift=
+
+**Explanation**
+Deletes the row for one stored **`workday`** + **`shift`** pair. Both query parameters are required together. Unknown row → **`404`** **`COMPANY_JOBS_MAX_NOT_FOUND`**. **Authorization:** admin required.
+
+**Parameters** (path)
+
+| Name           | Required | Description   |
+| -------------- | -------- | ------------- |
+| `company_name` | Yes      | Target company |
+
+**Parameters** (query)
+
+| Name      | Required | Description |
+| --------- | -------- | ----------- |
+| `workday` | Yes      | Stored slug |
+| `shift`   | Yes      | Stored slug |
+
+**Endpoint sample**
+
+```http
+DELETE /api/company-jobs-max/Bank?workday=weekdays&shift=morning HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X DELETE "http://localhost:5000/api/company-jobs-max/Bank?workday=weekdays&shift=morning" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**JSON request**
+None.
+
+**JSON response**
+
+```json
+{
+  "message": "company jobs max row deleted"
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK |
+| 400  | Validation errors (`INVALID_PART_TIME_WORKDAY`, `INVALID_PART_TIME_SHIFT`, …) |
+| 403  | Not admin |
+| 404  | `{"error": "COMPANY_NOT_FOUND"}` or `{"error": "COMPANY_JOBS_MAX_NOT_FOUND"}` |
 
 ---
 
@@ -2566,7 +2905,7 @@ Camp-specific **name**, **currency** labels, optional **`[village-theme]`** UI p
 
 **`[village-theme]`:** Optional section for **client apps only**. Keys are typically CSS-style hex colors (`accent`, `on-accent`, status pairs such as `ok` / `ok-bg`). LA-Server does **not** apply these colors to HTTP responses; it only passes them through under the JSON key **`village-theme`** (matching the INI section name). Omit the section if a deployment does not need themed UIs. A full sample lives in the repo’s **`data/village.ini`**.
 
-**Runtime-only `la-server`:** The response always includes a top-level **`la-server`** object built by the server (auth groups, part-time enum lists, whether employee-number checksum validation is enabled, JWT TTL hints in **minutes** for access and refresh, etc.). When checksum validation is off, **`employee_number_checksum_algorithm`** is JSON **`null`**. It is **not** read from `village.ini` and must **not** be configured via a `[la-server]` section in the INI; if that section appears in the file, the server **overwrites** it in the JSON so the payload matches real server behavior. **`la-server.part_time_workdays`** lists **stored** slugs (calendar days plus **`weekdays`** and **`all-week`** for data entry); employee list filters and response **`workday`** labels use calendar slugs only — see [Aggregate part-time patterns](#aggregate-part-time-patterns).
+**Runtime-only `la-server`:** The response always includes a top-level **`la-server`** object built by the server (auth groups, part-time and company-jobs-max enum lists, whether employee-number checksum validation is enabled, JWT TTL hints in **minutes** for access and refresh, etc.). When checksum validation is off, **`employee_number_checksum_algorithm`** is JSON **`null`**. It is **not** read from `village.ini` and must **not** be configured via a `[la-server]` section in the INI; if that section appears in the file, the server **overwrites** it in the JSON so the payload matches real server behavior. **`la-server.part_time_workdays`** lists **stored** slugs (calendar days plus **`weekdays`** and **`all-week`** for data entry); employee list filters and response **`workday`** labels use calendar slugs only — see [Aggregate part-time patterns](#aggregate-part-time-patterns). **`la-server.company_jobs_max_workdays`** and **`la-server.company_jobs_max_shifts`** reuse the same stored slug lists for **`company_jobs_max`** schedule CRUD; company GET responses use contextual labels only — see [Company jobs max context on company responses](#company-jobs-max-context-on-company-responses).
 
 **Camp calendar:** **`general.timezone`** in the INI (also echoed under **`general`** in this JSON) is the IANA time zone the server uses for **`workday=today`** on employee lists, contextual **`workday`** / **`shift`** on employee responses, attendance **`camp_date`** resolution, and derived **`checked_in`**. See [Part-time context on employee responses](#part-time-context-on-employee-responses) and [Attendance API](#attendance-api).
 
@@ -2646,6 +2985,11 @@ None.
     "auth_groups": ["employee", "staff", "admin"],
     "part_time_shifts": ["all-day", "morning", "afternoon"],
     "part_time_workdays": [
+      "monday", "tuesday", "wednesday", "thursday", "friday",
+      "saturday", "sunday", "weekdays", "all-week"
+    ],
+    "company_jobs_max_shifts": ["all-day", "morning", "afternoon"],
+    "company_jobs_max_workdays": [
       "monday", "tuesday", "wednesday", "thursday", "friday",
       "saturday", "sunday", "weekdays", "all-week"
     ],
