@@ -18,7 +18,7 @@ part_time_bp = Blueprint("part_time", __name__)
 # ---------------------------------------------------------------------
 # Part-time List API
 # ---------------------------------------------------------------------
-@part_time_bp.route("/<string:employee_number>", methods=["GET"])
+@part_time_bp.route("/part-time/<string:employee_number>", methods=["GET"])
 def list_part_times(employee_number: str):
     """List stored part-time rows for one employee."""
     path_req = EmployeeNumberRequest.from_path(employee_number)
@@ -32,7 +32,7 @@ def list_part_times(employee_number: str):
 # ---------------------------------------------------------------------
 # Part-time Create API
 # ---------------------------------------------------------------------
-@part_time_bp.route("/<string:employee_number>", methods=["POST"])
+@part_time_bp.route("/part-time/<string:employee_number>", methods=["POST"])
 @admin_required
 def create_part_time(employee_number: str):
     """Create a part-time row from JSON payload."""
@@ -46,7 +46,7 @@ def create_part_time(employee_number: str):
 # ---------------------------------------------------------------------
 # Part-time Update API
 # ---------------------------------------------------------------------
-@part_time_bp.route("/<string:employee_number>", methods=["PUT"])
+@part_time_bp.route("/part-time/<string:employee_number>", methods=["PUT"])
 @admin_required
 def update_part_time(employee_number: str):
     """Update shift/notes for one stored workday row."""
@@ -60,7 +60,7 @@ def update_part_time(employee_number: str):
 # ---------------------------------------------------------------------
 # Part-time Delete API
 # ---------------------------------------------------------------------
-@part_time_bp.route("/<string:employee_number>", methods=["DELETE"])
+@part_time_bp.route("/part-time/<string:employee_number>", methods=["DELETE"])
 @admin_required
 def delete_part_time(employee_number: str):
     """Delete all part-time rows, or one row when ``?workday=`` is set."""

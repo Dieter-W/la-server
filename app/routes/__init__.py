@@ -22,7 +22,7 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(companies_bp, url_prefix="/api")
     app.register_blueprint(job_assignment_bp, url_prefix="/api")
     app.register_blueprint(village_data_bp, url_prefix="/api")
-    app.register_blueprint(part_time_bp, url_prefix="/api/part-time")
+    app.register_blueprint(part_time_bp, url_prefix="/api")
     app.register_blueprint(company_jobs_max_bp, url_prefix="/api")
     app.register_blueprint(attendance_bp, url_prefix="/api")
     app.register_blueprint(openapi_docs_bp, url_prefix="/api")
