@@ -15,6 +15,7 @@ def register_routes(app: Flask) -> None:
     from app.routes.part_time import part_time_bp
     from app.routes.company_jobs_max import company_jobs_max_bp
     from app.routes.attendance import attendance_bp
+    from app.routes.job_assignment_history import job_assignment_history_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(health_bp, url_prefix="/api")
@@ -25,4 +26,5 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(part_time_bp, url_prefix="/api")
     app.register_blueprint(company_jobs_max_bp, url_prefix="/api")
     app.register_blueprint(attendance_bp, url_prefix="/api")
+    app.register_blueprint(job_assignment_history_bp, url_prefix="/api")
     app.register_blueprint(openapi_docs_bp, url_prefix="/api")

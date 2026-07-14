@@ -177,6 +177,38 @@ class JobAssignment(BaseModel):
 
 
 # ---------------------------------------------------------------------
+# Job assignment history
+# ---------------------------------------------------------------------
+class JobAssignmentHistory(BaseModel):
+    """Denormalized snapshot when a live job assignment is removed."""
+
+    __tablename__ = "job_assignment_history"
+    __table_args__ = (
+        Index("ix_job_assignment_history_employee_number", "employee_number"),
+        Index("ix_job_assignment_history_company_name", "company_name"),
+        Index("ix_job_assignment_history_started_camp_date", "started_camp_date"),
+        Index("ix_job_assignment_history_ended_camp_date", "ended_camp_date"),
+        Index("ix_job_assignment_history_ended_at", "ended_at"),
+    )
+
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    started_camp_date: Mapped[date] = mapped_column(Date)
+    ended_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_camp_date: Mapped[date] = mapped_column(Date)
+    minutes_worked: Mapped[int] = mapped_column(Integer)
+    end_reason: Mapped[str] = mapped_column(String(20))
+
+    employee_number: Mapped[str] = mapped_column(String(16))
+    first_name: Mapped[str] = mapped_column(String(255))
+    last_name: Mapped[str] = mapped_column(String(255))
+    age: Mapped[int] = mapped_column(Integer)
+
+    company_name: Mapped[str] = mapped_column(String(255))
+    hourly_pay: Mapped[int] = mapped_column(Integer)
+    tax: Mapped[int] = mapped_column(Integer)
+
+
+# ---------------------------------------------------------------------
 # Part-time
 # ---------------------------------------------------------------------
 class PartTime(BaseModel):

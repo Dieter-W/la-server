@@ -65,6 +65,60 @@ def test_openapi_attendance_paths(client):
     assert "checked_in" in schemas["EmployeeResponse"]["properties"]
 
 
+def test_openapi_job_assignment_history_paths(client):
+    """OpenAPI spec documents job assignment history JSON and CSV export endpoints."""
+    response = client.get("/api/openapi.json")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    paths = data["paths"]
+    schemas = data["components"]["schemas"]
+
+    assert "/api/job-assignment-history" in paths
+    list_get = paths["/api/job-assignment-history"]["get"]
+    assert list_get["tags"] == ["Job assignment history"]
+    assert list_get["security"] == [{"bearerAuth": []}]
+    param_names = {p["name"] for p in list_get["parameters"]}
+    assert param_names == {"employee_number", "company_name", "workday"}
+
+    assert "/api/job-assignment-history/export" in paths
+    export_get = paths["/api/job-assignment-history/export"]["get"]
+    assert export_get["tags"] == ["Job assignment history"]
+    assert export_get["security"] == [{"bearerAuth": []}]
+    assert "text/csv" in export_get["responses"]["200"]["content"]
+    assert "employee_number" in export_get["responses"]["200"]["description"]
+
+    assert "/api/job-assignment-history/{employee_number}" in paths
+    by_employee_get = paths["/api/job-assignment-history/{employee_number}"]["get"]
+    assert by_employee_get["tags"] == ["Job assignment history"]
+    assert by_employee_get["security"] == [{"bearerAuth": []}]
+    by_employee_param_names = {p["name"] for p in by_employee_get["parameters"]}
+    assert by_employee_param_names == {"employee_number", "workday"}
+
+    assert "/api/job-assignment-history/{employee_number}/export" in paths
+    by_employee_export = paths["/api/job-assignment-history/{employee_number}/export"][
+        "get"
+    ]
+    assert by_employee_export["tags"] == ["Job assignment history"]
+    assert by_employee_export["security"] == [{"bearerAuth": []}]
+    assert "text/csv" in by_employee_export["responses"]["200"]["content"]
+
+    assert "JobAssignmentHistoryResponse" in schemas
+    assert "ListJobAssignmentHistoryResponse" in schemas
+    assert "ListJobAssignmentHistoryByEmployeeResponse" in schemas
+    assert schemas["JobAssignmentHistoryResponse"]["properties"]["end_reason"][
+        "enum"
+    ] == [
+        "deleted",
+        "reset_company",
+        "reset_all",
+    ]
+
+    tag_names = [tag["name"] for tag in data["tags"]]
+    assert "Job assignment history" in tag_names
+
+
 # ---------------------------------------------------------------------
 # Swagger UI HTML
 # ---------------------------------------------------------------------

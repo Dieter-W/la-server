@@ -315,6 +315,83 @@ def build_openapi_dict() -> dict:
             ),
         }
     ]
+    query_job_assignment_history_list = [
+        {
+            "name": "employee_number",
+            "in": "query",
+            "required": False,
+            "schema": {"type": "string"},
+            "description": (
+                "Filter to one participant (ISO 7064 Mod 97,10 when checksum validation is on)."
+            ),
+        },
+        {
+            "name": "company_name",
+            "in": "query",
+            "required": False,
+            "schema": {"type": "string"},
+            "description": "Filter to exact company name as stored, e.g. `Bank`.",
+        },
+        {
+            "name": "workday",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "type": "string",
+                "enum": ATTENDANCE_API_WORKDAY_LABELS,
+            },
+            "description": (
+                "Optional camp-day filter on assignment **end** day (**`ended_camp_date`**). "
+                "Same resolution rules as attendance list endpoints; response echoes **`workday`** "
+                "and **`ended_camp_date`**. Invalid slugs → `400` **`INVALID_ATTENDANCE_WORKDAY`**."
+            ),
+        },
+    ]
+    query_job_assignment_history_workday = [
+        {
+            "name": "workday",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "type": "string",
+                "enum": ATTENDANCE_API_WORKDAY_LABELS,
+            },
+            "description": (
+                "Optional camp-day filter on **`ended_camp_date`**. Omit for full employment history "
+                "(newest **`ended_at`** first). When set, same resolution rules as attendance; "
+                "response echoes **`workday`** and **`ended_camp_date`**. "
+                "Invalid slugs → `400` **`INVALID_ATTENDANCE_WORKDAY`**."
+            ),
+        }
+    ]
+    _csv_export_200 = {
+        "description": (
+            "UTF-8 CSV with BOM (`\\ufeff`) for Excel on Windows. "
+            "Attachment filename in **`Content-Disposition`**."
+        ),
+        "content": {
+            "text/csv": {
+                "schema": {"type": "string", "format": "binary"},
+                "example": (
+                    "employee_number,first_name,last_name,age,company_name,hourly_pay,tax,"
+                    "started_at,started_camp_date,ended_at,ended_camp_date,minutes_worked,"
+                    "end_reason,created_at\\n"
+                    "P00370,Max,Mustermann,10,Bank,14,19,2026-05-18T08:00:00+00:00,"
+                    "2026-05-18,2026-05-18T12:00:00+00:00,2026-05-18,240,deleted,"
+                    "2026-05-18T12:00:00+00:00\\n"
+                ),
+            }
+        },
+        "headers": {
+            "Content-Disposition": {
+                "schema": {"type": "string"},
+                "description": (
+                    'Attachment filename, e.g. **`attachment; filename="job-assignment-history-all.csv"`** '
+                    "or **`job-assignment-history-{employee_number}.csv`** for per-person export."
+                ),
+            }
+        },
+    }
 
     paths: dict[str, dict] = {}
 
@@ -763,6 +840,10 @@ def build_openapi_dict() -> dict:
             "post": {
                 "tags": ["Job assignments"],
                 "summary": "Reset assignments (optional `company_name` filter)",
+                "description": (
+                    "Removes matching live assignments after archiving each to **`job_assignment_history`** "
+                    "(**`end_reason`**: **`reset_all`** or **`reset_company`**). Not attendance-gated."
+                ),
                 "security": _BEARER,
                 "requestBody": {
                     "required": False,
@@ -771,6 +852,120 @@ def build_openapi_dict() -> dict:
                 "responses": {"200": {"description": "OK"}},
             }
         },
+    )
+    _delete_job_assignment = paths["/api/job-assignments/{job_assignment_number}"][
+        "delete"
+    ]
+    _delete_job_assignment["description"] = (
+        "Removes one live assignment after archiving a snapshot to **`job_assignment_history`** "
+        "with **`end_reason`**: **`deleted`**. When attendance is required for the participant, "
+        "today's check-in row must exist (same gate as create)."
+    )
+
+    # --- Job assignment history (read-only audit trail) ---
+    merge_path(
+        "/api/job-assignment-history/export",
+        _op(
+            "get",
+            "Export filtered employment history as CSV",
+            tag="Job assignment history",
+            security=_BEARER,
+            parameters=query_job_assignment_history_list,
+            responses={
+                "200": {
+                    **_csv_export_200,
+                    "description": (
+                        "Filtered history as UTF-8 CSV with BOM. Columns (stable order): "
+                        "`employee_number`, `first_name`, `last_name`, `age`, `company_name`, "
+                        "`hourly_pay`, `tax`, `started_at`, `started_camp_date`, `ended_at`, "
+                        "`ended_camp_date`, `minutes_worked`, `end_reason`, `created_at`. "
+                        "Camp dates as `YYYY-MM-DD`; datetimes ISO 8601. Filename: "
+                        "`job-assignment-history-{ended_camp_date_or_all}.csv`."
+                    ),
+                },
+                **{
+                    k: v
+                    for k, v in _RESPONSES_DEFAULT.items()
+                    if k in ("400", "401", "403")
+                },
+            },
+        ),
+    )
+    merge_path(
+        "/api/job-assignment-history",
+        _op(
+            "get",
+            "List archived employment snapshots",
+            tag="Job assignment history",
+            security=_BEARER,
+            parameters=query_job_assignment_history_list,
+            response_schema="ListJobAssignmentHistoryResponse",
+            responses={
+                "200": _response_200(
+                    "ListJobAssignmentHistoryResponse",
+                    "All matching history rows, newest `ended_at` first",
+                ),
+                **{
+                    k: v
+                    for k, v in _RESPONSES_DEFAULT.items()
+                    if k in ("400", "401", "403")
+                },
+            },
+        ),
+    )
+    _list_job_assignment_history_get = paths["/api/job-assignment-history"]["get"]
+    _list_job_assignment_history_get["description"] = (
+        "Append-only audit trail written when live assignments are deleted or reset. "
+        "**Read-only** — no POST/PUT/PATCH/DELETE on this resource. "
+        "Optional filters: **`employee_number`**, **`company_name`**, **`workday`** (→ **`ended_camp_date`**)."
+    )
+    merge_path(
+        "/api/job-assignment-history/{employee_number}/export",
+        _op(
+            "get",
+            "Export one participant's employment history as CSV",
+            tag="Job assignment history",
+            security=_BEARER,
+            parameters=parameters_employee_number
+            + query_job_assignment_history_workday,
+            responses={
+                "200": {
+                    **_csv_export_200,
+                    "description": (
+                        "One participant's history as UTF-8 CSV with BOM (same columns as list export). "
+                        "Filename: `job-assignment-history-{employee_number}.csv`."
+                    ),
+                },
+                **{
+                    k: v
+                    for k, v in _RESPONSES_DEFAULT.items()
+                    if k in ("400", "401", "403", "404")
+                },
+            },
+        ),
+    )
+    merge_path(
+        "/api/job-assignment-history/{employee_number}",
+        _op(
+            "get",
+            "Employment history for one participant",
+            tag="Job assignment history",
+            security=_BEARER,
+            parameters=parameters_employee_number
+            + query_job_assignment_history_workday,
+            response_schema="ListJobAssignmentHistoryByEmployeeResponse",
+            responses={
+                "200": _response_200(
+                    "ListJobAssignmentHistoryByEmployeeResponse",
+                    "Full history or rows for one camp end day when `?workday=` is set",
+                ),
+                **{
+                    k: v
+                    for k, v in _RESPONSES_DEFAULT.items()
+                    if k in ("400", "401", "403", "404")
+                },
+            },
+        ),
     )
 
     # --- Attendance (check-in / check-out) ---
@@ -995,7 +1190,16 @@ def build_openapi_dict() -> dict:
                     "Participant–company placements. When **`village.ini`** attendance switches require "
                     "check-in for a participant tier, **`POST`** create and **`DELETE`** terminate require "
                     "today's check-in row (→ `400` **`ATTENDANCE_CHECK_IN_REQUIRED`**); **`checkout_at`** is "
-                    "not checked. Bulk **`/reset`** is not gated."
+                    "not checked. Bulk **`/reset`** is not gated. **`DELETE`** and **`/reset`** archive "
+                    "snapshots to **Job assignment history** before removing live rows."
+                ),
+            },
+            {
+                "name": "Job assignment history",
+                "description": (
+                    "Staff-only read API for the append-only **`job_assignment_history`** audit trail. "
+                    "Rows are created automatically when assignments are deleted or reset; no HTTP write "
+                    "endpoints. JSON list/get plus CSV export (UTF-8 BOM) for Excel reporting."
                 ),
             },
             {
@@ -1910,6 +2114,157 @@ def build_openapi_dict() -> dict:
                 "JobAssignmentListResponse": {
                     "type": "array",
                     "items": _schema_ref("JobAssignmentResponse"),
+                },
+                # ----------------------------------------------------------
+                # Job assignment history — response schemas
+                # ----------------------------------------------------------
+                "JobAssignmentHistoryResponse": {
+                    "type": "object",
+                    "required": [
+                        "employee_number",
+                        "first_name",
+                        "last_name",
+                        "age",
+                        "company_name",
+                        "hourly_pay",
+                        "tax",
+                        "started_at",
+                        "started_camp_date",
+                        "ended_at",
+                        "ended_camp_date",
+                        "minutes_worked",
+                        "end_reason",
+                        "created_at",
+                    ],
+                    "properties": {
+                        "employee_number": {"type": "string", "example": "P00370"},
+                        "first_name": {"type": "string", "example": "Max"},
+                        "last_name": {"type": "string", "example": "Mustermann"},
+                        "age": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Participant age snapshotted at assignment end.",
+                            "example": 10,
+                        },
+                        "company_name": {"type": "string", "example": "Bank"},
+                        "hourly_pay": {
+                            "type": "integer",
+                            "description": (
+                                "Effective hourly pay at archive time (base + village **`hourly_pay` "
+                                "increase**), same as **`GET /api/companies`**."
+                            ),
+                            "example": 14,
+                        },
+                        "tax": {
+                            "type": "integer",
+                            "description": (
+                                "Village tax rate at archive time from **`village.ini [hourly_pay] tax`**, "
+                                "same as clients read via **`GET /api/village-data`**."
+                            ),
+                            "example": 19,
+                        },
+                        "started_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": (
+                                "When the live assignment was created (from **`job_assignments.created_at`**, UTC)."
+                            ),
+                            "example": "2026-05-18T08:00:00+00:00",
+                        },
+                        "started_camp_date": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "Camp-local calendar date of **`started_at`**. ",
+                            "example": "2026-05-18",
+                        },
+                        "ended_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Server UTC when the assignment was removed (delete or reset).",
+                            "example": "2026-05-18T12:00:00+00:00",
+                        },
+                        "ended_camp_date": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "Camp-local calendar date of **`ended_at`**. ",
+                            "example": "2026-05-18",
+                        },
+                        "minutes_worked": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": (
+                                "Floor of wall-clock minutes from **`started_at`** to **`ended_at`** "
+                                "at archive time."
+                            ),
+                            "example": 240,
+                        },
+                        "end_reason": {
+                            "type": "string",
+                            "enum": ["deleted", "reset_company", "reset_all"],
+                            "description": (
+                                "How the assignment ended: single **`DELETE`**, company-scoped reset, "
+                                "or reset-all."
+                            ),
+                            "example": "deleted",
+                        },
+                        "created_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "When the history row was written (UTC).",
+                            "example": "2026-05-18T12:00:00+00:00",
+                        },
+                    },
+                },
+                "ListJobAssignmentHistoryResponse": {
+                    "type": "object",
+                    "required": ["history", "count"],
+                    "properties": {
+                        "history": {
+                            "type": "array",
+                            "items": _schema_ref("JobAssignmentHistoryResponse"),
+                        },
+                        "count": {"type": "integer", "example": 1},
+                        "workday": {
+                            "type": "string",
+                            "enum": ATTENDANCE_API_WORKDAY_LABELS,
+                            "description": "Present only when `?workday=` was set on the request.",
+                            "example": "today",
+                        },
+                        "ended_camp_date": {
+                            "type": "string",
+                            "format": "date",
+                            "description": (
+                                "Present only when `?workday=` was set; filters **`ended_camp_date`**."
+                            ),
+                            "example": "2026-05-18",
+                        },
+                    },
+                },
+                "ListJobAssignmentHistoryByEmployeeResponse": {
+                    "type": "object",
+                    "required": ["employee_number", "history", "count"],
+                    "properties": {
+                        "employee_number": {"type": "string", "example": "P00370"},
+                        "history": {
+                            "type": "array",
+                            "items": _schema_ref("JobAssignmentHistoryResponse"),
+                        },
+                        "count": {"type": "integer", "example": 2},
+                        "workday": {
+                            "type": "string",
+                            "enum": ATTENDANCE_API_WORKDAY_LABELS,
+                            "description": "Present only when `?workday=` was set on the request.",
+                            "example": "today",
+                        },
+                        "ended_camp_date": {
+                            "type": "string",
+                            "format": "date",
+                            "description": (
+                                "Present only when `?workday=` was set; filters **`ended_camp_date`**."
+                            ),
+                            "example": "2026-05-18",
+                        },
+                    },
                 },
                 # ----------------------------------------------------------
                 # Attendance — response schemas

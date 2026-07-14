@@ -18,17 +18,36 @@ class JobAssignmentRepository(BaseRepository[JobAssignment]):
         stmt = select(JobAssignment).order_by(JobAssignment.employee_id)
         return list(self.db.scalars(stmt).all())
 
+    def list_all_with_relations(
+        self, *, company_id: int | None = None
+    ) -> list[JobAssignment]:
+        """All assignments with employee and company eager-loaded.
+
+        When ``company_id`` is set, only rows for that company are returned.
+        """
+        stmt = select(JobAssignment).options(
+            joinedload(JobAssignment.employees),
+            joinedload(JobAssignment.companies),
+        )
+        if company_id is not None:
+            stmt = stmt.where(JobAssignment.company_id == company_id)
+        stmt = stmt.order_by(JobAssignment.employee_id)
+        return list(self.db.scalars(stmt).unique().all())
+
     def get_by_employee_id(self, employee_id: int) -> JobAssignment | None:
         """Assignment for one employee, or None."""
         stmt = select(JobAssignment).where(JobAssignment.employee_id == employee_id)
         return self.db.scalars(stmt).first()
 
     def get_by_id(self, job_assignment_id: int) -> JobAssignment | None:
-        """One assignment row by primary key, or None (employee row eager-loaded)."""
+        """One assignment by primary key (employee and company eager-loaded)."""
         stmt = (
             select(JobAssignment)
             .where(JobAssignment.id == job_assignment_id)
-            .options(joinedload(JobAssignment.employees))
+            .options(
+                joinedload(JobAssignment.employees),
+                joinedload(JobAssignment.companies),
+            )
         )
         return self.db.scalars(stmt).unique().first()
 

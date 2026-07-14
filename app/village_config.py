@@ -101,6 +101,18 @@ def get_hourly_pay_increase() -> int:
     return 0
 
 
+def get_hourly_pay_tax() -> int:
+    """Return the ``hourly_pay.tax`` value from village.ini (0 if absent)."""
+    village_data = load_village_data()
+    if village_data:
+        hourly_pay = village_data.get("hourly_pay")
+        if isinstance(hourly_pay, dict):
+            tax = hourly_pay.get("tax")
+            if tax is not None:
+                return int(tax)
+    return 0
+
+
 def get_camp_timezone() -> ZoneInfo:
     """Return ``general.timezone`` from village.ini as a ``ZoneInfo``.
 

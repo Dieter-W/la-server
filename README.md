@@ -362,6 +362,10 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | POST   | `/api/job-assignments`                         | Create job assignment                       | employee or higher               |
 | DELETE | `/api/job-assignments/<job_assignment_number>` | Remove assignment by assignment number      | employee or higher               |
 | POST   | `/api/job-assignments/reset`                   | Reset assignments (optional filter)         | admin required                   |
+| GET    | `/api/job-assignment-history`                  | List archived employment snapshots (optional filters) | staff or higher          |
+| GET    | `/api/job-assignment-history/export`           | Download filtered history as CSV            | staff or higher                  |
+| GET    | `/api/job-assignment-history/<employee_number>` | One participant's employment history       | staff or higher                  |
+| GET    | `/api/job-assignment-history/<employee_number>/export` | Download one participant's history as CSV | staff or higher          |
 | GET    | `/api/village-data`                            | Spielstadt config JSON (`village.ini`)      | public                           |
 | GET    | `/api/village-data/logo`                       | Logo image (path from INI)                  | public                           |
 | GET    | `/api/village-data/favicon`                    | Favicon image (path from INI)               | public                           |
@@ -403,6 +407,19 @@ curl "http://localhost:5000/api/employees?active=true&checked_in=false&auth_grou
 
 ```bash
 curl http://localhost:5000/api/job-assignments
+```
+
+**Download job assignment history as CSV (staff token required)**
+
+Archived rows are written when assignments are removed or reset; see [developer-guide.md — Job assignment history](./docs/developer-guide.md#job-assignment-history). Exports use UTF-8 with BOM so Excel on Windows opens umlauts correctly.
+
+```bash
+curl -s -o job-assignment-history-all.csv \
+  "http://localhost:5000/api/job-assignment-history/export" \
+  -H "Authorization: Bearer $TOKEN"
+curl -s -o job-assignment-history-today.csv \
+  "http://localhost:5000/api/job-assignment-history/export?workday=today" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ## Development

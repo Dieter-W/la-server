@@ -3,20 +3,24 @@
 from __future__ import annotations
 
 import logging
+from datetime import timezone
 
 from sqlalchemy.orm import Session
 
 from app.errors import APIError
-from app.models import Employee, JobAssignment
+from app.models import Employee, JobAssignment, JobAssignmentHistory, utc_now
 from app.repositories.attendance import AttendanceRepository
 from app.repositories.company import CompanyRepository
 from app.repositories.employee import EmployeeRepository
 from app.repositories.job_assignment import JobAssignmentRepository
+from app.repositories.job_assignment_history import JobAssignmentHistoryRepository
 import app.camp_time as camp_time
+from app.village_config import get_hourly_pay_increase, get_hourly_pay_tax
 from app.schemas.attendance import participant_requires_attendance
 from app.schemas.company_jobs_max import effective_jobs_max
 from app.schemas.job_assignment import (
     CreateJobAssignmentRequest,
+    JobAssignmentEndReason,
     JobAssignmentResponse,
     ResetJobAssignmentRequest,
 )
@@ -31,6 +35,7 @@ class JobAssignmentService:
         self.company_repo = CompanyRepository(db)
         self.employee_repo = EmployeeRepository(db)
         self.attendance_repo = AttendanceRepository(db)
+        self.history_repo = JobAssignmentHistoryRepository(db)
 
     def _require_today_checkin(self, emp: Employee) -> None:
         """Reject job create/delete when attendance is required but missing for camp today."""
@@ -39,6 +44,50 @@ class JobAssignmentService:
                 emp.id, camp_time.camp_today()
             ):
                 raise APIError("ATTENDANCE_CHECK_IN_REQUIRED", 400)
+
+    def _archive_assignment(
+        self,
+        job: JobAssignment,
+        *,
+        end_reason: JobAssignmentEndReason,
+        hourly_pay_increase: int | None = None,
+        tax: int | None = None,
+    ) -> None:
+        """Persist a denormalized snapshot before the live assignment row is removed."""
+        employee = job.employees
+        company = job.companies
+        if employee is None or company is None:
+            raise APIError("JOB_ASSIGNMENT_NOT_FOUND", 404)
+
+        if hourly_pay_increase is None:
+            hourly_pay_increase = get_hourly_pay_increase()
+        if tax is None:
+            tax = get_hourly_pay_tax()
+
+        started_at = job.created_at
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        ended_at = utc_now()
+        started_camp_date = camp_time.camp_instant(now=started_at).date()
+        ended_camp_date = camp_time.camp_instant(now=ended_at).date()
+        minutes_worked = int((ended_at - started_at).total_seconds() // 60)
+
+        record = JobAssignmentHistory(
+            started_at=started_at,
+            started_camp_date=started_camp_date,
+            ended_at=ended_at,
+            ended_camp_date=ended_camp_date,
+            minutes_worked=minutes_worked,
+            end_reason=end_reason,
+            employee_number=employee.employee_number,
+            first_name=employee.first_name,
+            last_name=employee.last_name,
+            age=employee.age,
+            company_name=company.company_name,
+            hourly_pay=company.hourly_pay + hourly_pay_increase,
+            tax=tax,
+        )
+        self.history_repo.insert(record)
 
     # ---------------------------------------------------------------------
     # Job assignments — list
@@ -110,6 +159,8 @@ class JobAssignmentService:
             job.employees.employee_number if job.employees is not None else None
         )
 
+        self._archive_assignment(job, end_reason=JobAssignmentEndReason.DELETED)
+
         if not self.repo.delete_by_id(job_assignment_id):
             raise APIError("JOB_ASSIGNMENT_NOT_FOUND", 404)
 
@@ -124,13 +175,34 @@ class JobAssignmentService:
     # Job assignments — reset (bulk)
     # ---------------------------------------------------------------------
     def reset_assignments(self, req: ResetJobAssignmentRequest) -> int:
-        """Bulk delete for one company or all; returns deleted row count."""
+        """Bulk delete for one company or all; archives each row first."""
+        hourly_pay_increase = get_hourly_pay_increase()
+        tax = get_hourly_pay_tax()
+
         if req.company_name:
             comp = self.company_repo.get_by_name(req.company_name)
             if comp is None:
                 raise APIError("COMPANY_NOT_FOUND", 404)
+            jobs = self.repo.list_all_with_relations(company_id=comp.id)
+            end_reason = JobAssignmentEndReason.RESET_COMPANY
+            for job in jobs:
+                self._archive_assignment(
+                    job,
+                    end_reason=end_reason,
+                    hourly_pay_increase=hourly_pay_increase,
+                    tax=tax,
+                )
             count = self.repo.delete_by_company_id(comp.id)
         else:
+            jobs = self.repo.list_all_with_relations()
+            end_reason = JobAssignmentEndReason.RESET_ALL
+            for job in jobs:
+                self._archive_assignment(
+                    job,
+                    end_reason=end_reason,
+                    hourly_pay_increase=hourly_pay_increase,
+                    tax=tax,
+                )
             count = self.repo.delete_all()
 
         logger.warning(

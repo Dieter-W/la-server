@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 
 from app.errors import APIError
 from app.models import JobAssignment
@@ -11,6 +12,14 @@ from app.utils import (
     validate_employee_number,
     validate_job_assignment_number,
 )
+
+
+class JobAssignmentEndReason(StrEnum):
+    """Why a live job assignment was archived (stored and API values)."""
+
+    DELETED = "deleted"
+    RESET_COMPANY = "reset_company"
+    RESET_ALL = "reset_all"
 
 
 # ---------------------------------------------------------------------

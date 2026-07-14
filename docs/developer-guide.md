@@ -150,7 +150,7 @@ In the table, **Authorization** is shorthand for:
 
 If an admin changes another person’s access (`POST /api/auth/set-auth-group`), that person should **sign in again** so the app remembers the new permissions.
 
-**List endpoints (no pagination):** `GET /api/companies`, `GET /api/employees`, and `GET /api/job-assignments` return the **full** result set in one response (no `limit`/`offset`). Plan accordingly for large datasets or future API versions.
+**List endpoints (no pagination):** `GET /api/companies`, `GET /api/employees`, `GET /api/job-assignments`, and staff-only `GET /api/job-assignment-history` return the **full** result set in one response (no `limit`/`offset`). Plan accordingly for large datasets or future API versions.
 
 | Method | Path                                           | Summary                                     | Authorization                    |
 | ------ | ---------------------------------------------- | ------------------------------------------- | -------------------------------- |
@@ -193,6 +193,10 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | POST   | `/api/job-assignments`                         | Create job assignment                       | employee or higher               |
 | DELETE | `/api/job-assignments/<job_assignment_number>` | Remove assignment by assignment number      | employee or higher               |
 | POST   | `/api/job-assignments/reset`                   | Reset assignments (optional filter)         | admin required                   |
+| GET    | `/api/job-assignment-history`                  | List archived employment snapshots (optional filters) | staff or higher          |
+| GET    | `/api/job-assignment-history/export`           | Download filtered history as CSV            | staff or higher                  |
+| GET    | `/api/job-assignment-history/<employee_number>` | One participant's employment history       | staff or higher                  |
+| GET    | `/api/job-assignment-history/<employee_number>/export` | Download one participant's history as CSV | staff or higher          |
 | GET    | `/api/village-data`                            | Spielstadt config JSON (`village.ini`)      | public                           |
 | GET    | `/api/village-data/logo`                       | Logo image (path from INI)                  | public                           |
 | GET    | `/api/village-data/favicon`                    | Favicon image (path from INI)               | public                           |
@@ -2793,7 +2797,7 @@ Same `job_assignment_number` assignment number format as in the list response (`
 ### Remove job assignment - /api/job-assignments/<job_assignment_number>
 
 **Explanation**
-Deletes the job assignment identified by `job_assignment_number`. When attendance is required for the assignment’s participant, today’s check-in row must exist (same gate as create — see [Job assignments](#job-assignments)). The path string must match the assignment number format (`*` + five zero-padded id digits + ISO 7064 Mod 97,10 check digits on those five digits); checksum validation is **always** applied on this route (unlike some participant-number flows, it is not affected by `VALIDATE_CHECK_SUM`). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
+Deletes the job assignment identified by `job_assignment_number`. Before the live row is removed, the server writes an **append-only** snapshot to **`job_assignment_history`** with `end_reason` **`deleted`** (employee and company fields, effective pay/tax, timing — see [Job assignment history](#job-assignment-history)). When attendance is required for the assignment’s participant, today’s check-in row must exist (same gate as create — see [Job assignments](#job-assignments)). The path string must match the assignment number format (`*` + five zero-padded id digits + ISO 7064 Mod 97,10 check digits on those five digits); checksum validation is **always** applied on this route (unlike some participant-number flows, it is not affected by `VALIDATE_CHECK_SUM`). **Authorization:** employee or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters** (path)
 
@@ -2843,7 +2847,7 @@ None.
 ### Reset job assignments - /api/job-assignments/reset
 
 **Explanation**
-Deletes job assignments. With an empty or omitted body, deletes **all** assignments. With `{"company_name": "..."}`, deletes only assignments for that company (company must exist). On success the response is always **200** with `{"message": "reset successful", "count": N}` where **`N`** is the number of rows deleted; **`N` may be `0`** when there were no matching assignments (for example an empty table on reset-all, or the named company currently has no assignments). **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
+Deletes job assignments. Before each live row is removed, the server archives a snapshot to **`job_assignment_history`**: **`reset_all`** when the body is empty or omitted (all assignments), **`reset_company`** when filtering by `company_name` (see [Job assignment history](#job-assignment-history)). With an empty or omitted body, deletes **all** assignments. With `{"company_name": "..."}`, deletes only assignments for that company (company must exist). On success the response is always **200** with `{"message": "reset successful", "count": N}` where **`N`** is the number of rows deleted; **`N` may be `0`** when there were no matching assignments (for example an empty table on reset-all, or the named company currently has no assignments). **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters**
 None (optional JSON body).
@@ -2894,6 +2898,275 @@ The same shape applies when nothing was deleted: `"count": 0` and **200** (there
 | 400  | Error: `{"error": "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"}` or `{"error": "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"}` when the JSON body is invalid or `company_name` is empty (non-empty body must include a non-blank `company_name`) |
 | 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
 | 404  | Error: `{"error": "COMPANY_NOT_FOUND"}` when filtering by an unknown `company_name` |
+
+---
+
+## Job assignment history
+
+Immutable **audit trail** of ended job assignments. Rows are created **only** when a live assignment is removed — not on create:
+
+| Trigger | `end_reason` |
+| ------- | ------------ |
+| **`DELETE /api/job-assignments/{job_assignment_number}`** | **`deleted`** |
+| **`POST /api/job-assignments/reset`** (empty body — all assignments) | **`reset_all`** |
+| **`POST /api/job-assignments/reset`** with `{"company_name": "..."}` | **`reset_company`** |
+
+Each history row stores a **denormalized snapshot** at end time: participant name/age, company name, **effective** `hourly_pay` (`companies.hourly_pay` plus village **`[hourly_pay]`** `increase` from `village.ini`), **`tax`** from the same INI section, wall-clock **`started_at`** / **`ended_at`** (UTC ISO 8601), camp-calendar **`started_camp_date`** / **`ended_camp_date`** (`YYYY-MM-DD`), and **`minutes_worked`** (`floor` of elapsed minutes). History survives after the live **`job_assignments`** row is gone — use these endpoints for Excel/reporting instead of inferring past jobs from the live list.
+
+**Immutability:** the HTTP API is **read-only** — only **`GET`** routes exist; **`POST`**, **`PUT`**, **`PATCH`**, and **`DELETE`** on these paths do not succeed. Rows are inserted by the job-assignment service during delete/reset (same transaction as the live delete). See also [database design — job_assignment_history](database_design.md#job_assignment_history).
+
+| Need | Call |
+| ---- | ---- |
+| All archived jobs (optional filters) | **`GET /api/job-assignment-history`** (staff or admin JWT) |
+| Filter by participant | **`GET /api/job-assignment-history?employee_number=P00370`** |
+| Filter by company | **`GET /api/job-assignment-history?company_name=Bauhof`** |
+| Jobs that ended on a camp day | **`GET /api/job-assignment-history?workday=today`** (filters **`ended_camp_date`**) |
+| One child’s full history | **`GET /api/job-assignment-history/{employee_number}`** |
+| Excel download (filtered list) | **`GET /api/job-assignment-history/export`** |
+| Excel download (one child) | **`GET /api/job-assignment-history/{employee_number}/export`** |
+
+**Authorization:** all four routes require **staff or higher** — send `Authorization: Bearer <token>`. No token → **`401`**; camp-participant (`employee`) token → **`403`** **`FORBIDDEN_WRONG_AUTH_GROUP`**.
+
+**`?workday=`** on list and per-person JSON/CSV routes uses the same camp-calendar rules as [Attendance API](#attendance-api): **`today`** or **`monday`** … **`sunday`** (weekday in the ISO week containing camp today). On list routes, **`workday`** filters rows whose **`ended_camp_date`** matches that day; the JSON response echoes **`workday`** and **`ended_camp_date`** when the query param was set. Aggregate slugs **`all`**, **`weekdays`**, and **`all-week`** are **invalid** → **`400`** **`INVALID_ATTENDANCE_WORKDAY`**.
+
+Path **`employee_number`** is validated (format/checksum when enabled) → **`400`** **`EMPLOYEE_NUMBER_WRONG`**; a valid number with no history rows still returns **200** with **`count`: `0`**.
+
+### List job assignment history - /api/job-assignment-history
+
+**Explanation**
+Returns all archived employment snapshots, newest **`ended_at`** first. Optional query filters narrow the result set; omitted filters return the full table.
+
+**Parameters** (query)
+
+| Name               | Required | Description |
+| ------------------ | -------- | ----------- |
+| `employee_number`  | No       | e.g. `P00370` — only that participant’s rows |
+| `company_name`     | No       | e.g. `Bauhof` — exact company name match |
+| `workday`          | No       | **`today`** or **`monday`** … **`sunday`** — filters **`ended_camp_date`** |
+
+**Endpoint sample**
+
+```http
+GET /api/job-assignment-history HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s "http://localhost:5000/api/job-assignment-history" \
+  -H "Authorization: Bearer $TOKEN"
+curl -s "http://localhost:5000/api/job-assignment-history?employee_number=P00370" \
+  -H "Authorization: Bearer $TOKEN"
+curl -s "http://localhost:5000/api/job-assignment-history?company_name=Bauhof&workday=today" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**JSON request**
+None.
+
+**JSON response** (example)
+
+```json
+{
+  "history": [
+    {
+      "employee_number": "P00370",
+      "first_name": "Peter",
+      "last_name": "Krause",
+      "age": 40,
+      "company_name": "Bauhof",
+      "hourly_pay": 9,
+      "tax": 10,
+      "started_at": "2026-05-18T08:00:00+00:00",
+      "started_camp_date": "2026-05-18",
+      "ended_at": "2026-05-18T15:30:00+00:00",
+      "ended_camp_date": "2026-05-18",
+      "minutes_worked": 450,
+      "end_reason": "deleted",
+      "created_at": "2026-05-18T15:30:00+00:00"
+    }
+  ],
+  "count": 1,
+  "workday": "today",
+  "ended_camp_date": "2026-05-18"
+}
+```
+
+When **`?workday=`** is omitted, top-level **`workday`** and **`ended_camp_date`** are omitted. **`hourly_pay`** and **`tax`** are the **effective** values at archive time (not re-read from `village.ini` later). **`end_reason`** is one of **`deleted`**, **`reset_company`**, or **`reset_all`**.
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK (**`count`** may be **`0`**) |
+| 400  | `{"error": "EMPLOYEE_NUMBER_WRONG"}` or `{"error": "INVALID_ATTENDANCE_WORKDAY"}` |
+| 401  | Not signed in |
+| 403  | `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not staff or admin) |
+
+---
+
+### Export job assignment history (CSV) - /api/job-assignment-history/export
+
+**Explanation**
+Downloads the same filtered result set as the JSON list as a CSV file. UTF-8 with **BOM** (`\ufeff` prefix) so Excel on Windows opens umlauts correctly. **Authorization:** staff or higher.
+
+**Parameters** (query)
+Same as [List job assignment history](#list-job-assignment-history---apijob-assignment-history): **`employee_number`**, **`company_name`**, **`workday`**.
+
+**Endpoint sample**
+
+```http
+GET /api/job-assignment-history/export HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -o job-assignment-history-all.csv \
+  "http://localhost:5000/api/job-assignment-history/export" \
+  -H "Authorization: Bearer $TOKEN"
+curl -s -o job-assignment-history-today.csv \
+  "http://localhost:5000/api/job-assignment-history/export?workday=today" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response**
+- **`Content-Type`:** `text/csv; charset=utf-8`
+- **`Content-Disposition`:** `attachment; filename="job-assignment-history-{ended_camp_date_or_all}.csv"` — e.g. `job-assignment-history-2026-05-18.csv` when filtered by **`workday`**, or `job-assignment-history-all.csv` without a day filter
+- **Header row** (stable column order): `employee_number`, `first_name`, `last_name`, `age`, `company_name`, `hourly_pay`, `tax`, `started_at`, `started_camp_date`, `ended_at`, `ended_camp_date`, `minutes_worked`, `end_reason`, `created_at`
+- **Dates** (`started_camp_date`, `ended_camp_date`): `YYYY-MM-DD`
+- **Datetimes** (`started_at`, `ended_at`, `created_at`): ISO 8601 strings (same as JSON)
+- **Integers** (`minutes_worked`, `hourly_pay`, `tax`, `age`): plain numbers (no locale formatting)
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | CSV body |
+| 400  | Same validation errors as JSON list |
+| 401  | Not signed in |
+| 403  | Not staff or admin |
+
+---
+
+### Job assignment history by participant - /api/job-assignment-history/<employee_number>
+
+**Explanation**
+Full employment history for one camp participant, ordered by **`ended_at`** descending. Optional **`?workday=`** limits rows to assignments that **ended** on that camp day (same resolution as attendance). **Authorization:** staff or higher.
+
+**Parameters** (path)
+
+| Name              | Required | Description   |
+| ----------------- | -------- | ------------- |
+| `employee_number` | Yes      | e.g. `P00370` |
+
+**Parameters** (query)
+
+| Name      | Required | Description |
+| --------- | -------- | ----------- |
+| `workday` | No       | When set: **`today`** or **`monday`** … **`sunday`**. Omitted → full history. |
+
+**Endpoint sample**
+
+```http
+GET /api/job-assignment-history/P00370 HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s "http://localhost:5000/api/job-assignment-history/P00370" \
+  -H "Authorization: Bearer $TOKEN"
+curl -s "http://localhost:5000/api/job-assignment-history/P00370?workday=today" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**JSON request**
+None.
+
+**JSON response** (example)
+
+```json
+{
+  "employee_number": "P00370",
+  "history": [
+    {
+      "employee_number": "P00370",
+      "first_name": "Peter",
+      "last_name": "Krause",
+      "age": 40,
+      "company_name": "Bauhof",
+      "hourly_pay": 9,
+      "tax": 10,
+      "started_at": "2026-05-18T08:00:00+00:00",
+      "started_camp_date": "2026-05-18",
+      "ended_at": "2026-05-18T15:30:00+00:00",
+      "ended_camp_date": "2026-05-18",
+      "minutes_worked": 450,
+      "end_reason": "deleted",
+      "created_at": "2026-05-18T15:30:00+00:00"
+    }
+  ],
+  "count": 1
+}
+```
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK (**`count`** may be **`0`**) |
+| 400  | `{"error": "EMPLOYEE_NUMBER_WRONG"}` or `{"error": "INVALID_ATTENDANCE_WORKDAY"}` |
+| 401  | Not signed in |
+| 403  | Not staff or admin |
+
+---
+
+### Export job assignment history by participant (CSV) - /api/job-assignment-history/<employee_number>/export
+
+**Explanation**
+Downloads one participant’s employment history as CSV (same columns and Excel-friendly encoding as the list export). Optional **`?workday=`** applies the same **`ended_camp_date`** filter as the JSON route. **Authorization:** staff or higher.
+
+**Parameters** (path)
+
+| Name              | Required | Description   |
+| ----------------- | -------- | ------------- |
+| `employee_number` | Yes      | e.g. `P00370` |
+
+**Parameters** (query)
+
+| Name      | Required | Description |
+| --------- | -------- | ----------- |
+| `workday` | No       | Same as per-person JSON route |
+
+**Endpoint sample**
+
+```http
+GET /api/job-assignment-history/P00370/export HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -o job-assignment-history-P00370.csv \
+  "http://localhost:5000/api/job-assignment-history/P00370/export" \
+  -H "Authorization: Bearer $TOKEN"
+curl -s -o job-assignment-history-P00370-today.csv \
+  "http://localhost:5000/api/job-assignment-history/P00370/export?workday=today" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response**
+Same CSV format as [Export job assignment history (CSV)](#export-job-assignment-history-csv---apijob-assignment-historyexport). **`Content-Disposition`** filename: `job-assignment-history-{employee_number}.csv`.
+
+**HTTP status codes**
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | CSV body |
+| 400  | `{"error": "EMPLOYEE_NUMBER_WRONG"}` or `{"error": "INVALID_ATTENDANCE_WORKDAY"}` |
+| 401  | Not signed in |
+| 403  | Not staff or admin |
 
 ---
 

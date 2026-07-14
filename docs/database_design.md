@@ -24,6 +24,7 @@ All concrete tables inherit from `BaseModel` (`__abstract__ = True`):
 | `employees`        | `Employee`       | Camp participants in the Spielstadt (children and staff; each has an `employee_number`) |
 | `authentications`  | `Authentication` | Optional 1:1 login profile per camp participant: password hash, forced password change flag, app permission group |
 | `job_assignments`  | `JobAssignment`  | Links one camp participant (`employees` row) to one company for a placement |
+| `job_assignment_history` | `JobAssignmentHistory` | Append-only audit trail: denormalized snapshot when a live assignment is removed (see [job_assignment_history](#job_assignment_history)) |
 | `part_times`       | `PartTime`       | Optional part-time slots per camp participant (0..n rows; see [design decisions](#part-time-design-decisions)) |
 | `company_jobs_max` | `CompanyJobsMax` | Optional workday + shift overrides for a company's job capacity (0..n rows; see [design decisions](#company-jobs-max-design-decisions)) |
 | `attendances`      | `Attendance`     | Daily check-in per camp participant; optional check-out timestamp (see [Attendance](#attendances)) |
@@ -102,6 +103,96 @@ Checksum validation for `employee_number` (ISO 7064 Mod 97,10) is **not** enforc
 **Indexes:** primary key on `id`; foreign keys on `company_id` and `employee_id`.
 
 **ORM:** `JobAssignment` exposes `companies` → `Company` and `employees` → `Employee` (`back_populates` with `Company.job_assignments` and `Employee.job_assignments`). The attribute names are plural on the assignment side for historical reasons.
+
+**Archive on remove:** when an assignment ends via **`DELETE /api/job-assignments/{job_assignment_number}`** or **`POST /api/job-assignments/reset`**, the server writes a row to [`job_assignment_history`](#job_assignment_history) **before** deleting the live row — see [Security — employment history writes](#security-employment-history-writes). Assignments do not end anywhere else in the application.
+
+---
+
+## `job_assignment_history`
+
+Immutable **audit trail** for ended placements. Each row is a **denormalized snapshot** of one former `job_assignments` row plus related employee and company fields at end time. Rows are **append-only** at the API/repository layer: no PUT/PATCH/DELETE endpoints. The table uses standard [`BaseModel`](#shared-base-basemodel) (`id`, `created_at`, `updated_at`); `updated_at` should remain unchanged in normal operation (insert-only via the archive helper).
+
+**No foreign keys:** history stores only snapshot text and numbers — no links to `employees`, `companies`, or `job_assignments`. The audit trail stays independent of later changes or deletes on live tables.
+
+| Column | Type | Constraints / default | Purpose |
+|--------|------|----------------------|---------|
+| `id` | integer | PK (from `BaseModel`) | Surrogate key |
+| `created_at`, `updated_at` | datetime (tz) | from `BaseModel` | When the history row was written (`created_at`); `updated_at` unused in normal operation |
+| **Timing** | | | |
+| `started_at` | `DateTime(timezone=True)` | `NOT NULL` | From `job_assignments.created_at` — when POST created the assignment (server UTC) |
+| `started_camp_date` | `Date` | `NOT NULL` | Camp-local calendar date of `started_at` ([`camp_instant()`](../app/camp_time.py)) |
+| `ended_at` | `DateTime(timezone=True)` | `NOT NULL` | Server UTC when the assignment was removed (DELETE or reset) |
+| `ended_camp_date` | `Date` | `NOT NULL` | Camp-local calendar date of `ended_at` |
+| `minutes_worked` | integer | `NOT NULL` | `floor((ended_at - started_at).total_seconds() / 60)`, computed at archive time |
+| `end_reason` | `String(20)` | `NOT NULL` | Why the assignment ended — see below |
+| **Employee snapshot** | | | |
+| `employee_number` | `String(16)` | `NOT NULL` | Copied at end time |
+| `first_name` | `String(255)` | `NOT NULL` | Copied at end time |
+| `last_name` | `String(255)` | `NOT NULL` | Copied at end time |
+| `age` | integer | `NOT NULL` | Copied at end time |
+| **Company snapshot** | | | |
+| `company_name` | `String(255)` | `NOT NULL` | Copied at end time |
+| `hourly_pay` | integer | `NOT NULL` | **Effective** rate at archive: `companies.hourly_pay` + [`get_hourly_pay_increase()`](../app/village_config.py) from `village.ini` `[hourly_pay] increase` (same as **`GET /api/companies`** JSON, not base-only) |
+| `tax` | integer | `NOT NULL` | Village tax rate at archive from `village.ini` `[hourly_pay] tax` via [`get_hourly_pay_tax()`](../app/village_config.py) (same value clients read via **`GET /api/village-data`**) |
+
+**Application values for `end_reason`:** `deleted` (single DELETE), `reset_company` (admin reset scoped to one company), `reset_all` (admin reset all assignments). Enforced in the service layer; not an enum in the database.
+
+**Indexes:** primary key on `id`; non-unique indexes on `employee_number`, `company_name`, `started_camp_date`, `ended_camp_date`, and `ended_at` (for list/filter queries).
+
+**Timing notes:**
+
+| Field | Source |
+|-------|--------|
+| Start date/time | `job_assignments.created_at` — set on **`POST /api/job-assignments`**; no separate start column on live assignments |
+| End date/time | Captured at archive when DELETE or reset runs — not stored on `job_assignments` |
+| Minutes worked | Derived from `started_at` → `ended_at` at archive time; not stored elsewhere |
+
+Assignments can span **multiple camp days** (they persist until deleted or admin reset). Duration is **wall-clock time at the company**, not attendance check-in/out ([`attendances`](#attendances) is a separate gate/audit system and is not linked to job duration).
+
+**Pay snapshot:** `companies.hourly_pay` in MariaDB is the **base** rate; the village-wide bump is added at read time. History stores the **effective** `hourly_pay` and the **tax** rate that applied when the job ended, so Excel/reporting does not need to re-read `village.ini`. If `increase` or `tax` change later in config, archived rows keep the values from end time.
+
+**ORM:** `JobAssignmentHistory` has **no** relationships to live tables.
+
+### Archive triggers
+
+Rows are created in [`JobAssignmentService._archive_assignment()`](../app/services/job_assignment.py) immediately **before** the live row is removed, in the same database transaction:
+
+| API path | Service method | `end_reason` |
+|----------|----------------|--------------|
+| **`DELETE /api/job-assignments/{job_assignment_number}`** | `delete_assignment()` | `deleted` |
+| **`POST /api/job-assignments/reset`** (one company) | `reset_assignments()` with `company_name` | `reset_company` |
+| **`POST /api/job-assignments/reset`** (all companies) | `reset_assignments()` without `company_name` | `reset_all` |
+
+Bulk reset loads all matching assignments with employee and company relations via [`list_all_with_relations()`](../app/repositories/job_assignment.py) so snapshots can be built before bulk delete.
+
+```mermaid
+flowchart TD
+    deleteOne["DELETE /api/job-assignments/job_assignment_number"]
+    reset["POST /api/job-assignments/reset"]
+    deleteOne --> deleteAssignment["delete_assignment()"]
+    reset --> resetAssignments["reset_assignments()"]
+    deleteAssignment --> archiveOne["Archive 1 row to job_assignment_history"]
+    resetAssignments --> archiveBulk["Archive N rows to job_assignment_history"]
+    archiveOne --> removeLive["Remove from job_assignments"]
+    archiveBulk --> removeLive
+```
+
+There is **no backfill** of past assignments — history starts from deploy forward. Existing deployments need a one-time `CREATE TABLE` (manual SQL or re-run create script on a staging DB); fresh installs get the table via `db.create_all()`.
+
+### Security — employment history writes {#security-employment-history-writes}
+
+The `job_assignment_history` table is an **append-only audit trail** for ended employment. The API deliberately limits how rows can change:
+
+| Allowed | Forbidden |
+|---------|-----------|
+| **INSERT** via archive helper when a live assignment is deleted or reset | **`POST`**, **`PUT`**, **`PATCH`**, or **`DELETE`** on history rows |
+| Staff-only **GET** list and per-person read paths (JSON and CSV export) | Client-supplied snapshot fields or timestamps |
+
+Rows are written only from [`JobAssignmentService`](../app/services/job_assignment.py) on assignment delete/reset — not on create. The repository exposes **`insert`** and list queries only; no **`update`** or **`delete`** methods.
+
+**Direct SQL** (or tools bypassing the HTTP API) can still insert, update, or delete history rows; MariaDB does not enforce the append-only write policy. Operations should rely on the documented API paths. Same caveat as [Security — attendance writes](#security-attendance-writes).
+
+Staff-facing read API and CSV export: [developer-guide.md — Job assignment history](./developer-guide.md#job-assignment-history).
 
 ---
 
@@ -543,13 +634,34 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
+    job_assignment_history {
+        int id PK
+        datetime started_at
+        date started_camp_date
+        datetime ended_at
+        date ended_camp_date
+        int minutes_worked
+        string end_reason
+        string employee_number
+        string first_name
+        string last_name
+        int age
+        string company_name
+        int hourly_pay
+        int tax
+        datetime created_at
+        datetime updated_at
+    }
     companies ||--o{ job_assignments : company_id
     companies ||--o{ company_jobs_max : company_id
     employees ||--o{ job_assignments : employee_id
     employees ||--o| authentications : employee_id
     employees ||--o{ part_times : employee_id
     employees ||--o{ attendances : employee_id
+    job_assignments }o..o{ job_assignment_history : "snapshot on remove"
 ```
+
+**Note:** `job_assignment_history` has **no foreign keys** in MariaDB. The dashed arrow above is the application-level archive flow only (see [Archive triggers](#archive-triggers)); snapshot fields (`employee_number`, `company_name`, etc.) are denormalized copies, not ORM relationships.
 
 ---
 
@@ -609,7 +721,16 @@ erDiagram
 - Foreign keys use **`ON DELETE RESTRICT`**: remove or reassign assignments before deleting a company or camp-participant row at the database level.
 - Multiple `job_assignments` rows per camp participant are allowed over time; the **API** enforces at most one current assignment per camp participant when creating assignments.
 - **Capacity check:** assignment create compares the company's current assignment count to [`effective_jobs_max()`](../app/schemas/company_jobs_max.py) (schedule-aware); not merely **`companies.jobs_max`** when overrides exist.
+- **Archive on remove:** **`DELETE /api/job-assignments/{job_assignment_number}`** and **`POST /api/job-assignments/reset`** each write a [`job_assignment_history`](#job_assignment_history) snapshot (`end_reason` = `deleted`, `reset_company`, or `reset_all`) **before** the live row is deleted — see [Archive triggers](#archive-triggers) and [Security — employment history writes](#security-employment-history-writes).
 - **`job_assignment_number` is not a stored column.** It is a derived value computed at API serialisation time by `create_job_assignment_number(id)` in [`app/utils.py`](../app/utils.py): an asterisk (`*`) followed by the five-digit zero-padded `id` and two ISO 7064 Mod 97,10 check digits calculated on those digits (e.g. `id` 1 → `*0000197`). The DELETE endpoint path uses this value to identify the row; no separate column is needed.
+
+### Job assignment history (`job_assignment_history`)
+
+- **Append-only audit trail** for ended placements. One row per removed assignment; denormalized employee and company snapshot at end time.
+- **No foreign keys** to `employees`, `companies`, or `job_assignments` — survives independent of later live-table changes.
+- Rows are created only when assignments end via delete or admin reset — see [Archive triggers](#archive-triggers). Not written on **`POST /api/job-assignments`** create.
+- **`hourly_pay`** and **`tax`** are snapshotted at archive time (effective pay and village tax from `village.ini`); see [`job_assignment_history`](#job_assignment_history) column table.
+- **Read-only API:** staff-only GET list, per-person history, and CSV export — no HTTP write paths. Repository has insert + list only — see [Security — employment history writes](#security-employment-history-writes).
 
 ### Soft-delete strategy
 
