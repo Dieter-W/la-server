@@ -1,0 +1,5 @@
+company_name,workday,shift,jobs_max,notes
+Bank,weekdays,morning,2,
+Bank,weekdays,afternoon,1,
+Bank,wednesday,morning,5,Wednesday override
+Bauhof,weekdays,morning,1,

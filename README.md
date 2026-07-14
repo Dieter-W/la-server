@@ -124,6 +124,8 @@ Before you **run LA-Server**, the camp-specific configuration and branding files
 | `village_data/images/` | Binary assets referenced from `village.ini` (paths are **relative to `village_data/`**). |
 | `village_data/employees_sample.csv` | Optional template for [CSV bulk import](#csv-bulk-import); filled from `data/csv-example/` by **init-env** when missing in `village_data/`. |
 | `village_data/companies_sample.csv` | Optional template for companies bulk import; same as above. |
+| `village_data/part_time_sample.csv` | Optional template for part-time schedule bulk import; same as above. |
+| `village_data/company_jobs_max_sample.csv` | Optional template for company job-capacity schedule bulk import; same as above. |
 
 ### `village.ini` sections
 
@@ -246,6 +248,72 @@ Peter,Krause,P00370,Leiter,40,,,Admin,Team lead
 
 The script creates or updates camp participants one row per `employee_number`—and logs successes and errors to stdout. It exits with a non-zero code if any row fails to import.
 
+### Import part-time schedules from a CSV file:
+
+```bash
+python ./scripts/bulk_import_part_time.py part_time.csv
+```
+
+**Prerequisite:** import employees first ([Import employees](#import-employees-from-a-csv-file)) so every `employee_number` in the CSV already exists.
+
+Example inputs: `village_data/part_time_sample.csv`. The same sample also lives under `data/csv-example/part_time_sample.csv`.
+
+**CSV format:** Comma-separated with a header row. Required columns: `first_name`, `last_name`, `employee_number`, `workday`, `shift`, `notes`. Empty rows are skipped when `employee_number`, `first_name`, and `last_name` are all empty.
+
+- **`first_name` / `last_name`** — Must match the stored employee record for the given `employee_number` (trimmed, Unicode NFC-normalized). This catches typos in either the number or the name columns.
+- **`workday`** — One of `monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday`, `sunday`, `weekdays`, or `all-week`.
+- **`shift`** — One of `all-day`, `morning`, or `afternoon`. An empty cell defaults to **`all-day`**.
+- **Combination rule** — Aggregate workdays (`weekdays`, `all-week`) cannot use `all-day` as the shift; use `morning` or `afternoon` instead.
+
+The script creates or updates part-time rows by upsert key **`(employee_number, workday)`** (updates `shift` and `notes` when the row already exists). It logs successes and errors to stdout and exits with a non-zero code if any row fails to import.
+
+Templates ship in **`data/csv-example/part_time_sample.csv`** (and **init-env** places a copy in `village_data/` when that file is not already there). Example excerpt:
+
+```csv
+first_name,last_name,employee_number,workday,shift,notes
+Max,Mustermann,M00155,monday,morning,Weekends only — Monday morning
+Max,Mustermann,M00155,saturday,all-day,
+Monika,Mustermann,M00252,weekdays,morning,Mon–Fri mornings
+Anna,Schmidt,A00265,monday,all-day,
+```
+
+### Import company job-capacity schedules from a CSV file:
+
+```bash
+python ./scripts/bulk_import_company_jobs_max.py company_jobs_max.csv
+```
+
+**Prerequisite:** import companies first ([Import companies](#import-companies-from-a-csv-file)) so every `company_name` in the CSV already exists.
+
+Example inputs: `village_data/company_jobs_max_sample.csv`. The same sample also lives under `data/csv-example/company_jobs_max_sample.csv`.
+
+**CSV format:** Comma-separated with a header row. Required columns: `company_name`, `workday`, `shift`, `jobs_max`, `notes`. Empty rows are skipped when `company_name`, `workday`, and `shift` are all empty.
+
+- **`workday`** — Same allowed values as part-time: `monday` … `sunday`, `weekdays`, or `all-week`.
+- **`shift`** — Same as part-time: `all-day` (default when empty), `morning`, or `afternoon`.
+- **Combination rule** — Aggregate workday + `all-day` is invalid (same as part-time).
+- **`jobs_max`** — Non-negative integer (required on every non-empty row).
+
+The script creates or updates rows by upsert key **`(company_name, workday, shift)`** (updates `jobs_max` and `notes` when the row already exists). It logs successes and errors to stdout and exits with a non-zero code if any row fails to import.
+
+Templates ship in **`data/csv-example/company_jobs_max_sample.csv`** (and **init-env** places a copy in `village_data/` when that file is not already there). Example excerpt:
+
+```csv
+company_name,workday,shift,jobs_max,notes
+Bank,weekdays,morning,2,
+Bank,weekdays,afternoon,1,
+Bank,wednesday,morning,5,Wednesday override
+Bauhof,weekdays,morning,1,
+```
+
+Typical operator order when seeding a fresh camp database:
+
+```bash
+python ./scripts/bulk_import_companies.py village_data/companies_sample.csv
+python ./scripts/bulk_import_employees.py village_data/employees_sample.csv
+python ./scripts/bulk_import_part_time.py village_data/part_time_sample.csv
+python ./scripts/bulk_import_company_jobs_max.py village_data/company_jobs_max_sample.csv
+```
 
 ## API Endpoints
 

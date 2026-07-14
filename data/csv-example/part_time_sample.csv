@@ -1,0 +1,5 @@
+first_name,last_name,employee_number,workday,shift,notes
+Max,Mustermann,M00155,monday,morning,Weekends only — Monday morning
+Max,Mustermann,M00155,saturday,all-day,
+Monika,Mustermann,M00252,weekdays,morning,Mon–Fri mornings
+Anna,Schmidt,A00265,monday,all-day,

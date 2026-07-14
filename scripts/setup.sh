@@ -31,7 +31,7 @@ usage() {
 LA-Server setup (same behavior as scripts/setup.ps1).
 
 Production (no Poetry): data/requirements.txt is a poetry export; edit pyproject.toml first, then re-export.
-- init-env: create .env from .env.example (if missing). If village_data/ is absent, create it and seed from data/village.ini and data/images/*. Whenever village_data/ exists, copy bulk-import samples from data/csv-example/ (employees_sample.csv, companies_sample.csv) into it if those files are missing (see README). Then stop.
+- init-env: create .env from .env.example (if missing). If village_data/ is absent, create it and seed from data/village.ini and data/images/*. Whenever village_data/ exists, copy bulk-import samples from data/csv-example/ (employees_sample.csv, companies_sample.csv, part_time_sample.csv, company_jobs_max_sample.csv) into it if those files are missing (see README). Then stop.
 - provision: verify .env was customized, create .venv, pip install -r, create database.
 
 Development (Poetry: poetry install --with dev, pre-commit, optional checks):
@@ -246,6 +246,22 @@ if [[ "$MODE" == "init-env" ]]; then
       fi
     else
       echo "Warning: missing '$SRC_COMPANIES_CSV'; add village_data/companies_sample.csv manually if you need the bulk-import sample." >&2
+    fi
+    SRC_PART_TIME_CSV="$PROJECT_ROOT/data/csv-example/part_time_sample.csv"
+    SRC_COMPANY_JOBS_MAX_CSV="$PROJECT_ROOT/data/csv-example/company_jobs_max_sample.csv"
+    if [[ -f "$SRC_PART_TIME_CSV" ]]; then
+      if [[ ! -f "$VILLAGE_DATA_PATH/part_time_sample.csv" ]]; then
+        cp "$SRC_PART_TIME_CSV" "$VILLAGE_DATA_PATH/part_time_sample.csv"
+      fi
+    else
+      echo "Warning: missing '$SRC_PART_TIME_CSV'; add village_data/part_time_sample.csv manually if you need the bulk-import sample." >&2
+    fi
+    if [[ -f "$SRC_COMPANY_JOBS_MAX_CSV" ]]; then
+      if [[ ! -f "$VILLAGE_DATA_PATH/company_jobs_max_sample.csv" ]]; then
+        cp "$SRC_COMPANY_JOBS_MAX_CSV" "$VILLAGE_DATA_PATH/company_jobs_max_sample.csv"
+      fi
+    else
+      echo "Warning: missing '$SRC_COMPANY_JOBS_MAX_CSV'; add village_data/company_jobs_max_sample.csv manually if you need the bulk-import sample." >&2
     fi
   fi
 

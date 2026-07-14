@@ -5,7 +5,7 @@ development (Poetry, dev tools, pre-commit, test checks).
 
 .DESCRIPTION
 Production (no Poetry): `pip install -r` uses `data/requirements.txt` (a `poetry export` of `pyproject.toml` / `poetry.lock` — not where you add deps; edit `pyproject.toml` first, then re-export).
-- `init-env`: Create `.env` from `.env.example` (if missing). If `village_data/` is absent, create it and seed from `data/village.ini` and `data/images/*`. Whenever `village_data/` exists, copy missing bulk-import samples from `data/csv-example/` (`employees_sample.csv`, `companies_sample.csv`) into it (see README). Then stop.
+- `init-env`: Create `.env` from `.env.example` (if missing). If `village_data/` is absent, create it and seed from `data/village.ini` and `data/images/*`. Whenever `village_data/` exists, copy missing bulk-import samples from `data/csv-example/` (`employees_sample.csv`, `companies_sample.csv`, `part_time_sample.csv`, `company_jobs_max_sample.csv`) into it (see README). Then stop.
 - `provision`: Verify `.env` was customized, create `.venv`, `pip install -r`, create database.
 
 Development (use Poetry only: `poetry` + `pyproject.toml` / lockfile, same as CI `poetry install --with dev`):
@@ -218,6 +218,26 @@ if ($Mode -eq "init-env") {
             }
         } else {
             Write-Host "Warning: missing '$srcCompaniesCsv'; add village_data/companies_sample.csv manually if you need the bulk-import sample." -ForegroundColor Yellow
+        }
+
+        $srcPartTimeCsv = Join-Path $ProjectRoot "data/csv-example/part_time_sample.csv"
+        $srcCompanyJobsMaxCsv = Join-Path $ProjectRoot "data/csv-example/company_jobs_max_sample.csv"
+        $destPartTimeCsv = Join-Path $VillageDataPath "part_time_sample.csv"
+        $destCompanyJobsMaxCsv = Join-Path $VillageDataPath "company_jobs_max_sample.csv"
+
+        if (Test-Path -LiteralPath $srcPartTimeCsv) {
+            if (-not (Test-Path -LiteralPath $destPartTimeCsv)) {
+                Copy-Item -LiteralPath $srcPartTimeCsv -Destination $destPartTimeCsv
+            }
+        } else {
+            Write-Host "Warning: missing '$srcPartTimeCsv'; add village_data/part_time_sample.csv manually if you need the bulk-import sample." -ForegroundColor Yellow
+        }
+        if (Test-Path -LiteralPath $srcCompanyJobsMaxCsv) {
+            if (-not (Test-Path -LiteralPath $destCompanyJobsMaxCsv)) {
+                Copy-Item -LiteralPath $srcCompanyJobsMaxCsv -Destination $destCompanyJobsMaxCsv
+            }
+        } else {
+            Write-Host "Warning: missing '$srcCompanyJobsMaxCsv'; add village_data/company_jobs_max_sample.csv manually if you need the bulk-import sample." -ForegroundColor Yellow
         }
     }
 
