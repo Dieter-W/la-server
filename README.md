@@ -361,6 +361,7 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | GET    | `/api/job-assignments`                         | List job assignments                        | public                           |
 | POST   | `/api/job-assignments`                         | Create job assignment                       | employee or higher               |
 | DELETE | `/api/job-assignments/<job_assignment_number>` | Remove assignment by assignment number      | employee or higher               |
+| DELETE | `/api/job-assignments/employee/<employee_number>` | Remove assignment by passport (lost timecard fallback) | staff or higher |
 | POST   | `/api/job-assignments/reset`                   | Reset assignments (optional filter)         | admin required                   |
 | GET    | `/api/job-assignment-history`                  | List archived employment snapshots (optional filters) | staff or higher          |
 | GET    | `/api/job-assignment-history/export`           | Download filtered history as CSV            | staff or higher                  |

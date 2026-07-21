@@ -192,6 +192,7 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | GET    | `/api/job-assignments`                         | List job assignments                        | public                           |
 | POST   | `/api/job-assignments`                         | Create job assignment                       | employee or higher               |
 | DELETE | `/api/job-assignments/<job_assignment_number>` | Remove assignment by assignment number      | employee or higher               |
+| DELETE | `/api/job-assignments/employee/<employee_number>` | Remove assignment by passport (lost timecard fallback) | staff or higher |
 | POST   | `/api/job-assignments/reset`                   | Reset assignments (optional filter)         | admin required                   |
 | GET    | `/api/job-assignment-history`                  | List archived employment snapshots (optional filters) | staff or higher          |
 | GET    | `/api/job-assignment-history/export`           | Download filtered history as CSV            | staff or higher                  |
@@ -2669,7 +2670,9 @@ None.
 
 ## Job assignments
 
-When village **`[attendance]`** switches require it (see [Attendance API](#attendance-api)), **`POST /api/job-assignments`** and **`DELETE /api/job-assignments/{job_assignment_number}`** require a **check-in row for camp today** on the **assignment’s participant** — not the JWT caller. The gate checks **row presence only**; **`checkout_at` is ignored** (early check-out does not block quit or take job). **`POST /api/job-assignments/reset`** and **`GET`** list are **not** gated. Missing check-in → **`400`** **`ATTENDANCE_CHECK_IN_REQUIRED`**.
+When village **`[attendance]`** switches require it (see [Attendance API](#attendance-api)), **`POST /api/job-assignments`**, **`DELETE /api/job-assignments/{job_assignment_number}`**, and **`DELETE /api/job-assignments/employee/{employee_number}`** require a **check-in row for camp today** on the **assignment’s participant** — not the JWT caller. The gate checks **row presence only**; **`checkout_at` is ignored** (early check-out does not block quit or take job). **`POST /api/job-assignments/reset`** and **`GET`** list are **not** gated. Missing check-in → **`400`** **`ATTENDANCE_CHECK_IN_REQUIRED`**.
+
+**Lost timecard fallback:** When a child cannot scan their timecard at the job center, staff may scan the passport and call **`DELETE /api/job-assignments/employee/{employee_number}`** (staff or admin JWT). The kiosk self-service path remains **`DELETE /api/job-assignments/{job_assignment_number}`** with a participant JWT.
 
 ### List job assignments - /api/job-assignments
 
@@ -2844,6 +2847,56 @@ None.
 
 ---
 
+### Remove job assignment by employee number (lost timecard) - /api/job-assignments/employee/<employee_number>
+
+**Explanation**
+Staff-only fallback when a child lost their timecard and the kiosk cannot read `job_assignment_number`. Deletes the live assignment for the participant identified by passport **`employee_number`** (same barcode as gate check-in). Behavior mirrors [Remove job assignment](#remove-job-assignment---apijob-assignmentsjob_assignment_number): archives to **`job_assignment_history`** with **`end_reason`**: **`deleted`**, and applies the same attendance gate on the **assignment owner**. At most one job per employee, so the target is unambiguous. **Authorization:** staff or admin — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)). Camp participants (`auth_group` **`employee`**) receive **`403`** **`FORBIDDEN_WRONG_AUTH_GROUP`**.
+
+**Parameters** (path)
+
+
+| Name               | Required | Description                                      |
+| ------------------ | -------- | ------------------------------------------------ |
+| `employee_number`  | Yes      | Participant passport number (e.g. `M00155`, `P00370`) |
+
+
+**Endpoint sample**
+
+```http
+DELETE /api/job-assignments/employee/<employee_number> HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <jwt-access-token>
+```
+
+```bash
+curl -s -X DELETE "http://localhost:5000/api/job-assignments/employee/M00155" \
+  -H "Authorization: Bearer $STAFF_TOKEN"
+```
+
+**JSON request**
+None.
+
+**JSON response**
+
+```json
+{
+  "message": "job deleted"
+}
+```
+
+**HTTP status codes**
+
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | `{"message": "job deleted"}` |
+| 400  | Error: `{"error": "EMPLOYEE_NUMBER_WRONG"}` or `{"error": "ATTENDANCE_CHECK_IN_REQUIRED"}` |
+| 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not signed in as staff or admin) |
+| 404  | Error: `{"error": "EMPLOYEE_NOT_FOUND"}` or `{"error": "JOB_ASSIGNMENT_NOT_FOUND"}` |
+
+
+---
+
 ### Reset job assignments - /api/job-assignments/reset
 
 **Explanation**
@@ -2908,6 +2961,7 @@ Immutable **audit trail** of ended job assignments. Rows are created **only** wh
 | Trigger | `end_reason` |
 | ------- | ------------ |
 | **`DELETE /api/job-assignments/{job_assignment_number}`** | **`deleted`** |
+| **`DELETE /api/job-assignments/employee/{employee_number}`** | **`deleted`** |
 | **`POST /api/job-assignments/reset`** (empty body — all assignments) | **`reset_all`** |
 | **`POST /api/job-assignments/reset`** with `{"company_name": "..."}` | **`reset_company`** |
 

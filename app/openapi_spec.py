@@ -817,6 +817,34 @@ def build_openapi_dict() -> dict:
         },
     )
     merge_path(
+        "/api/job-assignments/employee/{employee_number}",
+        _op(
+            "delete",
+            "Remove assignment by passport (lost timecard fallback)",
+            tag="Job assignments",
+            security=_BEARER,
+            parameters=parameters_employee_number,
+            responses={
+                "200": {"description": "Assignment removed"},
+                **{
+                    k: v
+                    for k, v in _RESPONSES_DEFAULT.items()
+                    if k in ("400", "401", "403", "404")
+                },
+            },
+        ),
+    )
+    _delete_job_assignment_by_employee = paths[
+        "/api/job-assignments/employee/{employee_number}"
+    ]["delete"]
+    _delete_job_assignment_by_employee["description"] = (
+        "Staff-only fallback when a child lost their timecard: delete the live assignment "
+        "for the participant identified by passport **`employee_number`**. Archives to "
+        "**`job_assignment_history`** with **`end_reason`**: **`deleted`**. Same attendance "
+        "gate as create and assignment-number delete (checks the assignment owner, not the "
+        "staff caller). Wire only in job-center staff UI, not the kid-facing kiosk."
+    )
+    merge_path(
         "/api/job-assignments/{job_assignment_number}",
         _op(
             "delete",

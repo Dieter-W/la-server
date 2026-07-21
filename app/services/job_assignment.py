@@ -171,6 +171,16 @@ class JobAssignmentService:
             employee_number,
         )
 
+    def delete_assignment_by_employee_number(self, employee_number: str) -> None:
+        """Drop the assignment for one employee (staff fallback when timecard is lost)."""
+        emp = self.employee_repo.get_by_number(employee_number)
+        if emp is None:
+            raise APIError("EMPLOYEE_NOT_FOUND", 404)
+        job = self.repo.get_by_employee_id(emp.id)
+        if job is None:
+            raise APIError("JOB_ASSIGNMENT_NOT_FOUND", 404)
+        self.delete_assignment(job.id)
+
     # ---------------------------------------------------------------------
     # Job assignments — reset (bulk)
     # ---------------------------------------------------------------------

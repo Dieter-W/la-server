@@ -466,6 +466,128 @@ def test_job_assignments_delete_error_3(client, sample_authentication, sample_co
     data = response.get_json()
     assert data["error"] == "JOB_ASSIGNMENT_NOT_FOUND"
 
+
+# ---------------------------------------------------------------------
+# DELETE /job-assignments/employee/<employee_number> — staff fallback
+# ---------------------------------------------------------------------
+def test_job_assignments_delete_by_employee_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    """Staff DELETE by employee number returns 200 with job deleted message."""
+    token = _login_as_staff(client, sample_authentication, sample_employee)  # fmt: skip
+
+    response = client.delete(
+        "/api/job-assignments/employee/P00370",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["message"] == "job deleted"
+
+
+def test_job_assignments_delete_by_employee_forbidden_participant(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    """Participant JWT on staff delete route returns 403 FORBIDDEN_WRONG_AUTH_GROUP."""
+    token = _login_as_employee(client, sample_authentication, sample_employee)  # fmt: skip
+
+    response = client.delete(
+        "/api/job-assignments/employee/P00370",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 403:
+        print(response.text)
+    assert response.status_code == 403
+    assert response.get_json()["error"] == "FORBIDDEN_WRONG_AUTH_GROUP"
+
+
+def test_job_assignments_delete_by_employee_not_found(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    """Staff DELETE for employee without assignment returns 404 JOB_ASSIGNMENT_NOT_FOUND."""
+    token = _login_as_staff(client, sample_authentication, sample_employee)  # fmt: skip
+
+    response = client.delete(
+        "/api/job-assignments/employee/M00252",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 404:
+        print(response.text)
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "JOB_ASSIGNMENT_NOT_FOUND"
+
+
+def test_job_assignments_delete_by_employee_unknown_employee(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    """Staff DELETE for unknown employee returns 404 EMPLOYEE_NOT_FOUND."""
+    token = _login_as_staff(client, sample_authentication, sample_employee)  # fmt: skip
+
+    response = client.delete(
+        "/api/job-assignments/employee/TEST00753",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 404:
+        print(response.text)
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "EMPLOYEE_NOT_FOUND"
+
+
+def test_job_assignments_delete_by_employee_gate_kids_switch_on_blocks_without_check_in(
+    client,
+    sample_authentication,
+    sample_company,
+    sample_employee,
+    sample_job_assignment,
+    camp_today_is_monday,
+):
+    """Kids switch on: staff DELETE by employee number requires assignment owner's check-in."""
+    staff_token = _login_as_staff(client, sample_authentication, sample_employee)  # fmt: skip
+    with patch("app.schemas.attendance.require_attendance_for_kids", return_value=True):
+        response = client.delete(
+            "/api/job-assignments/employee/M00155",
+            headers={"Authorization": f"Bearer {staff_token}"},
+        )
+        if response.status_code != 400:
+            print(response.text)
+        assert response.status_code == 400
+        assert response.get_json()["error"] == "ATTENDANCE_CHECK_IN_REQUIRED"
+
+
+def test_job_assignments_delete_by_employee_gate_kids_switch_on_succeeds_after_check_in(
+    client,
+    sample_authentication,
+    sample_company,
+    sample_employee,
+    sample_job_assignment,
+    camp_today_is_monday,
+):
+    """Kids switch on: staff DELETE by employee number succeeds after owner's check-in."""
+    employee_token = _login_as_employee(client, sample_authentication, sample_employee)  # fmt: skip
+    staff_token = _login_as_staff(client, sample_authentication, sample_employee)  # fmt: skip
+
+    response = client.post(
+        "/api/attendance/check-in/M00252",
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
+    if response.status_code != 201:
+        print(response.text)
+    assert response.status_code == 201
+
+    with patch("app.schemas.attendance.require_attendance_for_kids", return_value=True):
+        response = client.post(
+            "/api/job-assignments",
+            headers={"Authorization": f"Bearer {employee_token}"},
+            json=KID_JOB_PAYLOAD,
+        )
+        if response.status_code != 201:
+            print(response.text)
+        assert response.status_code == 201
+
+        response = client.delete(
+            "/api/job-assignments/employee/M00252",
+            headers={"Authorization": f"Bearer {staff_token}"},
+        )
+        if response.status_code != 200:
+            print(response.text)
+        assert response.status_code == 200
+        assert response.get_json()["message"] == "job deleted"
+
+
 # ---------------------------------------------------------------------
 # Reset job_assignment API
 # ---------------------------------------------------------------------
