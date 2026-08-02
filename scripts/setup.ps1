@@ -5,7 +5,7 @@ development (Poetry, dev tools, pre-commit, test checks).
 
 .DESCRIPTION
 Production (no Poetry): `pip install -r` uses `data/requirements.txt` (a `poetry export` of `pyproject.toml` / `poetry.lock` — not where you add deps; edit `pyproject.toml` first, then re-export).
-- `init-env`: Create `.env` from `.env.example` (if missing). If `village_data/` is absent, create it and seed from `data/village.ini` and `data/images/*`. Whenever `village_data/` exists, copy missing bulk-import samples from `data/csv-example/` (`employees_sample.csv`, `companies_sample.csv`, `part_time_sample.csv`, `company_jobs_max_sample.csv`) into it (see README). Then stop.
+- `init-env`: Create `.env` from `.env.example` (if missing). If `village_data/` is absent, create it and seed `data/village.ini`. Whenever `village_data/` exists, copy missing default images from `data/images/` and missing bulk-import samples from `data/csv-example/` (`employees_sample.csv`, `companies_sample.csv`, `part_time_sample.csv`, `company_jobs_max_sample.csv`) into it without overwriting existing files (see README). Then stop.
 - `provision`: Verify `.env` was customized, create `.venv`, `pip install -r`, create database.
 
 Development (use Poetry only: `poetry` + `pyproject.toml` / lockfile, same as CI `poetry install --with dev`):
@@ -170,11 +170,8 @@ if ($Mode -eq "init-env") {
     if (-not (Test-Path $VillageDataPath)) {
         Write-Host "Creating 'village_data/' directory..." -ForegroundColor Green
         New-Item -ItemType Directory -Path $VillageDataPath | Out-Null
-        New-Item -ItemType Directory -Path (Join-Path $VillageDataPath "images") | Out-Null
 
         $srcIni = Join-Path $ProjectRoot "data/village.ini"
-        $srcLogo = Join-Path $ProjectRoot "data/images/logo.jpg"
-        $srcFavicon = Join-Path $ProjectRoot "data/images/favicon.png"
         $destIni = Join-Path $VillageDataPath "village.ini"
 
         if (-not (Test-Path $srcIni)) {
@@ -183,19 +180,35 @@ if ($Mode -eq "init-env") {
         }
         Copy-Item -LiteralPath $srcIni -Destination $destIni
 
-        if (-not (Test-Path $srcLogo)) {
-            Write-Host "Warning: missing '$srcLogo'; add village_data/images/logo.jpg before serving the logo API." -ForegroundColor Yellow
-        } else {
-            Copy-Item -LiteralPath $srcLogo -Destination (Join-Path $VillageDataPath "images/logo.jpg")
+        Write-Host "Created 'village_data/' with sample configuration." -ForegroundColor Green
+    }
+
+    # Seed missing default images on every run, but never overwrite deployment-specific files.
+    if (Test-Path -LiteralPath $VillageDataPath) {
+        $imagesPath = Join-Path $VillageDataPath "images"
+        if (-not (Test-Path -LiteralPath $imagesPath)) {
+            New-Item -ItemType Directory -Path $imagesPath | Out-Null
         }
 
-        if (Test-Path $srcFavicon) {
-            Copy-Item -LiteralPath $srcFavicon -Destination (Join-Path $VillageDataPath "images/favicon.png")
-        } else {
-            Write-Host "Note: no sample favicon at '$srcFavicon'; add village_data/images/favicon.png if clients need it." -ForegroundColor Yellow
+        $srcLogo = Join-Path $ProjectRoot "data/images/logo.png"
+        $destLogo = Join-Path $imagesPath "logo.png"
+        if (-not (Test-Path -LiteralPath $destLogo)) {
+            if (Test-Path -LiteralPath $srcLogo) {
+                Copy-Item -LiteralPath $srcLogo -Destination $destLogo
+            } else {
+                Write-Host "Warning: missing '$srcLogo'; add village_data/images/logo.png before serving the logo API." -ForegroundColor Yellow
+            }
         }
 
-        Write-Host "Created 'village_data/' with sample content." -ForegroundColor Green
+        $srcFavicon = Join-Path $ProjectRoot "data/images/favicon.png"
+        $destFavicon = Join-Path $imagesPath "favicon.png"
+        if (-not (Test-Path -LiteralPath $destFavicon)) {
+            if (Test-Path -LiteralPath $srcFavicon) {
+                Copy-Item -LiteralPath $srcFavicon -Destination $destFavicon
+            } else {
+                Write-Host "Note: no sample favicon at '$srcFavicon'; add village_data/images/favicon.png if clients need it." -ForegroundColor Yellow
+            }
+        }
     }
 
     # Bulk-import samples: also when village_data/ already existed (CSV copy was previously only on first create).
