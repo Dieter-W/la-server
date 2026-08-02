@@ -38,7 +38,7 @@ When an account is **created** (`POST /api/employees`), **imported from CSV** ([
 
 2. **Initialize `.env` and `village_data/`**
 
-   **`init-env`** (both scripts) creates `.env` from `.env.example` when it is missing. If `village_data/` is also missing, the script creates it and seeds it from the repo’s `data/` tree: it **requires** `data/village.ini`; it copies `data/images/logo.jpg` when present (and warns if not); it copies `data/images/favicon.png` only when that file exists (otherwise add `village_data/images/favicon.png` yourself). When `data/csv-example/employees_sample.csv` and `data/csv-example/companies_sample.csv` exist, **init-env** copies each into `village_data/` **only if that filename is not already there** (so existing camp copies are not overwritten), whether `village_data/` was just created or already existed (and warns if a source file is missing). See the **Village data** section below.
+   **`init-env`** (both scripts) creates `.env` from `.env.example` when it is missing. If `village_data/` is also missing, the script creates it and seeds `data/village.ini`. Whether the directory is new or already exists, the script copies `data/images/logo.png` and the optional `data/images/favicon.png` only when the corresponding target file is missing, so deployment-specific branding is not overwritten. It handles the bulk-import samples in `data/csv-example/` the same way. Missing source files produce a warning. See the **Village data** section below.
 
    Windows (PowerShell):
 
@@ -114,6 +114,56 @@ The options below are for **production** setup only (`--mode init-env` or `provi
 './scripts/setup.sh' --mode provision --force-recreate-venv --requirements-path ./data/requirements.txt
 ```
 
+## Database backup and restore
+
+The cross-platform `scripts/database_backup.py` utility creates logical SQL backups and restores them through MariaDB's native command-line tools. Run `python ./scripts/database_backup.py --help`, `backup --help`, or `restore --help` for built-in command documentation.
+
+### Requirements and configuration
+
+- Run the script with the project's Python environment so `python-dotenv` is available.
+- The script reads `MARIADB_HOST`, `MARIADB_PORT`, `MARIADB_USER`, `MARIADB_PASSWORD`, and `MARIADB_DATABASE` from the project-root `.env`. Existing process environment variables take precedence.
+- The configured database user needs permission to read all backed-up objects and, for restore, to recreate and populate the dumped tables.
+- The script uses `mariadb-dump` and `mariadb`, with `mysqldump` and `mysql` as compatible fallbacks. On Windows it detects standard MariaDB, MySQL Server, and XAMPP installations even when they are not on `PATH`. For a custom installation, set `MARIADB_BIN` to its `bin` directory.
+
+Use `--env-file` **before** the subcommand to select another environment file:
+
+```bash
+python ./scripts/database_backup.py --env-file ./.env.production backup
+```
+
+### Create a backup
+
+Create a timestamped SQL backup under the gitignored `backups/` directory:
+
+```bash
+python ./scripts/database_backup.py backup
+```
+
+You can provide another output path. Existing files are protected unless `--force` is supplied:
+
+```bash
+python ./scripts/database_backup.py backup ./backups/before-upgrade.sql
+python ./scripts/database_backup.py backup ./backups/before-upgrade.sql --force
+```
+
+The backup uses a single transaction for a consistent snapshot of transactional tables and includes routines, triggers, events, and binary data. If the native dump command fails, the incomplete output file is removed.
+
+### Restore a backup
+
+Restore imports the SQL into the **existing** database configured by `MARIADB_DATABASE`; it does not create or drop the database itself. Stop LA-Server before restoring so the application cannot write concurrently. By default, the script asks you to type the target database name before it proceeds:
+
+```bash
+python ./scripts/database_backup.py restore ./backups/before-upgrade.sql
+```
+
+`--yes` skips confirmation and is intended for controlled, non-interactive automation:
+
+```bash
+python ./scripts/database_backup.py restore ./backups/before-upgrade.sql --yes
+```
+
+Only restore trusted SQL files: the native database client executes every statement in the supplied file. A successful operation exits with status `0`; configuration, client, backup, or restore failures exit with status `1`, and keyboard cancellation exits with status `130`.
+
 ## Village data (`village_data/`)
 
 Before you **run LA-Server**, the camp-specific configuration and branding files must be present in the `village_data/` directory at the **project root** (alongside `main.py`). **`village_data/` is gitignored**, so a fresh clone does not ship that folder; **`init-env`** creates it and seeds it from the tracked **`data/`** tree when `village_data/` is missing (see setup step 2). Checked-in samples live under **`data/`** (`data/village.ini`, `data/images/`, `data/csv-example/`); **`init-env`** copies CSV templates from `data/csv-example/` into `village_data/` only when the target filename is not already there (see setup step 2). If you already have a local `village_data/` tree, edit it per deployment. The API exposes INI content (including optional **`[village-theme]`** hex colors for client-side UI) and image paths to clients (e.g. job center apps) so each Spielstadt can show the correct name, currency, branding, and imagery without changing code. The tracked sample **`data/village.ini`** includes **`[village-theme]`** you can copy or trim per camp. Sample CSVs in `village_data/` are only for operators running bulk import; they are not served by the HTTP API.
@@ -133,7 +183,7 @@ Before you **run LA-Server**, the camp-specific configuration and branding files
 - **`[attendance]`** — Optional gate switches for daily check-in at the job center (staff record check-in via **`POST /api/attendance/check-in/{employee_number}`**; check-out via **`POST /api/attendance/check-out/{employee_number}`** and is always optional). Keys: **`require_attendance_for_kids`** (default **`true`**) — when enabled, kids (`auth_group` **`employee`**) need a check-in row for calendar today before **`POST`** or **`DELETE`** on **`/api/job-assignments`**; **`require_attendance_for_staff`** (default **`false`**) — same gate for staff/admin when set to **`true`**. These switches do not restrict who may be checked in at the gate (any active participant). Employee JSON includes derived **`checked_in`** for roster apps. Values are echoed under **`attendance`** in **`GET /api/village-data`**. Details: [docs/developer-guide.md](./docs/developer-guide.md#attendance-api).
 - **`[currency]`** — In-game money label: e.g. `name`, `name_short` (values may be quoted in the INI; the server strips optional double quotes).
 - **`[hourly_pay]`** — Village-wide pay tuning: `increase` is an integer added to each company’s stored hourly pay in **`GET /api/companies`** (and single-company) JSON so clients show a uniform bump; other keys (e.g. `tax`) are passed through to clients via **`GET /api/village-data`** if you define them.
-- **`[village-images]`** — Filenames relative to `village_data/`, for example `logo = images/logo.jpg` and `favicon = images/favicon.png`. Missing files or bad paths result in HTTP 404 from the image endpoints.
+- **`[village-images]`** — Filenames relative to `village_data/`, for example `logo = images/logo.png` and `favicon = images/favicon.png`. Missing files or bad paths result in HTTP 404 from the image endpoints.
 - **`[village-theme]`** — Optional UI palette as hex color keys (e.g. `accent`, `on-accent`, `bg`, `surface`, status colors); exposed in **`GET /api/village-data`** for clients that theme from config. On the **same line** as a value, put remarks after **`;`**, not **`#`**, so values like `#2563eb` are not truncated by the INI parser (details in [docs/developer-guide.md](./docs/developer-guide.md) — *Village data*).
 
 Further API detail: [docs/developer-guide.md](./docs/developer-guide.md).
