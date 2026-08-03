@@ -131,7 +131,7 @@ class Config:
             "JWT_SECRET_KEY": os.getenv(
                 "SECRET_KEY", "-your-secret-key-here-is-32-char-"
             ),
-            "JWT_ACCESS_TOKEN_EXPIRES": timedelta(minutes=15),
+            "JWT_ACCESS_TOKEN_EXPIRES": timedelta(hours=4),
             "JWT_REFRESH_TOKEN_EXPIRES": timedelta(hours=3),
             "JWT_ERROR_MESSAGE_KEY": "message",
         }
