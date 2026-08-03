@@ -838,11 +838,11 @@ def build_openapi_dict() -> dict:
         "/api/job-assignments/employee/{employee_number}"
     ]["delete"]
     _delete_job_assignment_by_employee["description"] = (
-        "Staff-only fallback when a child lost their timecard: delete the live assignment "
+        "Fallback when a child lost their timecard: delete the live assignment "
         "for the participant identified by passport **`employee_number`**. Archives to "
         "**`job_assignment_history`** with **`end_reason`**: **`deleted`**. Same attendance "
         "gate as create and assignment-number delete (checks the assignment owner, not the "
-        "staff caller). Wire only in job-center staff UI, not the kid-facing kiosk."
+        "JWT caller). Requires employee, staff, or admin JWT."
     )
     merge_path(
         "/api/job-assignments/{job_assignment_number}",
