@@ -2,7 +2,7 @@
 
 from flask import Blueprint, jsonify, request, g
 
-from app.auth.decorations import admin_required, employee_required, staff_required
+from app.auth.decorations import admin_required, employee_required
 from app.schemas.employee import EmployeeNumberRequest
 from app.schemas.job_assignment import (
     CreateJobAssignmentRequest,
@@ -40,12 +40,12 @@ def create_job_assignment():
 
 
 # ---------------------------------------------------------------------
-# Job Assignment Delete by employee number (staff fallback — lost timecard)
+# Job Assignment Delete by employee number (lost timecard fallback)
 # ---------------------------------------------------------------------
 @job_assignment_bp.route("/job-assignments/employee/<string:employee_number>", methods=["DELETE"])  # fmt: skip
-@staff_required
+@employee_required
 def delete_job_assignment_by_employee(employee_number: str):
-    """Delete a job assignment by participant passport number (staff-only)."""
+    """Delete a job assignment by participant passport number."""
     path_req = EmployeeNumberRequest.from_path(employee_number)
     with g.db.begin():
         JobAssignmentService(g.db).delete_assignment_by_employee_number(

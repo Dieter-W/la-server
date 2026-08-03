@@ -468,11 +468,11 @@ def test_job_assignments_delete_error_3(client, sample_authentication, sample_co
 
 
 # ---------------------------------------------------------------------
-# DELETE /job-assignments/employee/<employee_number> — staff fallback
+# DELETE /job-assignments/employee/<employee_number> — lost timecard fallback
 # ---------------------------------------------------------------------
 def test_job_assignments_delete_by_employee_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
-    """Staff DELETE by employee number returns 200 with job deleted message."""
-    token = _login_as_staff(client, sample_authentication, sample_employee)  # fmt: skip
+    """Employee DELETE by employee number returns 200 with job deleted message."""
+    token = _login_as_employee(client, sample_authentication, sample_employee)  # fmt: skip
 
     response = client.delete(
         "/api/job-assignments/employee/P00370",
@@ -485,23 +485,17 @@ def test_job_assignments_delete_by_employee_ok(client, sample_authentication, sa
     assert data["message"] == "job deleted"
 
 
-def test_job_assignments_delete_by_employee_forbidden_participant(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
-    """Participant JWT on staff delete route returns 403 FORBIDDEN_WRONG_AUTH_GROUP."""
-    token = _login_as_employee(client, sample_authentication, sample_employee)  # fmt: skip
-
-    response = client.delete(
-        "/api/job-assignments/employee/P00370",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    if response.status_code != 403:
+def test_job_assignments_delete_by_employee_unauthorized(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    """DELETE by employee number without JWT returns 401."""
+    response = client.delete("/api/job-assignments/employee/P00370")
+    if response.status_code != 401:
         print(response.text)
-    assert response.status_code == 403
-    assert response.get_json()["error"] == "FORBIDDEN_WRONG_AUTH_GROUP"
+    assert response.status_code == 401
 
 
 def test_job_assignments_delete_by_employee_not_found(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
-    """Staff DELETE for employee without assignment returns 404 JOB_ASSIGNMENT_NOT_FOUND."""
-    token = _login_as_staff(client, sample_authentication, sample_employee)  # fmt: skip
+    """DELETE for employee without assignment returns 404 JOB_ASSIGNMENT_NOT_FOUND."""
+    token = _login_as_employee(client, sample_authentication, sample_employee)  # fmt: skip
 
     response = client.delete(
         "/api/job-assignments/employee/M00252",
@@ -514,8 +508,8 @@ def test_job_assignments_delete_by_employee_not_found(client, sample_authenticat
 
 
 def test_job_assignments_delete_by_employee_unknown_employee(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
-    """Staff DELETE for unknown employee returns 404 EMPLOYEE_NOT_FOUND."""
-    token = _login_as_staff(client, sample_authentication, sample_employee)  # fmt: skip
+    """DELETE for unknown employee returns 404 EMPLOYEE_NOT_FOUND."""
+    token = _login_as_employee(client, sample_authentication, sample_employee)  # fmt: skip
 
     response = client.delete(
         "/api/job-assignments/employee/TEST00753",
@@ -535,12 +529,12 @@ def test_job_assignments_delete_by_employee_gate_kids_switch_on_blocks_without_c
     sample_job_assignment,
     camp_today_is_monday,
 ):
-    """Kids switch on: staff DELETE by employee number requires assignment owner's check-in."""
-    staff_token = _login_as_staff(client, sample_authentication, sample_employee)  # fmt: skip
+    """Kids switch on: DELETE by employee number requires assignment owner's check-in."""
+    employee_token = _login_as_employee(client, sample_authentication, sample_employee)  # fmt: skip
     with patch("app.schemas.attendance.require_attendance_for_kids", return_value=True):
         response = client.delete(
             "/api/job-assignments/employee/M00155",
-            headers={"Authorization": f"Bearer {staff_token}"},
+            headers={"Authorization": f"Bearer {employee_token}"},
         )
         if response.status_code != 400:
             print(response.text)
@@ -556,7 +550,7 @@ def test_job_assignments_delete_by_employee_gate_kids_switch_on_succeeds_after_c
     sample_job_assignment,
     camp_today_is_monday,
 ):
-    """Kids switch on: staff DELETE by employee number succeeds after owner's check-in."""
+    """Kids switch on: DELETE by employee number succeeds after owner's check-in."""
     employee_token = _login_as_employee(client, sample_authentication, sample_employee)  # fmt: skip
     staff_token = _login_as_staff(client, sample_authentication, sample_employee)  # fmt: skip
 
@@ -580,7 +574,7 @@ def test_job_assignments_delete_by_employee_gate_kids_switch_on_succeeds_after_c
 
         response = client.delete(
             "/api/job-assignments/employee/M00252",
-            headers={"Authorization": f"Bearer {staff_token}"},
+            headers={"Authorization": f"Bearer {employee_token}"},
         )
         if response.status_code != 200:
             print(response.text)
