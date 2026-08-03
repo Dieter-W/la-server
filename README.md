@@ -391,7 +391,7 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | GET    | `/api/companies`                               | List companies                              | public                           |
 | GET    | `/api/companies/<company_name>`                | List one company                            | public                           |
 | POST   | `/api/companies`                               | Create company                              | admin required                   |
-| PUT    | `/api/companies/<company_name>`                | Update company                              | admin required                   |
+| PUT    | `/api/companies/<company_name>`                | Update company                              | staff or higher                  |
 | DELETE | `/api/companies/<company_name>`                | Delete company                              | admin required                   |
 | GET    | `/api/employees`                               | List employees (optional `?active=`, `?workday=`, `?shift=`, `?checked_in=`, `?auth_group=`) | public                           |
 | GET    | `/api/employees/<employee_number>`             | List one employee                           | public                           |

@@ -2,7 +2,7 @@
 
 from flask import Blueprint, jsonify, request, g
 
-from app.auth.decorations import admin_required
+from app.auth.decorations import admin_required, staff_required
 from app.schemas.company import (
     CompanyNameRequest,
     CreateCompanyRequest,
@@ -56,7 +56,7 @@ def create_company():
 # Companies Update API
 # ---------------------------------------------------------------------
 @companies_bp.route("/companies/<string:company_name>", methods=["PUT"])
-@admin_required
+@staff_required
 def update_company(company_name: str):
     """Update fields of a company."""
     path_req = CompanyNameRequest.from_path(company_name)
