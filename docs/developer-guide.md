@@ -167,7 +167,7 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | GET    | `/api/companies`                               | List companies                              | public                           |
 | GET    | `/api/companies/<company_name>`                | List one company                            | public                           |
 | POST   | `/api/companies`                               | Create company                              | admin required                   |
-| PUT    | `/api/companies/<company_name>`                | Update company                              | admin required                   |
+| PUT    | `/api/companies/<company_name>`                | Update company                              | staff or higher                  |
 | DELETE | `/api/companies/<company_name>`                | Delete company                              | admin required                   |
 | GET    | `/api/company-jobs-max/<company_name>`         | List stored job-capacity schedule rows      | public                           |
 | POST   | `/api/company-jobs-max/<company_name>`         | Create schedule row                         | admin required                   |
@@ -1044,7 +1044,7 @@ Example:
 ### Update company - /api/companies/<company_name>
 
 **Explanation**
-Updates any fields present in the JSON body. Lookup is by URL `company_name` before updates (including if you rename via `company_name` in the body). **Authorization:** admin required — send `Authorization: Bearer <token>` for an admin session ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
+Updates any fields present in the JSON body. Lookup is by URL `company_name` before updates (including if you rename via `company_name` in the body). **Authorization:** staff or higher — send `Authorization: Bearer <token>` ([Endpoint index](#endpoint-index), [Authentication](#authentication)).
 
 **Parameters** (path)
 

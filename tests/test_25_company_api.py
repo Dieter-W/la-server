@@ -2,7 +2,7 @@
 
 from urllib.parse import quote
 
-from tests.test_utils import _login_as_admin, nfc
+from tests.test_utils import _login_as_admin, _login_as_employee, _login_as_staff, nfc
 
 payload_create = {
     "company_name": "TEST_COMPANY",
@@ -328,8 +328,67 @@ def test_companies_create_error_1(client, sample_authentication, sample_company,
 
 
 # ---------------------------------------------------------------------
+# PUT /companies — auth (staff or admin required)
+# ---------------------------------------------------------------------
+def test_companies_update_requires_auth(client, sample_company):
+    """PUT update without token returns 401."""
+    company_name = sample_company.company_name
+    response = client.put(
+        f"/api/companies/{quote(company_name, safe='')}",
+        json=payload_put,
+    )
+    if response.status_code != 401:
+        print(response.text)
+    assert response.status_code == 401
+    data = response.get_json()
+    assert data["error"] == "AUTHORIZATION_REQUIRED"
+
+
+def test_companies_update_forbidden_employee(
+    client,
+    sample_authentication,
+    sample_company,
+    sample_employee,
+):
+    """PUT update with employee token returns 403."""
+    token = _login_as_employee(client, sample_authentication, sample_employee)
+    company_name = sample_company.company_name
+    response = client.put(
+        f"/api/companies/{quote(company_name, safe='')}",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload_put,
+    )
+    if response.status_code != 403:
+        print(response.text)
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["error"] == "FORBIDDEN_WRONG_AUTH_GROUP"
+
+
+# ---------------------------------------------------------------------
 # Company Update API
 # ---------------------------------------------------------------------
+def test_companies_update_as_staff(
+    client,
+    sample_authentication,
+    sample_company,
+    sample_employee,
+):
+    """Staff token can update a company."""
+    token = _login_as_staff(client, sample_authentication, sample_employee)
+    company_name = sample_company.company_name
+    response = client.put(
+        f"/api/companies/{quote(company_name, safe='')}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"notes": "Updated by staff"},
+    )
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["notes"] == "Updated by staff"
+
+
 def test_companies_update(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
     token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
 
