@@ -1632,8 +1632,8 @@ def build_openapi_dict() -> dict:
                                 "Shift on the context **`workday`**: **`all-day`**, **`morning`**, or "
                                 "**`afternoon`**. When **`default_jobs_max`** is **`true`**, always "
                                 "**`all-day`**. When a matching schedule row applies, echoes that row's "
-                                "shift. **`null`** when **`workday`** is **`null`**. "
-                                "**`all-day`** schedule rows do not match morning/afternoon camp shifts."
+                                "shift (including **`all-day`** when a morning/afternoon lookup falls "
+                                "back to an all-day row). **`null`** when **`workday`** is **`null`**."
                             ),
                             "example": "morning",
                         },

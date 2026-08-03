@@ -31,18 +31,13 @@ def verify_jobs_max(value: Any) -> int:
     return value
 
 
-def resolve_company_jobs_max_slot(
+def _resolve_company_jobs_max_slot_for_shift(
     rows: list[CompanyJobsMax],
     lookup_workday: str,
-    lookup_shift: str,
+    shift: str,
 ) -> CompanyJobsMax | None:
-    """Resolve the effective schedule row for a calendar day and shift.
-
-    Filters by ``lookup_shift`` first (``all-day`` rows never match
-    ``morning``/``afternoon`` lookups), then applies workday precedence:
-    calendar day > ``weekdays`` > ``all-week``.
-    """
-    matching_shift = [row for row in rows if row.shift == lookup_shift]
+    """Match rows for one shift slug with workday precedence."""
+    matching_shift = [row for row in rows if row.shift == shift]
     specific = weekdays_row = all_week_row = None
     for row in matching_shift:
         if row.workday == lookup_workday:
@@ -58,6 +53,28 @@ def resolve_company_jobs_max_slot(
     return all_week_row
 
 
+def resolve_company_jobs_max_slot(
+    rows: list[CompanyJobsMax],
+    lookup_workday: str,
+    lookup_shift: str,
+) -> CompanyJobsMax | None:
+    """Resolve the effective schedule row for a calendar day and shift.
+
+    Tries an exact shift match first (``morning``/``afternoon``/``all-day``),
+    then applies workday precedence: calendar day > ``weekdays`` > ``all-week``.
+    For ``morning`` or ``afternoon`` lookups with no shift-specific row, falls
+    back to an ``all-day`` row with the same workday precedence.
+    """
+    slot = _resolve_company_jobs_max_slot_for_shift(rows, lookup_workday, lookup_shift)
+    if slot is not None:
+        return slot
+    if lookup_shift in (CampShift.MORNING.value, CampShift.AFTERNOON.value):
+        return _resolve_company_jobs_max_slot_for_shift(
+            rows, lookup_workday, CampShift.ALL_DAY.value
+        )
+    return None
+
+
 def company_uses_default_jobs_max(comp: Company) -> bool:
     """True when the company has no ``company_jobs_max`` schedule rows."""
     return len(comp.company_jobs_max) == 0
@@ -70,7 +87,11 @@ def effective_jobs_max(
     lookup_shift: str | None = None,
     now: datetime | None = None,
 ) -> int:
-    """Effective job cap for camp now (or explicit workday/shift context)."""
+    """Effective job cap for camp now (or explicit workday/shift context).
+
+    Shift-specific rows take precedence; ``all-day`` rows apply when no
+    ``morning``/``afternoon`` row matches for the same workday scope.
+    """
     if lookup_workday is None:
         lookup_workday = camp_time.camp_day(now=now)
     if lookup_shift is None:
@@ -96,7 +117,8 @@ def company_context_workday_and_shift(
     """API ``default_jobs_max`` / ``workday`` / ``shift`` for one company.
 
     Zero schedule rows → ``(True, response_label, "all-day")``.
-    Matching slot → ``(False, response_label, row shift)``.
+    Matching slot → ``(False, response_label, row shift)`` (may be ``all-day``
+    when a morning/afternoon lookup falls back to an ``all-day`` row).
     Rows exist but no match → ``(False, None, None)`` (cap falls back to default).
     """
     if company_uses_default_jobs_max(comp):

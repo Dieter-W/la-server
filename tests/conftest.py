@@ -575,10 +575,19 @@ def company_jobs_max_bank_all_week_morning(app, sample_company):
 
 @pytest.fixture
 def company_jobs_max_bank_wednesday_allday(app, sample_company):
-    """Bank (id 1): Wednesday ``all-day`` cap 3 (does not match morning/afternoon)."""
+    """Bank (id 1): Wednesday ``all-day`` cap 3 (fallback when no shift-specific row)."""
     with app.app_context():
         session = app.SessionLocal()
         seed_company_jobs_max_rows(session, [(1, "wednesday", "all-day", 3)])
+        session.close()
+
+
+@pytest.fixture
+def company_jobs_max_bank_wednesday_allday_cap1(app, sample_company):
+    """Bank (id 1): Wednesday ``all-day`` cap 1 (for assignment enforcement tests)."""
+    with app.app_context():
+        session = app.SessionLocal()
+        seed_company_jobs_max_rows(session, [(1, "wednesday", "all-day", 1)])
         session.close()
 
 

@@ -828,6 +828,8 @@ JWT handling errors match [Errors and status codes](#errors-and-status-codes).
 
 **Example:** Bank has `jobs_max` = 10 (stored default), plus rows `weekdays/morning` → 5 and `weekdays/afternoon` → 2. On Wednesday at **12:59** camp time → **`jobs.max`: 5**, **`workday`: `"today"`**, **`shift`: `"morning"`**. At **13:00** → **`jobs.max`: 2**, **`shift`: `"afternoon"`**. On Saturday (no matching row) → **`jobs.max`: 10**, **`workday`/`shift`: `null`**, **`default_jobs_max`: false**.
 
+A calendar **`all-day`** row (e.g. `wednesday/all-day` → 3) applies for the full day when no **`morning`** or **`afternoon`** row matches that day — responses show **`shift`: `"all-day"`**. If both `wednesday/morning` → 2 and `wednesday/all-day` → 3 exist, the morning cap is **2** and the afternoon cap is **3**.
+
 Allowed **stored** workday and shift values are listed under **`la-server.company_jobs_max_workdays`** and **`la-server.company_jobs_max_shifts`** on **`GET /api/village-data`**.
 
 ### List companies - /api/companies
