@@ -419,16 +419,19 @@ These rules describe how clients and the API interpret storage; they are **not**
 Each stored row is a **`workday`** (which days) plus a **`shift`** (morning, afternoon, or all-day) and an override **`jobs_max`** cap. Resolution uses **camp calendar today** ([`camp_day()`](../app/camp_time.py)) and **current camp shift** ([`camp_shift()`](../app/camp_time.py)) — see [Camp shift boundary](#camp-shift-boundary).
 
 1. **Default: no rows = stored default cap.** If a company has **no** `company_jobs_max` rows, **`companies.jobs_max`** is the effective cap at all times. The table is optional; there is no separate flag on `companies`.
-2. **One calendar day, full day.** A row with `workday` = `monday` … `sunday` and `shift` = `all-day` (the column default) overrides capacity for **that entire weekday** when the lookup shift is **`all-day`** — not when [`camp_shift()`](../app/camp_time.py) returns **`morning`** or **`afternoon`**.
+2. **One calendar day, full day.** A row with `workday` = `monday` … `sunday` and `shift` = `all-day` (the column default) overrides capacity for **that entire weekday** when no shift-specific row matches for the same workday scope. During live camp lookups ([`camp_shift()`](../app/camp_time.py) returns **`morning`** or **`afternoon`**), an **`all-day`** row applies as a **fallback** after shift-specific lookup fails.
 3. **One calendar day, half day.** A row with a calendar `workday` and `shift` = `morning` or `afternoon` applies only when the current camp shift matches that slug.
 4. **Weekday bundle (`weekdays`).** A row with `workday` = `weekdays` and `shift` = `morning` or `afternoon` applies that cap on **Monday through Friday** for the matching shift only.
 5. **Whole-week bundle (`all-week`).** A row with `workday` = `all-week` and `shift` = `morning` or `afternoon` applies that cap on **every day** Monday through Sunday for the matching shift.
-6. **Precedence when rows overlap.** For each calendar day and shift lookup, pick **one** effective row in this order: **calendar-day row** → **`weekdays` row** (Mon–Fri only) → **`all-week` row** → **no matching row** (fallback to **`companies.jobs_max`**). Shift must match exactly; **`all-day`** rows never match **`morning`**/**`afternoon`** lookups.
+6. **Precedence when rows overlap.** For each calendar day and shift lookup, pick **one** effective row in two steps:
+   1. **Shift-specific match** — filter by the lookup shift (`morning` or `afternoon`), then workday precedence: **calendar-day row** → **`weekdays` row** (Mon–Fri only) → **`all-week` row**.
+   2. **`all-day` fallback** — only if step 1 finds nothing: same workday precedence for rows with `shift` = **`all-day`**. Shift-specific rows always beat **`all-day`** on the same day (e.g. `wednesday/morning` = 2 and `wednesday/all-day` = 3 → cap **2** in the morning, cap **3** in the afternoon).
+   If neither step matches → fallback to **`companies.jobs_max`**.
    - Example: base `companies.jobs_max` = 10, plus `weekdays/morning` → 5 and `weekdays/afternoon` → 2. Wednesday **12:59** camp time → cap **5**; **13:00** → cap **2**; Saturday with no matching row → fallback **10**.
 7. **Invalid combinations.** **`weekdays` or `all-week` + `all-day`** is invalid — same rule as part-time aggregates. Restore the default cap everywhere by **deleting all** schedule rows, not by storing an aggregate **`all-day`** row.
 8. **Write enforcement:** **`POST`**, **`PUT`**, and **`DELETE ?workday=&shift=`** on **`/api/company-jobs-max/{company_name}`** call the same part-time validators plus **`verify_jobs_max()`** for the override cap. Invalid combinations → **`400`** **`INVALID_PART_TIME_COMBINATION`**; invalid cap → **`400`** **`INVALID_JOBS_MAX`**.
 
-Unlike **`part_times`**, the unique key is **`(company_id, workday, shift)`**, so **`weekdays/morning`** and **`weekdays/afternoon`** can coexist as separate rows. Slot lookup filters by shift first, then applies workday precedence — see [`resolve_company_jobs_max_slot()`](../app/schemas/company_jobs_max.py).
+Unlike **`part_times`**, the unique key is **`(company_id, workday, shift)`**, so **`weekdays/morning`** and **`weekdays/afternoon`** can coexist as separate rows. Slot lookup tries shift-specific rows first, then falls back to **`all-day`** rows — see [`resolve_company_jobs_max_slot()`](../app/schemas/company_jobs_max.py).
 
 Aggregate workday semantics, precedence examples, and storage-vs-projection rules mirror [Part-time design decisions](#part-time-design-decisions) and [Aggregate workdays](#aggregate-workdays-weekdays-all-week); the main differences are the unique key (includes **`shift`**), the payload field **`jobs_max`**, and fallback to **`companies.jobs_max`** when no row matches.
 
@@ -442,7 +445,7 @@ Which **shift** counts as “now” for the camp is **not** stored in MariaDB an
 
 [`camp_shift()`](../app/camp_time.py) returns **`morning`** or **`afternoon`** only (never **`all-day`**). Canonical shift slugs live in [`CampShift`](../app/camp_time.py) / **`CAMP_SHIFTS`**; part-time and company-jobs-max APIs reuse them.
 
-**`all-day`** schedule rows apply only when the lookup shift is **`all-day`** (for example admin tooling). They do **not** match live **`camp_shift()`** lookups used on company GET responses and job-assignment capacity checks.
+**`all-day`** schedule rows apply when no shift-specific row matches for the same workday scope. During live camp lookups, [`camp_shift()`](../app/camp_time.py) returns **`morning`** or **`afternoon`**; resolution tries that shift first, then falls back to **`all-day`** rows before using **`companies.jobs_max`**.
 
 ### API projection: `default_jobs_max`, `workday`, and `shift` on companies (not stored columns) {#api-projection-company-jobs-max}
 
