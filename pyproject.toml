@@ -9,7 +9,7 @@
 
 [project]
 name = "Kinderspielstadt-Los-Ämmerles--LA-Server"
-version = "0.9.5"
+version = "1.0.0"
 description = "The la-server manages and stores all data required to digitalize the Kinderspielstadt.  It provides a cental backend that allows camp participants to connect clients and digitally perform and manage their jobs within the simulation."
 authors = [
     {name = "Dieter Wellerdiek",email  = "developers@los-aemmerles.org"}
@@ -57,3 +57,9 @@ line-length = 88
 [tool.ruff]
 target-version = "py314"
 line-length = 88
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-v --maxfail=1"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
