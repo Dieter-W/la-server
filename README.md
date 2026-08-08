@@ -231,6 +231,8 @@ For production deployment, ensure the following:
 | `THREADS`            | `4`       | Number of Waitress worker threads. With `DEBUG=true`, use `THREADS=0` to run Flask’s dev server single-threaded (see `.env.example`). |
 | `MARIADB_PORT`       | `3306`    | MariaDB TCP port                                                                                                                      |
 | `VALIDATE_CHECK_SUM` | `true`    | When `true`, employee numbers must pass the ISO 7064 Mod 97,10 checksum (API and bulk import).                                        |
+| `JWT_ACCESS_TOKEN_EXPIRES_MINUTES` | `15` | Lifetime of the access JWT (`token` from login), in minutes. |
+| `JWT_REFRESH_TOKEN_EXPIRES_HOURS` | `3` | Lifetime of the refresh JWT (`refresh_token` from login), in hours. |
 
 
 ### Direct Waitress start
