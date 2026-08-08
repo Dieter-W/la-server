@@ -91,6 +91,21 @@ class Config:
         return path or None
 
     # ---------------------------------------------------------------------
+    # JWT lifetimes
+    # ---------------------------------------------------------------------
+    @classmethod
+    def jwt_access_token_expires(cls) -> timedelta:
+        """Access JWT lifetime from ``JWT_ACCESS_TOKEN_EXPIRES_MINUTES`` (default ``15``)."""
+        minutes = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES_MINUTES", "15"))
+        return timedelta(minutes=minutes)
+
+    @classmethod
+    def jwt_refresh_token_expires(cls) -> timedelta:
+        """Refresh JWT lifetime from ``JWT_REFRESH_TOKEN_EXPIRES_HOURS`` (default ``3``)."""
+        hours = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRES_HOURS", "3"))
+        return timedelta(hours=hours)
+
+    # ---------------------------------------------------------------------
     # Flask ``app.config`` mapping
     # ---------------------------------------------------------------------
     @classmethod
@@ -131,7 +146,7 @@ class Config:
             "JWT_SECRET_KEY": os.getenv(
                 "SECRET_KEY", "-your-secret-key-here-is-32-char-"
             ),
-            "JWT_ACCESS_TOKEN_EXPIRES": timedelta(hours=4),
-            "JWT_REFRESH_TOKEN_EXPIRES": timedelta(hours=3),
+            "JWT_ACCESS_TOKEN_EXPIRES": cls.jwt_access_token_expires(),
+            "JWT_REFRESH_TOKEN_EXPIRES": cls.jwt_refresh_token_expires(),
             "JWT_ERROR_MESSAGE_KEY": "message",
         }
