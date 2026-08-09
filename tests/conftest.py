@@ -20,7 +20,7 @@ from app import create_app
 from app.auth.utils import hash_password
 from app.camp_time import camp_day, camp_shift
 from app.config import Config
-from app.database import db
+from app.database import db, ensure_schema_metadata
 from app.models import Authentication, Company, Employee, JobAssignment, PartTime
 from app.schemas.part_time import ALL_WEEK_WORKDAY, WEEKDAYS_WORKDAY
 from tests.test_camp_time import (
@@ -97,6 +97,7 @@ def app(db_create):
     app = create_app(Config)
     with app.app_context():
         db.create_all()
+        ensure_schema_metadata(app)
 
         yield app
 

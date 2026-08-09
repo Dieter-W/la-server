@@ -5,6 +5,8 @@ from unittest.mock import patch
 from app.auth.utils import AUTH_GROUPS
 from app.routes import village_data as village_data_module
 from app.schemas.part_time import PART_TIME_SHIFTS, PART_TIME_STORED_WORKDAYS
+from app.version import SERVER_VERSION
+from app.village_config import get_camp_timezone
 
 
 # ---------------------------------------------------------------------
@@ -40,7 +42,7 @@ def test_village_data_get_ok_etag(client):
 
 
 def test_village_data_get_ok_la_server(client):
-    """Response la-server block exposes auth groups, part-time enums, checksum flag, and JWT TTLs."""
+    """Response la-server block exposes server_version mirror, auth groups, part-time enums, checksum flag, and JWT TTLs."""
     response = client.get("/api/village-data")
     if response.status_code != 200:
         print(response.text)
@@ -48,11 +50,18 @@ def test_village_data_get_ok_la_server(client):
     data = response.get_json()
     assert "la-server" in data
     ls = data["la-server"]
+    assert ls["server_version"] == SERVER_VERSION
+    version_response = client.get("/api/version")
+    assert version_response.status_code == 200
+    assert ls["server_version"] == version_response.get_json()["server_version"]
+    assert "api_compatibility_hashes" not in ls
+    assert "schema_compatibility_hashes" not in ls
     assert ls["auth_groups"] == AUTH_GROUPS
     assert ls["part_time_shifts"] == PART_TIME_SHIFTS
     assert ls["part_time_workdays"] == PART_TIME_STORED_WORKDAYS
     assert ls["company_jobs_max_shifts"] == PART_TIME_SHIFTS
     assert ls["company_jobs_max_workdays"] == PART_TIME_STORED_WORKDAYS
+    assert ls["camp_timezone"] == str(get_camp_timezone())
     assert "weekdays" in ls["part_time_workdays"]
     assert "all-week" in ls["part_time_workdays"]
     calendar_only = [

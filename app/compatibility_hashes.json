@@ -1,0 +1,25 @@
+{
+  "api_compatibility_hashes": {
+    "attendance": "87b39ab97f188edc",
+    "auth": "5460225c9f6e6d4c",
+    "companies": "fe7605b9695ed4f4",
+    "company_jobs_max": "95547adaa7121b1c",
+    "employees": "910f51af853a61b2",
+    "health": "9523b633fca0d2dc",
+    "job_assignment_history": "0f47c24fd0080599",
+    "job_assignments": "2d519eb5a8b05ffb",
+    "part_time": "13d4b122d1248c79",
+    "version": "4401c35321b46c17",
+    "village_data": "e501f4f69fe59581"
+  },
+  "schema_compatibility_hashes": {
+    "attendances": "f41eb55f24b514b7",
+    "authentications": "7c77216cd4788408",
+    "companies": "ee6b0865b7c8adf8",
+    "company_jobs_max": "f169353320a3d6dc",
+    "employees": "bfd28130ebc43583",
+    "job_assignment_history": "fdb32ba0df88fdfc",
+    "job_assignments": "83b901fd409ab6bc",
+    "part_times": "f2ba6cf0cfbad8cb"
+  }
+}

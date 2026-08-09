@@ -15,10 +15,12 @@ def register_routes(app: Flask) -> None:
     from app.routes.job_assignment_history import job_assignment_history_bp
     from app.routes.openapi_docs import openapi_docs_bp
     from app.routes.part_time import part_time_bp
+    from app.routes.version import version_bp
     from app.routes.village_data import village_data_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(health_bp, url_prefix="/api")
+    app.register_blueprint(version_bp, url_prefix="/api")
     app.register_blueprint(employees_bp, url_prefix="/api")
     app.register_blueprint(companies_bp, url_prefix="/api")
     app.register_blueprint(job_assignment_bp, url_prefix="/api")

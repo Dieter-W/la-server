@@ -12,6 +12,7 @@ from sqlalchemy.exc import ArgumentError
 from sqlalchemy.pool import QueuePool
 
 from app.auth.decorations import admin_required
+from app.version import SERVER_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,11 @@ def _concurrency_snapshot(app) -> dict:
 def health_check():
     """Basic health check endpoint."""
     return jsonify(
-        {"status": "ok", "service": "Kinderspielstadt Los Ämmerles - LA-Server"}
+        {
+            "status": "ok",
+            "service": "Kinderspielstadt Los Ämmerles - LA-Server",
+            "server_version": SERVER_VERSION,
+        }
     )
 
 
