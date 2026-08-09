@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 from app.routes.health import _database_summary
+from app.version import SERVER_VERSION
 from tests.test_utils import _login_as_admin
 
 
@@ -14,6 +15,10 @@ def test_endpoints_ok(client):
     if response.status_code != 200:
         print(response.text)
     assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "ok"
+    assert data["service"] == "Kinderspielstadt Los Ämmerles - LA-Server"
+    assert data["server_version"] == SERVER_VERSION
 
 
 # ---------------------------------------------------------------------

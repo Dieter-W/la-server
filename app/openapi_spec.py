@@ -1,30 +1,20 @@
 """OpenAPI 3.0 schema for the LA-Server REST API. Narrative docs: docs/developer-guide.md."""
 
-import tomllib
-from pathlib import Path
-
 from app.schemas.attendance import ATTENDANCE_API_WORKDAY_LABELS
 from app.schemas.part_time import (
     PART_TIME_API_WORKDAY_LABELS,
     PART_TIME_CALENDAR_WORKDAYS,
     PART_TIME_STORED_WORKDAYS,
 )
+from app.version import SERVER_VERSION, load_committed_hashes
 
-# ---------------------------------------------------------------------
-# Project version
-# ---------------------------------------------------------------------
+_committed_hashes = load_committed_hashes()
 
-
-def _read_project_version() -> str:
-    """Read the canonical version from pyproject.toml."""
-    toml_path = Path(__file__).resolve().parent.parent / "pyproject.toml"
-    try:
-        with open(toml_path, "rb") as f:
-            data = tomllib.load(f)
-        return data.get("project", {}).get("version", "unknown")
-    except FileNotFoundError:
-        return "unknown"
-
+# Example payload for VersionInfo (hashes from app/compatibility_hashes.json).
+_VERSION_INFO_EXAMPLE = {
+    "server_version": SERVER_VERSION,
+    **_committed_hashes,
+}
 
 # ---------------------------------------------------------------------
 # Static OpenAPI document fragments
@@ -40,8 +30,6 @@ API_DESCRIPTION = (
     "effective **`jobs.max`**; stored capacity overrides are maintained via **`/api/company-jobs-max`**. "
     "For request/response shapes and error codes see [developer-guide.md](docs/developer-guide.md)."
 )
-API_VERSION = _read_project_version()
-
 _BEARER = [{"bearerAuth": []}]
 
 _RESPONSES_DEFAULT = {
@@ -417,7 +405,10 @@ def build_openapi_dict() -> dict:
             paths[path][k] = v
 
     # --- Health ---
-    merge_path("/api/health", _op("get", "Liveness", tag="Health"))
+    merge_path(
+        "/api/health",
+        _op("get", "Liveness", tag="Health", response_schema="HealthLiveness"),
+    )
     merge_path("/api/health/db", _op("get", "Database connectivity", tag="Health"))
     merge_path(
         "/api/health/runtime",
@@ -427,6 +418,22 @@ def build_openapi_dict() -> dict:
             tag="Health",
             security=_BEARER,
         ),
+    )
+    merge_path(
+        "/api/version",
+        _op(
+            "get",
+            "Server release and API/schema compatibility hashes",
+            tag="Version",
+            security=[],
+            response_schema="VersionInfo",
+        ),
+    )
+    paths["/api/version"]["get"]["description"] = (
+        "Public endpoint for client startup compatibility checks. Compare "
+        "**`api_compatibility_hashes`** (and optionally **`schema_compatibility_hashes`**) "
+        "against values pinned in your client build. **`server_version`** is informational "
+        "only — not a strict gate. See developer-guide.md — API and schema compatibility."
     )
 
     # --- Auth ---
@@ -1172,7 +1179,7 @@ def build_openapi_dict() -> dict:
         "openapi": "3.0.3",
         "info": {
             "title": API_TITLE,
-            "version": API_VERSION,
+            "version": SERVER_VERSION,
             "description": API_DESCRIPTION,
         },
         "servers": [
@@ -1185,6 +1192,13 @@ def build_openapi_dict() -> dict:
             {
                 "name": "Health",
                 "description": "Liveness, database, admin runtime diagnostics",
+            },
+            {
+                "name": "Version",
+                "description": (
+                    "Release tag and auto-computed API/schema compatibility hashes for client "
+                    "compatibility checks"
+                ),
             },
             {
                 "name": "Authentication",
@@ -1271,6 +1285,80 @@ def build_openapi_dict() -> dict:
                 }
             },
             "schemas": {
+                # ----------------------------------------------------------
+                # Health
+                # ----------------------------------------------------------
+                "HealthLiveness": {
+                    "type": "object",
+                    "required": ["status", "service", "server_version"],
+                    "properties": {
+                        "status": {
+                            "type": "string",
+                            "enum": ["ok"],
+                            "description": "Process liveness indicator.",
+                        },
+                        "service": {
+                            "type": "string",
+                            "description": "Human-readable service name.",
+                        },
+                        "server_version": {
+                            "type": "string",
+                            "description": (
+                                "Release version from pyproject.toml (informational). "
+                                "Mirrors top-level server_version on GET /api/version."
+                            ),
+                            "example": SERVER_VERSION,
+                        },
+                    },
+                },
+                # ----------------------------------------------------------
+                # Version
+                # ----------------------------------------------------------
+                "VersionInfo": {
+                    "type": "object",
+                    "required": [
+                        "server_version",
+                        "api_compatibility_hashes",
+                        "schema_compatibility_hashes",
+                    ],
+                    "example": _VERSION_INFO_EXAMPLE,
+                    "properties": {
+                        "server_version": {
+                            "type": "string",
+                            "description": (
+                                "Release version from pyproject.toml (informational). "
+                                "Not used for strict client compatibility gates."
+                            ),
+                            "example": SERVER_VERSION,
+                        },
+                        "api_compatibility_hashes": {
+                            "type": "object",
+                            "description": (
+                                "One 16-character hex hash per API resource group (`auth`, "
+                                "`employees`, `companies`, `part_time`, `company_jobs_max`, "
+                                "`job_assignments`, `job_assignment_history`, `attendance`, "
+                                "`village_data`). Changes when OpenAPI structure for that group "
+                                "changes — not documentation-only edits."
+                            ),
+                            "additionalProperties": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{16}$",
+                            },
+                        },
+                        "schema_compatibility_hashes": {
+                            "type": "object",
+                            "description": (
+                                "One 16-character hex hash per business database table "
+                                "(excluding internal `schema_metadata`). Changes when SQLAlchemy "
+                                "model metadata for that table changes."
+                            ),
+                            "additionalProperties": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{16}$",
+                            },
+                        },
+                    },
+                },
                 # ----------------------------------------------------------
                 # Auth — request schemas
                 # ----------------------------------------------------------
@@ -2470,15 +2558,29 @@ def build_openapi_dict() -> dict:
                         "in **`village.ini`** is discarded and replaced with this block."
                     ),
                     "required": [
+                        "server_version",
                         "auth_groups",
                         "part_time_shifts",
                         "part_time_workdays",
+                        "company_jobs_max_shifts",
+                        "company_jobs_max_workdays",
+                        "camp_timezone",
                         "validate_employee_number_checksum",
                         "employee_number_checksum_algorithm",
                         "jwt_access_ttl_minutes",
                         "jwt_refresh_ttl_minutes",
                     ],
                     "properties": {
+                        "server_version": {
+                            "type": "string",
+                            "description": (
+                                "Release version from **`pyproject.toml`** (informational). "
+                                "Mirrors top-level **`server_version`** on **`GET /api/version`**; "
+                                "not a strict compatibility gate. Compatibility hashes stay on "
+                                "**`/api/version`** only."
+                            ),
+                            "example": SERVER_VERSION,
+                        },
                         "auth_groups": {
                             "type": "array",
                             "items": {"type": "string"},
@@ -2509,6 +2611,27 @@ def build_openapi_dict() -> dict:
                                 "(data entry, before/after examples) and "
                                 "[database_design.md](docs/database_design.md#aggregate-workdays-weekdays-all-week) "
                                 "(precedence)."
+                            ),
+                        },
+                        "company_jobs_max_shifts": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": (
+                                "Allowed `shift` values for **`company_jobs_max`** schedule CRUD "
+                                "(**`all-day`**, **`morning`**, **`afternoon`**). "
+                                "Same slugs as **`part_time_shifts`**."
+                            ),
+                        },
+                        "company_jobs_max_workdays": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": PART_TIME_STORED_WORKDAYS,
+                            },
+                            "description": (
+                                "Allowed stored `company_jobs_max.workday` values: calendar days "
+                                "**`monday`** … **`sunday`**, plus aggregate patterns **`weekdays`** and "
+                                "**`all-week`**. Same slugs as **`part_time_workdays`**."
                             ),
                         },
                         "validate_employee_number_checksum": {

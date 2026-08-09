@@ -268,3 +268,23 @@ class Attendance(BaseModel):
         back_populates="attendances",
         passive_deletes=True,
     )
+
+
+# ---------------------------------------------------------------------
+# Schema metadata (single-row revision tracking)
+# ---------------------------------------------------------------------
+SCHEMA_METADATA_ROW_ID = 1
+
+
+class SchemaMetadata(db.Model):
+    """Single-row table recording the applied DB schema revision."""
+
+    __tablename__ = "schema_metadata"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    applied_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
