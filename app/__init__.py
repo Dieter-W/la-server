@@ -47,17 +47,17 @@ def create_app(config_object=None) -> Flask:
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
         """JSON response when the JWT access lifetime has elapsed."""
-        return jsonify({"error": "EXPIRED_TOKEN", "message": "Token has expired"}), 401 # fmt: skip
+        return jsonify({"error": "EXPIRED_TOKEN", "message": "Token has expired"}), 401  # fmt: skip
 
     @jwt.invalid_token_loader
     def invalid_token_callback(error_string):
         """JSON response for malformed JWT payload or signature mismatch."""
-        return jsonify({"error": "INVALID_TOKEN", "message": error_string}), 422 # fmt: skip
+        return jsonify({"error": "INVALID_TOKEN", "message": error_string}), 422  # fmt: skip
 
     @jwt.unauthorized_loader
     def unauthorized_callback(error_string):
         """JSON response when no or wrong Authorization scheme is supplied."""
-        return jsonify({"error": "AUTHORIZATION_REQUIRED", "message": error_string}), 401 # fmt: skip
+        return jsonify({"error": "AUTHORIZATION_REQUIRED", "message": error_string}), 401  # fmt: skip
 
     app.peak_request_sessions = PeakCounter()
 

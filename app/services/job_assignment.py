@@ -39,11 +39,12 @@ class JobAssignmentService:
 
     def _require_today_checkin(self, emp: Employee) -> None:
         """Reject job create/delete when attendance is required but missing for camp today."""
-        if participant_requires_attendance(emp):
-            if not self.attendance_repo.has_checkin_for_date(
-                emp.id, camp_time.camp_today()
-            ):
-                raise APIError("ATTENDANCE_CHECK_IN_REQUIRED", 400)
+        if participant_requires_attendance(
+            emp
+        ) and not self.attendance_repo.has_checkin_for_date(
+            emp.id, camp_time.camp_today()
+        ):
+            raise APIError("ATTENDANCE_CHECK_IN_REQUIRED", 400)
 
     def _archive_assignment(
         self,

@@ -42,7 +42,7 @@ def test_camp_day_monday_in_berlin():
 
 
 def test_camp_day_naive_now_uses_camp_tz():
-    naive = datetime(2026, 5, 18, 10, 0)
+    naive = datetime(2026, 5, 18, 10, 0, tzinfo=BERLIN)
     assert camp_day(now=naive, tz=BERLIN) == "monday"
 
 
@@ -722,6 +722,6 @@ def test_list_filter_matches_resolve_helper(
     data = response.get_json()
     api_count = data["count"]
 
-    assert (
-        api_count == expected
-    ), f"scenario={scenario} filter_day={filter_day}: API {api_count} != helper {expected}"
+    assert api_count == expected, (
+        f"scenario={scenario} filter_day={filter_day}: API {api_count} != helper {expected}"
+    )

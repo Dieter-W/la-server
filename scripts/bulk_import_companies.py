@@ -2,6 +2,7 @@
 """Bulk import companies from CSV. Run with: python ./scripts/bulk_import_companies.py <path_to_csv>"""
 
 import csv
+import logging
 import sys
 from pathlib import Path
 
@@ -16,6 +17,8 @@ from app.config import Config
 from app.models import Company
 
 load_dotenv(project_root / ".env")
+
+logger = logging.getLogger(__name__)
 
 REQUIRED_COLUMNS = ("company_name", "jobs_max", "hourly_pay", "active", "notes")
 
@@ -95,6 +98,7 @@ def main() -> int:
                         failed += 1
                 except Exception as e:
                     session.rollback()
+                    logger.exception("Row %s import failed", i)
                     print(f"  Row {i}: ERROR - {e}")
                     failed += 1
         finally:

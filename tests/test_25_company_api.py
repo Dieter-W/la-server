@@ -25,8 +25,8 @@ payload_put = {
 # ---------------------------------------------------------------------
 # POST /companies — invalid payload
 # ---------------------------------------------------------------------
-def test_companies_create_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_create_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/companies",
@@ -40,8 +40,8 @@ def test_companies_create_invalid_payload_error_1(client, sample_authentication,
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
-def test_companies_create_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_create_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/companies",
@@ -55,8 +55,8 @@ def test_companies_create_invalid_payload_error_2(client, sample_authentication,
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_companies_create_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_create_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/companies",
@@ -70,8 +70,8 @@ def test_companies_create_invalid_payload_error_3(client, sample_authentication,
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_companies_create_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_create_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/companies",
@@ -85,8 +85,8 @@ def test_companies_create_invalid_payload_error_4(client, sample_authentication,
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_companies_create_invalid_payload_error_5(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_create_invalid_payload_error_5(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/companies",
@@ -100,8 +100,8 @@ def test_companies_create_invalid_payload_error_5(client, sample_authentication,
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_companies_create_invalid_payload_error_6(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_create_invalid_payload_error_6(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/companies",
@@ -115,8 +115,8 @@ def test_companies_create_invalid_payload_error_6(client, sample_authentication,
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_companies_create_invalid_payload_error_7(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_create_invalid_payload_error_7(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/companies",
@@ -133,8 +133,8 @@ def test_companies_create_invalid_payload_error_7(client, sample_authentication,
 # ---------------------------------------------------------------------
 # PUT /companies — invalid payload
 # ---------------------------------------------------------------------
-def test_companies_update_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_update_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     company_name = sample_company.company_name
     response = client.put(
@@ -152,7 +152,7 @@ def test_companies_update_invalid_payload_error_1(client, sample_authentication,
 # ---------------------------------------------------------------------
 # Company Get-all API
 # ---------------------------------------------------------------------
-def test_companies_query_all(client, sample_company, sample_job_assignment): # fmt: skip
+def test_companies_query_all(client, sample_company, sample_job_assignment):  # fmt: skip
     response = client.get("/api/companies")
     if response.status_code != 200:
         print(response.text)
@@ -196,7 +196,7 @@ def test_companies_query_all(client, sample_company, sample_job_assignment): # f
     )
 
 
-def test_companies_query_all_true(client, sample_company, ): # fmt: skip
+def test_companies_query_all_true(client, sample_company, ):  # fmt: skip
     response = client.get("/api/companies?active=true")
     if response.status_code != 200:
         print(response.text)
@@ -207,7 +207,7 @@ def test_companies_query_all_true(client, sample_company, ): # fmt: skip
     assert data["count"] == 3
 
 
-def test_companies_query_all_false(client, sample_company,): # fmt: skip
+def test_companies_query_all_false(client, sample_company,):  # fmt: skip
     response = client.get("/api/companies?active=false")
     if response.status_code != 200:
         print(response.text)
@@ -218,7 +218,7 @@ def test_companies_query_all_false(client, sample_company,): # fmt: skip
     assert data["count"] == 1
 
 
-def test_companies_query_all_empty(client, db_session,): # fmt: skip
+def test_companies_query_all_empty(client, db_session,):  # fmt: skip
     response = client.get("/api/companies")
     if response.status_code != 200:
         print(response.text)
@@ -233,7 +233,7 @@ def test_companies_query_all_empty(client, db_session,): # fmt: skip
 # ---------------------------------------------------------------------
 # Company Get API
 # ---------------------------------------------------------------------
-def test_companies_query(client, sample_company, sample_job_assignment,): # fmt: skip
+def test_companies_query(client, sample_company, sample_job_assignment,):  # fmt: skip
     company_name = sample_company.company_name
     response = client.get(f"/api/companies/{quote(company_name, safe='')}")
     if response.status_code != 200:
@@ -253,7 +253,7 @@ def test_companies_query(client, sample_company, sample_job_assignment,): # fmt:
     assert data["notes"] == sample_company.notes
 
 
-def test_companies_query_error_1(client, sample_company, sample_job_assignment,): # fmt: skip
+def test_companies_query_error_1(client, sample_company, sample_job_assignment,):  # fmt: skip
     company_name = "Wrong"
     response = client.get(f"/api/companies/{quote(company_name, safe='')}")
     if response.status_code != 404:
@@ -266,8 +266,8 @@ def test_companies_query_error_1(client, sample_company, sample_job_assignment,)
 # ---------------------------------------------------------------------
 # Company Create API
 # ---------------------------------------------------------------------
-def test_companies_create(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_create(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.get("/api/companies")
     if response.status_code != 200:
@@ -305,8 +305,8 @@ def test_companies_create(client, sample_authentication, sample_company, sample_
     assert data["count"] == 5
 
 
-def test_companies_create_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_create_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     # Post /api/companies
     response = client.post(
@@ -389,8 +389,8 @@ def test_companies_update_as_staff(
     assert data["notes"] == "Updated by staff"
 
 
-def test_companies_update(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_update(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     company_name = sample_company.company_name
     response = client.put(
@@ -423,8 +423,8 @@ def test_companies_update(client, sample_authentication, sample_company, sample_
     assert data2["company_name"] == payload_put["company_name"]
 
 
-def test_companies_update_error_1(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_update_error_1(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     company_name = "Wrong"
     response = client.put(
@@ -439,8 +439,8 @@ def test_companies_update_error_1(client, sample_authentication, sample_company,
     assert data["error"] == "COMPANY_NOT_FOUND"
 
 
-def test_companies_update_error_2_duplicate_name(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_update_error_2_duplicate_name(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     """PUT rename collides with another company's unique company_name -> 409."""
     response = client.put(
@@ -459,8 +459,8 @@ def test_companies_update_error_2_duplicate_name(client, sample_authentication, 
 # ---------------------------------------------------------------------
 # Company Delete API
 # ---------------------------------------------------------------------
-def test_companies_delete(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_delete(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     company_name = sample_company.company_name
     response = client.delete(
@@ -480,8 +480,8 @@ def test_companies_delete(client, sample_authentication, sample_company, sample_
     assert response.status_code == 404
 
 
-def test_companies_delete_error_1(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_delete_error_1(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     company_name = "Wrong"
     response = client.delete(
@@ -495,8 +495,8 @@ def test_companies_delete_error_1(client, sample_authentication, sample_company,
     assert data["error"] == "COMPANY_NOT_FOUND"
 
 
-def test_companies_delete_Error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_companies_delete_Error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     company_name = sample_company.company_name
     response = client.delete(
@@ -508,4 +508,4 @@ def test_companies_delete_Error_2(client, sample_authentication, sample_company,
     assert response.status_code == 409
     data = response.get_json()
     assert data["error"] == "CONSTRAINT_VIOLATION"
-    assert data["message"] == "Delete failed, because related entries in JobAssignment table" # fmt: skip
+    assert data["message"] == "Delete failed, because related entries in JobAssignment table"  # fmt: skip

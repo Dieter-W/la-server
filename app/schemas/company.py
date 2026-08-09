@@ -125,7 +125,7 @@ class CompanyResponse:
     updated_at: str | None
 
     @classmethod
-    def from_orm(cls, comp: Company, assigned_jobs: int, hourly_pay_increase: int) -> CompanyResponse: # fmt: skip
+    def from_orm(cls, comp: Company, assigned_jobs: int, hourly_pay_increase: int) -> CompanyResponse:  # fmt: skip
         """Map Company plus aggregates to wire-shaped response model."""
         lookup_workday = camp_time.camp_day()
         lookup_shift = camp_time.camp_shift()

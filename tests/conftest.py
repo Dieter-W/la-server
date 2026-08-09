@@ -18,7 +18,7 @@ from sqlalchemy.pool import NullPool
 
 from app import create_app
 from app.auth.utils import hash_password
-from app.camp_time import camp_day
+from app.camp_time import camp_day, camp_shift
 from app.config import Config
 from app.database import db
 from app.models import Authentication, Company, Employee, JobAssignment, PartTime
@@ -35,13 +35,21 @@ from tests.test_camp_time import (
 from tests.test_part_time_helpers import seed_company_jobs_max_rows, seed_part_time_rows
 
 
+@contextmanager
 def _camp_day_patch(camp_instant: datetime):
-    """Pin ``camp_day()`` to a fixed calendar day in camp timezone."""
+    """Pin ``camp_day()`` and ``camp_shift()`` to a fixed instant in camp timezone."""
 
-    def _fixed(*, now=None, tz=None):
+    def _fixed_day(*, now=None, tz=None):
         return camp_day(now=camp_instant, tz=tz or BERLIN)
 
-    return patch("app.camp_time.camp_day", side_effect=_fixed)
+    def _fixed_shift(*, now=None, tz=None):
+        return camp_shift(now=camp_instant, tz=tz or BERLIN)
+
+    with (
+        patch("app.camp_time.camp_day", side_effect=_fixed_day),
+        patch("app.camp_time.camp_shift", side_effect=_fixed_shift),
+    ):
+        yield
 
 
 def _mariadb_test_database_name(worker_id: str) -> str:

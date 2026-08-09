@@ -69,10 +69,10 @@ def export_requirements() -> int:
                 "poetry",
                 "export",
                 "-f",
-                "requirements.txt",  # fmt: skip
+                "requirements.txt",
                 "--without-hashes",
                 "-o",
-                "./data/requirements.txt",  # fmt: skip
+                "./data/requirements.txt",
             ],
             cwd=project_root,
             check=True,

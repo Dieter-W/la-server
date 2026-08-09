@@ -1,5 +1,5 @@
 blinker==1.9.0 ; python_version >= "3.14" and python_version < "4.0"
-cffi==2.1.0 ; python_version >= "3.14" and python_version < "4.0" and platform_python_implementation != "PyPy"
+cffi==2.1.1 ; python_version >= "3.14" and python_version < "4.0" and platform_python_implementation != "PyPy"
 click==8.4.2 ; python_version >= "3.14" and python_version < "4.0"
 colorama==0.4.6 ; python_version >= "3.14" and python_version < "4.0" and platform_system == "Windows"
 cryptography==50.0.0 ; python_version >= "3.14" and python_version < "4.0"

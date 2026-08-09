@@ -16,6 +16,7 @@ def test_bulk_import_companies_create_ok(app, db_session):
             "./scripts/bulk_import_companies.py",
             "./data/csv-example/companies_sample.csv",
         ],
+        check=True,
         capture_output=True,
         text=True,
     )
@@ -35,6 +36,7 @@ def test_bulk_import_companies_update_ok(app, db_session):
             "./scripts/bulk_import_companies.py",
             "./data/csv-example/companies_sample.csv",
         ],
+        check=True,
         capture_output=True,
         text=True,
     )
@@ -50,6 +52,7 @@ def test_bulk_import_companies_update_ok(app, db_session):
             "./scripts/bulk_import_companies.py",
             "./data/csv-example/companies_sample.csv",
         ],
+        check=True,
         capture_output=True,
         text=True,
     )
