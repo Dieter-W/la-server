@@ -33,6 +33,20 @@ repos:
         require_serial: true
 
   # ------------------------------------
+  # scripts/*.py, scripts/*.sh (not /scriptsdevelopment/), and root *.sh executable in git
+  # ------------------------------------
+  - repo: local
+    hooks:
+      - id: ensure-scripts-executable
+        name: Ensure scripts are executable in git
+        entry: "python scripts/development/ensure_scripts_executable.py"
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+        stages: [commit]
+
+  # ------------------------------------
   # General repo hygiene
   # ------------------------------------
   - repo: https://github.com/pre-commit/pre-commit-hooks
