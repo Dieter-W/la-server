@@ -3659,21 +3659,21 @@ The semver in [`pyproject.toml`](../pyproject.toml) **`[project].version`** is t
 
 **Manual bumps:** editing `pyproject.toml` to a higher semver before commit still works; the hooks never downgrade.
 
-**Bypassing hooks:** `git commit --no-verify` / `git push --no-verify` skip automatic bumps (and commit-stage pytest). Use only when you understand the versioning impact.
+**Bypassing hooks:** `git commit --no-verify` / `git push --no-verify` skip automatic bumps (and pre-commit-stage pytest). Use only when you understand the versioning impact.
 
-**CI:** GitHub Actions runs **`pre-commit run --all-files`**, which executes **commit-stage** hooks (including pytest) — not pre-push hooks (no automatic minor bump in CI).
+**CI:** GitHub Actions runs **`pre-commit run --all-files`**, which executes **pre-commit-stage** hooks (including pytest) — not pre-push hooks (no automatic minor bump in CI).
 
 ## Day-to-day commands
 
 | Task | Command |
 | ---- | ------- |
 | Run tests | `poetry run pytest` |
-| Run all pre-commit hooks on the tree (same idea as CI; commit stage only, includes pytest) | `poetry run pre-commit run --all-files` |
-| Run pre-push hooks locally (minor bump check only) | `poetry run pre-commit run --hook-stage push --all-files` |
-| Run pytest hook only (commit stage) | `poetry run pre-commit run pytest --hook-stage commit` |
+| Run all pre-commit hooks on the tree (same idea as CI; pre-commit stage only, includes pytest) | `poetry run pre-commit run --all-files` |
+| Run pre-push hooks locally (minor bump check only) | `poetry run pre-commit run --hook-stage pre-push --all-files` |
+| Run pytest hook only (pre-commit stage) | `poetry run pre-commit run pytest --hook-stage pre-commit` |
 | Start the server (after configuring `.env`) | `.\start.ps1` / `./start.sh` or `poetry run python main.py` |
 
-CI runs **`poetry install --with dev`** then **`poetry run pre-commit run --all-files`** on push and pull requests (commit-stage hooks only); keeping your local hook install and dependencies aligned avoids surprises.
+CI runs **`poetry install --with dev`** then **`poetry run pre-commit run --all-files`** on push and pull requests (pre-commit-stage hooks only); keeping your local hook install and dependencies aligned avoids surprises.
 
 ## Editor / IDE
 
