@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """Create and restore logical SQL backups of the LA-Server MariaDB database.
 
 Connection settings are loaded from the project-root ``.env`` by default. Values
