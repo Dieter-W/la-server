@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """Bulk import company job-capacity schedules from CSV.
 
 Prerequisite: companies must exist (import companies first).
