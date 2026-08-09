@@ -9,7 +9,7 @@ Production (no Poetry): `pip install -r` uses `data/requirements.txt` (a `poetry
 - `provision`: Verify `.env` was customized, create `.venv`, `pip install -r`, create database.
 
 Development (use Poetry only: `poetry` + `pyproject.toml` / lockfile, same as CI `poetry install --with dev`):
-- `development`: `poetry self add poetry-plugin-export` (enables `poetry export` for `data/requirements.txt`), `poetry install --with dev`, `pre-commit install`, optional test/MariaDB validation.
+- `development`: `poetry self add poetry-plugin-export` (enables `poetry export` for `data/requirements.txt`), `poetry install --with dev`, `pre-commit install` (commit + push hooks), optional test/MariaDB validation.
 
 .PARAMETER Mode
 Invocation mode: `init-env` (default), `provision`, `development`, or `help` (same as `-Help`).
@@ -400,8 +400,8 @@ elseif ($Mode -eq "development") {
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
         Write-Host ""
-        Write-Host "Installing Git pre-commit hooks (poetry run pre-commit install)..." -ForegroundColor Green
-        & poetry run pre-commit install
+        Write-Host "Installing Git pre-commit and pre-push hooks (poetry run pre-commit install)..." -ForegroundColor Green
+        & poetry run pre-commit install --hook-type pre-commit --hook-type pre-push
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
         if ($SkipTestEnvCheck) {
