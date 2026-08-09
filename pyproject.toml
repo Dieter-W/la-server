@@ -9,7 +9,7 @@
 
 [project]
 name = "Kinderspielstadt-Los-Ämmerles--LA-Server"
-version = "1.0.0"
+version = "1.1.0"
 description = "The la-server manages and stores all data required to digitalize the Kinderspielstadt.  It provides a cental backend that allows camp participants to connect clients and digitally perform and manage their jobs within the simulation."
 authors = [
     {name = "Dieter Wellerdiek",email  = "developers@los-aemmerles.org"}
@@ -44,7 +44,7 @@ dev = [
     "pytest-xdist (>=3.8.0,<4.0.0)",
     "requests (>=2.32.5,<3.0.0)",
     "black (==26.3.1)",
-    "ruff (==0.15.22)",
+    "ruff (==0.16.2,<0.17.0)",
 ]
 
 [tool.poetry]
