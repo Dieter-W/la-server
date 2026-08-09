@@ -1,6 +1,6 @@
 """Company CRUD endpoints for job center management."""
 
-from flask import Blueprint, jsonify, request, g
+from flask import Blueprint, g, jsonify, request
 
 from app.auth.decorations import admin_required, staff_required
 from app.schemas.company import (

@@ -6,11 +6,11 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app import camp_time
 from app.errors import APIError
 from app.models import Attendance, Employee, utc_now
 from app.repositories.attendance import AttendanceRepository
 from app.repositories.employee import EmployeeRepository
-import app.camp_time as camp_time
 from app.schemas.attendance import (
     AttendanceListEntryResponse,
     AttendanceMutationResponse,

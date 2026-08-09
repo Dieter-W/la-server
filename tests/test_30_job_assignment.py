@@ -3,7 +3,6 @@
 from unittest.mock import patch
 
 from app.utils import create_job_assignment_number
-
 from tests.test_utils import (
     _login_as_admin,
     _login_as_employee,

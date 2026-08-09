@@ -19,8 +19,7 @@ class PeakCounter:
         """Increment active workers; bump historic max if needed."""
         with self._lock:
             self._active += 1
-            if self._active > self._max_historic:
-                self._max_historic = self._active
+            self._max_historic = max(self._max_historic, self._active)
 
     def leave(self) -> None:
         """Decrement active workers."""

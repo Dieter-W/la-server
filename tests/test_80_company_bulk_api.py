@@ -1,8 +1,7 @@
 """Bulk insert/update companies and validate them with an API call"""
 
-import sys
 import subprocess
-
+import sys
 from urllib.parse import quote
 
 from tests.test_utils import _login_as_admin, nfc

@@ -16,10 +16,10 @@ from stdnum.iso7064 import mod_97_10
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from app import create_app  # noqa: E402
-from app.config import Config  # noqa: E402
-from app.models import Authentication, Employee  # noqa: E402
-from app.auth.utils import hash_password, verify_access_group  # noqa: E402
+from app import create_app
+from app.auth.utils import hash_password, verify_access_group
+from app.config import Config
+from app.models import Authentication, Employee
 
 load_dotenv(project_root / ".env")
 

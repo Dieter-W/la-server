@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-import app.camp_time as camp_time
+from app import camp_time
 from app.camp_time import CampShift
 from app.errors import APIError
 from app.models import Company, CompanyJobsMax
@@ -14,8 +14,8 @@ from app.schemas import _UNSET
 from app.schemas.part_time import (
     project_api_workday_label,
     validate_part_time_combination,
-    verify_part_time_stored_workday,
     verify_part_time_shift,
+    verify_part_time_stored_workday,
 )
 from app.schemas.schedule_slot import resolve_schedule_slot
 

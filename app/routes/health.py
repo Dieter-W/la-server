@@ -4,7 +4,7 @@ import os
 import sys
 import time
 
-from flask import Blueprint, current_app, jsonify, g
+from flask import Blueprint, current_app, g, jsonify
 from sqlalchemy import text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.pool import QueuePool

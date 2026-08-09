@@ -2,27 +2,26 @@
 
 import os
 import sys
-import pytest
-
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.pool import NullPool
 
 from app import create_app
+from app.auth.utils import hash_password
+from app.camp_time import camp_day
+from app.config import Config
 from app.database import db
 from app.models import Authentication, Company, Employee, JobAssignment, PartTime
-from app.auth.utils import hash_password
-
-from app.config import Config
-from app.camp_time import camp_day
 from app.schemas.part_time import ALL_WEEK_WORKDAY, WEEKDAYS_WORKDAY
 from tests.test_camp_time import (
     BERLIN,

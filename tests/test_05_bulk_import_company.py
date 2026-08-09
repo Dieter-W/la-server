@@ -1,7 +1,7 @@
 """Bulk insert companies and update them"""
 
-import sys
 import subprocess
+import sys
 
 from app.models import Company
 

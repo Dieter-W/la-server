@@ -2,10 +2,10 @@
 
 import logging
 
-from flask import Blueprint, jsonify, request, g
+from flask import Blueprint, g, jsonify, request
 from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 
-from app.auth.decorations import admin_required, staff_required, employee_required
+from app.auth.decorations import admin_required, employee_required, staff_required
 from app.schemas.auth import (
     AuthenticateRequest,
     ResetPasswordRequest,

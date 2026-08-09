@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import app.camp_time as camp_time
+from app import camp_time
 from app.errors import APIError
 from app.models import Company
 from app.schemas import _UNSET
