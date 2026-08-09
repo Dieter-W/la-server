@@ -1,6 +1,6 @@
 """Job assignment endpoints: camp participants (children and staff) take jobs at companies (*employee* names match the API)."""
 
-from flask import Blueprint, jsonify, request, g
+from flask import Blueprint, g, jsonify, request
 
 from app.auth.decorations import admin_required, employee_required
 from app.schemas.employee import EmployeeNumberRequest

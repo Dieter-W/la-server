@@ -6,16 +6,16 @@ from flask import Flask
 def register_routes(app: Flask) -> None:
     """Register all blueprint routes."""
     from app.auth.routes import auth_bp
-    from app.routes.health import health_bp
-    from app.routes.employees import employees_bp
+    from app.routes.attendance import attendance_bp
     from app.routes.companies import companies_bp
+    from app.routes.company_jobs_max import company_jobs_max_bp
+    from app.routes.employees import employees_bp
+    from app.routes.health import health_bp
     from app.routes.job_assignment import job_assignment_bp
-    from app.routes.village_data import village_data_bp
+    from app.routes.job_assignment_history import job_assignment_history_bp
     from app.routes.openapi_docs import openapi_docs_bp
     from app.routes.part_time import part_time_bp
-    from app.routes.company_jobs_max import company_jobs_max_bp
-    from app.routes.attendance import attendance_bp
-    from app.routes.job_assignment_history import job_assignment_history_bp
+    from app.routes.village_data import village_data_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(health_bp, url_prefix="/api")

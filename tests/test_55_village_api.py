@@ -3,8 +3,8 @@
 from unittest.mock import patch
 
 from app.auth.utils import AUTH_GROUPS
-from app.schemas.part_time import PART_TIME_SHIFTS, PART_TIME_STORED_WORKDAYS
 from app.routes import village_data as village_data_module
+from app.schemas.part_time import PART_TIME_SHIFTS, PART_TIME_STORED_WORKDAYS
 
 
 # ---------------------------------------------------------------------

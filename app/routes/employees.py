@@ -1,6 +1,6 @@
 """CRUD for camp participants (children and staff); URLs and JSON use *employee* / employee_number as stable API names."""
 
-from flask import Blueprint, jsonify, request, g
+from flask import Blueprint, g, jsonify, request
 
 from app.auth.decorations import admin_required
 from app.schemas.employee import (

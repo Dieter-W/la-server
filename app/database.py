@@ -15,7 +15,6 @@ from app.peak_tracking import PeakCounter
 class Base(DeclarativeBase):
     """Base class for SQLAlchemy models."""
 
-    pass
 
 
 db = SQLAlchemy(model_class=Base)
@@ -69,7 +68,7 @@ def init_db(app, *, create_schema: bool = True) -> None:
         app.peak_pool_checkouts = PeakCounter()
         _register_pool_peak_listeners(engine, app.peak_pool_checkouts)
 
-        import app.models  # noqa: F401 - register models before create_all
+        import app.models
 
         if create_schema:
             # create_all ensures schema for dev, tests, and fresh installs

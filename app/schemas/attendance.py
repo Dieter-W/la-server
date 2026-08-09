@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-import app.camp_time as camp_time
+from app import camp_time
 from app.errors import APIError
 from app.models import Attendance, Employee
 from app.schemas.part_time import (

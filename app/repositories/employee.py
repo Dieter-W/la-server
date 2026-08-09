@@ -7,6 +7,7 @@ from datetime import date
 from sqlalchemy import and_, distinct, exists, func, or_, select
 from sqlalchemy.orm import selectinload
 
+from app.camp_time import CampShift
 from app.models import (
     Attendance,
     Authentication,
@@ -21,7 +22,6 @@ from app.schemas.part_time import (
     WEEKDAYS_WORKDAY,
 )
 from app.schemas.schedule_slot import is_weekdays_calendar_day
-from app.camp_time import CampShift
 
 
 class EmployeeRepository(BaseRepository[Employee]):

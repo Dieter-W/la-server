@@ -1,13 +1,14 @@
 """Authentication API tests"""
 
 from tests.test_utils import (
+    _get_refresh_token,
     _login_as_admin,
     _login_as_employee,
-    _login_as_staff,
-    _login_as_employee_expired_token,
     _login_as_employee_expired_refresh_token,
-    _get_refresh_token,
+    _login_as_employee_expired_token,
+    _login_as_staff,
 )
+
 
 # ---------------------------------------------------------------------
 # POST /api/auth/login — invalid payload

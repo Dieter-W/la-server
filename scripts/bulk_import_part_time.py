@@ -16,10 +16,10 @@ from dotenv import load_dotenv
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from app import create_app  # noqa: E402
-from app.config import Config  # noqa: E402
-from app.models import Employee, PartTime  # noqa: E402
-from app.schemas.part_time import (  # noqa: E402
+from app import create_app
+from app.config import Config
+from app.models import Employee, PartTime
+from app.schemas.part_time import (
     PartTimeShift,
     validate_part_time_combination,
     verify_part_time_shift,

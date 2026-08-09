@@ -6,6 +6,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app import camp_time
 from app.auth.utils import (
     create_access_token,
     create_refresh_token,
@@ -16,7 +17,6 @@ from app.errors import APIError
 from app.repositories.attendance import AttendanceRepository
 from app.repositories.auth import AuthRepository
 from app.repositories.employee import EmployeeRepository
-import app.camp_time as camp_time
 from app.schemas.auth import (
     AuthenticateRequest,
     LoginResponse,

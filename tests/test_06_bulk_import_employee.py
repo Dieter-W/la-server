@@ -1,7 +1,7 @@
 """Bulk insert employees and update them"""
 
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 from app.models import Employee
