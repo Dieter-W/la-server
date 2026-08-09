@@ -219,7 +219,8 @@ class PartTime(BaseModel):
         UniqueConstraint(
             "employee_id",
             "workday",
-            name="uq_part_times_employee_workday",
+            "shift",
+            name="uq_part_times_employee_workday_shift",
         ),
     )
 

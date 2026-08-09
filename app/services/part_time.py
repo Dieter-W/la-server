@@ -6,13 +6,13 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app.camp_time import CAMP_SHIFTS
 from app.errors import APIError
 from app.models import Employee, PartTime
 from app.repositories.employee import EmployeeRepository
 from app.repositories.part_time import PartTimeRepository
 from app.schemas.part_time import (
     PART_TIME_STORED_WORKDAYS,
-    validate_part_time_combination,
     CreatePartTimeRequest,
     ListPartTimesResponse,
     PartTimeRowResponse,
@@ -22,6 +22,7 @@ from app.schemas.part_time import (
 logger = logging.getLogger(__name__)
 
 _PART_TIME_ORDER = {slug: index for index, slug in enumerate(PART_TIME_STORED_WORKDAYS)}
+_SHIFT_ORDER = {slug: index for index, slug in enumerate(CAMP_SHIFTS)}
 
 
 class PartTimeService:
@@ -37,10 +38,16 @@ class PartTimeService:
         return emp
 
     def _sort_rows(self, rows: list[PartTime]) -> list[PartTime]:
-        return sorted(rows, key=lambda row: _PART_TIME_ORDER.get(row.workday, 999))
+        return sorted(
+            rows,
+            key=lambda row: (
+                _PART_TIME_ORDER.get(row.workday, 999),
+                _SHIFT_ORDER.get(row.shift, 999),
+            ),
+        )
 
     def list_part_times(self, employee_number: str) -> ListPartTimesResponse:
-        """Return stored part-time rows ordered by PART_TIME_STORED_WORKDAYS."""
+        """Return stored part-time rows ordered by workday then shift."""
         emp = self._resolve_employee(employee_number)
         rows = self._sort_rows(self.repo.list_by_employee_id(emp.id))
         responses = [PartTimeRowResponse.from_orm(row) for row in rows]
@@ -55,8 +62,8 @@ class PartTimeService:
     ) -> PartTimeRowResponse:
         """Create one part-time row.
 
-        Uniqueness on ``(employee_id, workday)`` is enforced by the database
-        constraint ``uq_part_times_employee_workday``; a duplicate surfaces as
+        Uniqueness on ``(employee_id, workday, shift)`` is enforced by the database
+        constraint ``uq_part_times_employee_workday_shift``; a duplicate surfaces as
         ``409 CONSTRAINT_VIOLATION`` via the global IntegrityError handler
         (consistent with company/employee create).
         """
@@ -69,35 +76,30 @@ class PartTimeService:
         )
         self.repo.save(row)
         logger.info(
-            "Part-time row created employee_number=%s workday=%s",
+            "Part-time row created employee_number=%s workday=%s shift=%s",
             employee_number,
             req.workday,
+            req.shift,
         )
         return PartTimeRowResponse.from_orm(row)
 
     def update_part_time(
         self, employee_number: str, req: UpdatePartTimeRequest
     ) -> PartTimeRowResponse:
-        """Partial update by stored workday lookup key."""
+        """Partial update by stored workday + shift lookup keys."""
         emp = self._resolve_employee(employee_number)
-        row = self.repo.get_by_employee_and_workday(emp.id, req.workday)
+        row = self.repo.get_by_employee_workday_shift(emp.id, req.workday, req.shift)
         if row is None:
             raise APIError("PART_TIME_NOT_FOUND", 404)
 
-        effective_shift = row.shift if "shift" not in req else req.shift
-        valid, err = validate_part_time_combination(req.workday, effective_shift)
-        if not valid:
-            raise APIError(err or "INVALID_PART_TIME_COMBINATION", 400)
-
-        if "shift" in req:
-            row.shift = req.shift
         if "notes" in req:
             row.notes = req.notes
 
         logger.info(
-            "Part-time row updated employee_number=%s workday=%s",
+            "Part-time row updated employee_number=%s workday=%s shift=%s",
             employee_number,
             req.workday,
+            req.shift,
         )
         return PartTimeRowResponse.from_orm(row)
 
@@ -112,16 +114,19 @@ class PartTimeService:
         )
         return {"message": "part-time rows deleted", "count": count}
 
-    def delete_one_part_time(self, employee_number: str, workday: str) -> dict:
-        """Delete one part-time row by stored workday slug."""
+    def delete_one_part_time(
+        self, employee_number: str, workday: str, shift: str
+    ) -> dict:
+        """Delete one part-time row by stored workday + shift slugs."""
         emp = self._resolve_employee(employee_number)
-        row = self.repo.get_by_employee_and_workday(emp.id, workday)
+        row = self.repo.get_by_employee_workday_shift(emp.id, workday, shift)
         if row is None:
             raise APIError("PART_TIME_NOT_FOUND", 404)
         self.repo.delete(row)
         logger.info(
-            "Part-time row deleted employee_number=%s workday=%s",
+            "Part-time row deleted employee_number=%s workday=%s shift=%s",
             employee_number,
             workday,
+            shift,
         )
         return {"message": "part-time row deleted"}

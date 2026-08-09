@@ -14,13 +14,14 @@ class PartTimeRepository(BaseRepository[PartTime]):
         stmt = select(PartTime).where(PartTime.employee_id == employee_id)
         return list(self.db.execute(stmt).scalars().all())
 
-    def get_by_employee_and_workday(
-        self, employee_id: int, workday: str
+    def get_by_employee_workday_shift(
+        self, employee_id: int, workday: str, shift: str
     ) -> PartTime | None:
-        """One row by employee and stored workday slug; or None."""
+        """One row by employee and stored workday/shift keys; or None."""
         stmt = select(PartTime).where(
             PartTime.employee_id == employee_id,
             PartTime.workday == workday,
+            PartTime.shift == shift,
         )
         return self.db.execute(stmt).scalar_one_or_none()
 

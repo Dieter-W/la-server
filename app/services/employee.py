@@ -62,6 +62,7 @@ class EmployeeService:
                 company_name,
                 workday_context=query.workday_context,
                 checked_in=emp.id in checked_in_ids,
+                shift_filter=query.shift,
             )
             for emp, company_name in rows
         ]

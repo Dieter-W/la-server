@@ -19,8 +19,9 @@ from app.repositories.base import BaseRepository
 from app.schemas.part_time import (
     ALL_WEEK_WORKDAY,
     WEEKDAYS_WORKDAY,
-    is_weekdays_calendar_day,
 )
+from app.schemas.schedule_slot import is_weekdays_calendar_day
+from app.camp_time import CampShift
 
 
 class EmployeeRepository(BaseRepository[Employee]):
@@ -86,6 +87,68 @@ class EmployeeRepository(BaseRepository[Employee]):
         return int(n)
 
     @staticmethod
+    def _part_time_shift_tier_match(workday_filter: str, shift: str):
+        """SQL: employee has a part-time row for ``shift`` after workday precedence."""
+        calendar = (
+            select(PartTime.id)
+            .where(
+                PartTime.employee_id == Employee.id,
+                PartTime.workday == workday_filter,
+                PartTime.shift == shift,
+            )
+            .correlate(Employee)
+        )
+        calendar_exists = exists(calendar)
+
+        weekdays = (
+            select(PartTime.id)
+            .where(
+                PartTime.employee_id == Employee.id,
+                PartTime.workday == WEEKDAYS_WORKDAY,
+                PartTime.shift == shift,
+            )
+            .correlate(Employee)
+        )
+        weekdays_exists = exists(weekdays)
+
+        all_week = (
+            select(PartTime.id)
+            .where(
+                PartTime.employee_id == Employee.id,
+                PartTime.workday == ALL_WEEK_WORKDAY,
+                PartTime.shift == shift,
+            )
+            .correlate(Employee)
+        )
+        all_week_exists = exists(all_week)
+
+        weekdays_match = and_(
+            is_weekdays_calendar_day(workday_filter),
+            weekdays_exists,
+            ~calendar_exists,
+        )
+        all_week_match = and_(
+            all_week_exists,
+            ~calendar_exists,
+            or_(
+                not is_weekdays_calendar_day(workday_filter),
+                ~weekdays_exists,
+            ),
+        )
+        return or_(calendar_exists, weekdays_match, all_week_match)
+
+    @classmethod
+    def _part_time_resolved_for_shift(cls, workday_filter: str, lookup_shift: str):
+        """SQL: ``resolve_part_time_slot`` match for one lookup shift."""
+        shift_tier = cls._part_time_shift_tier_match(workday_filter, lookup_shift)
+        if lookup_shift in (CampShift.MORNING.value, CampShift.AFTERNOON.value):
+            all_day_tier = cls._part_time_shift_tier_match(
+                workday_filter, CampShift.ALL_DAY.value
+            )
+            return or_(shift_tier, and_(all_day_tier, ~shift_tier))
+        return shift_tier
+
+    @staticmethod
     def _apply_list_filters(
         stmt,
         active: bool | None,
@@ -102,52 +165,22 @@ class EmployeeRepository(BaseRepository[Employee]):
         elif active is False:
             stmt = stmt.where(Employee.active.is_(False))
         if workday_filter is not None:
-            # Keep list/count SQL aligned with ``resolve_part_time_slot`` (app/schemas/employee.py):
-            # direct calendar row > ``weekdays`` fallback (Mon–Fri, no calendar override) >
-            # ``all-week`` fallback (no calendar override; on Mon–Fri also no ``weekdays`` row).
-            # ``is_weekdays_calendar_day`` gates the weekdays branch — same helper as slot resolution.
-            shift_predicates = [PartTime.shift == shift] if shift is not None else []
-
-            direct = Employee.part_times.any(
-                and_(PartTime.workday == workday_filter, *shift_predicates)
-            )
-
-            calendar_override = (
-                select(PartTime.id)
-                .where(
-                    PartTime.employee_id == Employee.id,
-                    PartTime.workday == workday_filter,
+            # Keep list/count SQL aligned with ``resolve_part_time_slot``:
+            # shift-specific tier (workday precedence) then ``all-day`` fallback.
+            if shift is not None:
+                match = EmployeeRepository._part_time_resolved_for_shift(
+                    workday_filter, shift
                 )
-                .correlate(Employee)
-            )
-            no_calendar_override = ~exists(calendar_override)
-
-            weekdays_preds = [PartTime.workday == WEEKDAYS_WORKDAY, *shift_predicates]
-            weekdays_fallback = and_(
-                is_weekdays_calendar_day(workday_filter),
-                Employee.part_times.any(and_(*weekdays_preds)),
-                no_calendar_override,
-            )
-
-            weekdays_override = (
-                select(PartTime.id)
-                .where(
-                    PartTime.employee_id == Employee.id,
-                    PartTime.workday == WEEKDAYS_WORKDAY,
+            else:
+                morning_match = EmployeeRepository._part_time_resolved_for_shift(
+                    workday_filter, CampShift.MORNING.value
                 )
-                .correlate(Employee)
-            )
-            all_week_preds = [PartTime.workday == ALL_WEEK_WORKDAY, *shift_predicates]
-            all_week_fallback = and_(
-                Employee.part_times.any(and_(*all_week_preds)),
-                no_calendar_override,
-                or_(
-                    not is_weekdays_calendar_day(workday_filter),
-                    ~exists(weekdays_override),
-                ),
-            )
+                afternoon_match = EmployeeRepository._part_time_resolved_for_shift(
+                    workday_filter, CampShift.AFTERNOON.value
+                )
+                match = or_(morning_match, afternoon_match)
 
-            stmt = stmt.where(or_(direct, weekdays_fallback, all_week_fallback))
+            stmt = stmt.where(match)
 
         if checked_in is True:
             attendance_row = (

@@ -15,12 +15,12 @@ from app.schemas.part_time import (
     PART_TIME_CALENDAR_WORKDAYS,
     WEEKDAYS_CALENDAR_WORKDAYS,
     WEEKDAYS_WORKDAY,
-    is_weekdays_calendar_day,
     parse_list_workday_param,
     project_api_workday_label,
     resolve_part_time_slot,
     validate_part_time_combination,
 )
+from app.schemas.schedule_slot import is_weekdays_calendar_day
 from app.village_config import get_camp_timezone
 from tests.test_camp_time import BERLIN, CAMP_MONDAY
 from tests.test_part_time_helpers import (
@@ -235,7 +235,8 @@ def test_employees_list_shift_all_day_filter_and_response(
         print(response.text)
     assert response.status_code == 200
     data = response.get_json()
-    assert data["count"] == 0
+    assert data["count"] == 1
+    assert data["employees"][0]["shift"] == "all-day"
 
     response = client.get("/api/employees/A00265")
     if response.status_code != 200:
@@ -430,22 +431,50 @@ def test_resolve_part_time_slot_precedence_calendar_over_weekdays_over_all_week(
         part_time_row(WEEKDAYS_WORKDAY, "morning"),
         part_time_row("tuesday", "afternoon"),
     ]
-    assert resolve_part_time_slot(rows, "tuesday").shift == "afternoon"
-    assert resolve_part_time_slot(rows, "wednesday").shift == "morning"
-    assert resolve_part_time_slot(rows, "saturday").shift == "morning"
+    assert resolve_part_time_slot(rows, "tuesday", "afternoon").shift == "afternoon"
+    assert resolve_part_time_slot(rows, "wednesday", "morning").shift == "morning"
+    assert resolve_part_time_slot(rows, "saturday", "morning").shift == "morning"
 
 
 def test_resolve_part_time_slot_weekdays_does_not_match_weekend():
     rows = [part_time_row(WEEKDAYS_WORKDAY, "morning")]
-    assert resolve_part_time_slot(rows, "friday") is not None
-    assert resolve_part_time_slot(rows, "saturday") is None
-    assert resolve_part_time_slot(rows, "sunday") is None
+    assert resolve_part_time_slot(rows, "friday", "morning") is not None
+    assert resolve_part_time_slot(rows, "saturday", "morning") is None
+    assert resolve_part_time_slot(rows, "sunday", "morning") is None
 
 
 def test_resolve_part_time_slot_all_week_fills_weekend():
     rows = [part_time_row(ALL_WEEK_WORKDAY, "afternoon")]
-    assert resolve_part_time_slot(rows, "saturday").shift == "afternoon"
-    assert resolve_part_time_slot(rows, "sunday").shift == "afternoon"
+    assert resolve_part_time_slot(rows, "saturday", "afternoon").shift == "afternoon"
+    assert resolve_part_time_slot(rows, "sunday", "afternoon").shift == "afternoon"
+
+
+def test_resolve_part_time_slot_all_day_fallback_for_shift_lookup():
+    """``all-day`` rows match ``morning``/``afternoon`` when no shift-specific row exists."""
+    rows = [part_time_row("wednesday", "all-day")]
+    assert resolve_part_time_slot(rows, "wednesday", "morning").shift == "all-day"
+    assert resolve_part_time_slot(rows, "wednesday", "afternoon").shift == "all-day"
+    assert resolve_part_time_slot(rows, "wednesday", "all-day").shift == "all-day"
+
+
+def test_resolve_part_time_slot_shift_specific_beats_all_day():
+    """Shift-specific row wins over ``all-day`` on the same calendar day."""
+    rows = [
+        part_time_row("wednesday", "morning"),
+        part_time_row("wednesday", "all-day"),
+    ]
+    assert resolve_part_time_slot(rows, "wednesday", "morning").shift == "morning"
+    assert resolve_part_time_slot(rows, "wednesday", "afternoon").shift == "all-day"
+
+
+def test_resolve_part_time_slot_aggregate_shift_beats_all_day():
+    """``weekdays/morning`` wins over calendar ``all-day`` for morning lookup."""
+    rows = [
+        part_time_row(WEEKDAYS_WORKDAY, "morning"),
+        part_time_row("wednesday", "all-day"),
+    ]
+    assert resolve_part_time_slot(rows, "wednesday", "morning").shift == "morning"
+    assert resolve_part_time_slot(rows, "wednesday", "afternoon").shift == "all-day"
 
 
 def test_parse_list_workday_param_rejects_aggregate_slugs():
@@ -545,14 +574,23 @@ def test_employees_list_weekdays_plus_friday_afternoon_precedence(
     row = data["employees"][0]
     assert row["employee_number"] == "A00265"
     assert row["workday"] == "friday"
-    assert row["shift"] == "afternoon"
+    assert row["shift"] == "morning"
 
     response = client.get("/api/employees?workday=friday&shift=morning")
     if response.status_code != 200:
         print(response.text)
     assert response.status_code == 200
     data = response.get_json()
-    assert data["count"] == 0
+    assert data["count"] == 1
+    assert data["employees"][0]["shift"] == "morning"
+
+    response = client.get("/api/employees?workday=friday&shift=afternoon")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 1
+    assert data["employees"][0]["shift"] == "afternoon"
 
     response = client.get("/api/employees?workday=thursday")
     if response.status_code != 200:
@@ -669,9 +707,13 @@ def test_list_filter_matches_resolve_helper(
     rows = PART_TIME_FILTER_PARITY_SCENARIOS[scenario]
     with app.app_context():
         session = app.SessionLocal()
-        seed_part_time_rows(session, rows)
-        expected = count_employees_matching_workday_filter(session, filter_day)
-        session.close()
+        try:
+            seed_part_time_rows(session, rows)
+            expected = count_employees_matching_workday_filter(session, filter_day)
+        finally:
+            # An unclosed session keeps a metadata lock on ``part_times`` and
+            # deadlocks the ``drop_all`` teardown.
+            session.close()
 
     response = client.get(f"/api/employees?workday={filter_day}")
     if response.status_code != 200:

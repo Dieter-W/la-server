@@ -314,6 +314,7 @@ class EmployeeResponse:
         *,
         workday_context: ListWorkdayContext | None = None,
         checked_in: bool = False,
+        shift_filter: str | None = None,
     ) -> EmployeeResponse:
         """Map Employee ORM (+ optional auth_group) to API response shape."""
         ctx = workday_context or parse_list_workday_param("today")
@@ -321,6 +322,7 @@ class EmployeeResponse:
             emp,
             lookup_workday=ctx.lookup_workday,
             response_label=ctx.response_label,
+            lookup_shift=shift_filter,
         )
         return cls(
             id=emp.id,

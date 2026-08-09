@@ -12,14 +12,12 @@ from app.errors import APIError
 from app.models import Company, CompanyJobsMax
 from app.schemas import _UNSET
 from app.schemas.part_time import (
-    ALL_WEEK_WORKDAY,
-    WEEKDAYS_WORKDAY,
-    is_weekdays_calendar_day,
     project_api_workday_label,
     validate_part_time_combination,
     verify_part_time_stored_workday,
     verify_part_time_shift,
 )
+from app.schemas.schedule_slot import resolve_schedule_slot
 
 
 def verify_jobs_max(value: Any) -> int:
@@ -31,48 +29,13 @@ def verify_jobs_max(value: Any) -> int:
     return value
 
 
-def _resolve_company_jobs_max_slot_for_shift(
-    rows: list[CompanyJobsMax],
-    lookup_workday: str,
-    shift: str,
-) -> CompanyJobsMax | None:
-    """Match rows for one shift slug with workday precedence."""
-    matching_shift = [row for row in rows if row.shift == shift]
-    specific = weekdays_row = all_week_row = None
-    for row in matching_shift:
-        if row.workday == lookup_workday:
-            specific = row
-        elif row.workday == WEEKDAYS_WORKDAY:
-            weekdays_row = row
-        elif row.workday == ALL_WEEK_WORKDAY:
-            all_week_row = row
-    if specific is not None:
-        return specific
-    if weekdays_row is not None and is_weekdays_calendar_day(lookup_workday):
-        return weekdays_row
-    return all_week_row
-
-
 def resolve_company_jobs_max_slot(
     rows: list[CompanyJobsMax],
     lookup_workday: str,
     lookup_shift: str,
 ) -> CompanyJobsMax | None:
-    """Resolve the effective schedule row for a calendar day and shift.
-
-    Tries an exact shift match first (``morning``/``afternoon``/``all-day``),
-    then applies workday precedence: calendar day > ``weekdays`` > ``all-week``.
-    For ``morning`` or ``afternoon`` lookups with no shift-specific row, falls
-    back to an ``all-day`` row with the same workday precedence.
-    """
-    slot = _resolve_company_jobs_max_slot_for_shift(rows, lookup_workday, lookup_shift)
-    if slot is not None:
-        return slot
-    if lookup_shift in (CampShift.MORNING.value, CampShift.AFTERNOON.value):
-        return _resolve_company_jobs_max_slot_for_shift(
-            rows, lookup_workday, CampShift.ALL_DAY.value
-        )
-    return None
+    """Resolve the effective schedule row for a calendar day and shift."""
+    return resolve_schedule_slot(rows, lookup_workday, lookup_shift)
 
 
 def company_uses_default_jobs_max(comp: Company) -> bool:

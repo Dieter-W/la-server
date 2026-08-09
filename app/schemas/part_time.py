@@ -17,6 +17,7 @@ from app.camp_time import (
 from app.errors import APIError
 from app.models import Employee, PartTime
 from app.schemas import _UNSET
+from app.schemas.schedule_slot import resolve_schedule_slot
 
 # ---------------------------------------------------------------------
 # Part-time primitives — enums, constants, helpers
@@ -49,22 +50,12 @@ PART_TIME_AGGREGATE_STORED_SLUGS = frozenset(
 )
 PART_TIME_CALENDAR_WORKDAYS = list(CALENDAR_WEEKDAY_SLUGS)
 PART_TIME_API_WORKDAY_LABELS = ["today", *PART_TIME_CALENDAR_WORKDAYS]
-# Mon–Fri subset; shared by ``is_weekdays_calendar_day``, slot resolution, and list SQL.
 WEEKDAYS_CALENDAR_WORKDAYS = PART_TIME_CALENDAR_WORKDAYS[:5]
 PART_TIME_STORED_WORKDAYS = [d.value for d in PartTimeWorkday]
 PART_TIME_SHIFTS = CAMP_SHIFTS
 
 camp_day = camp_time.camp_day
 camp_instant = camp_time.camp_instant
-
-
-def is_weekdays_calendar_day(day: str) -> bool:
-    """True when ``day`` is Monday through Friday (calendar slug only).
-
-    Used by ``resolve_part_time_slot`` and ``EmployeeRepository._apply_list_filters``
-    so aggregate ``weekdays`` rows never match Saturday or Sunday.
-    """
-    return day.strip().lower() in WEEKDAYS_CALENDAR_WORKDAYS
 
 
 def verify_part_time_shift(shift: str) -> tuple[bool, str | None]:
@@ -103,21 +94,29 @@ def validate_part_time_combination(workday: str, shift: str) -> tuple[bool, str 
 def resolve_part_time_slot(
     part_times: list[PartTime],
     lookup_workday: str,
+    lookup_shift: str,
 ) -> PartTime | None:
-    """Resolve the effective part-time row for a calendar day (precedence: day > weekdays > all-week)."""
-    specific = weekdays_row = all_week_row = None
-    for pt in part_times:
-        if pt.workday == lookup_workday:
-            specific = pt
-        elif pt.workday == WEEKDAYS_WORKDAY:
-            weekdays_row = pt
-        elif pt.workday == ALL_WEEK_WORKDAY:
-            all_week_row = pt
-    if specific is not None:
-        return specific
-    if weekdays_row is not None and is_weekdays_calendar_day(lookup_workday):
-        return weekdays_row
-    return all_week_row
+    """Resolve the effective part-time row for a calendar day and shift."""
+    return resolve_schedule_slot(part_times, lookup_workday, lookup_shift)
+
+
+def part_time_slot_exists(
+    part_times: list[PartTime],
+    lookup_workday: str,
+    lookup_shift: str | None = None,
+) -> bool:
+    """True when the employee has an effective slot for the day (and optional shift)."""
+    if lookup_shift is not None:
+        return (
+            resolve_part_time_slot(part_times, lookup_workday, lookup_shift) is not None
+        )
+    morning = resolve_part_time_slot(
+        part_times, lookup_workday, PartTimeShift.MORNING.value
+    )
+    afternoon = resolve_part_time_slot(
+        part_times, lookup_workday, PartTimeShift.AFTERNOON.value
+    )
+    return morning is not None or afternoon is not None
 
 
 def employee_is_full_time(emp: Employee) -> bool:
@@ -172,22 +171,55 @@ def project_api_workday_label(label: str | None) -> str | None:
     return None
 
 
+def _resolve_projection_shift(
+    part_times: list[PartTime],
+    lookup_workday: str,
+    *,
+    explicit_shift: str | None = None,
+    now: datetime | None = None,
+) -> str:
+    """Pick the shift slug used to project ``workday``/``shift`` on employee JSON."""
+    if explicit_shift is not None:
+        return explicit_shift
+    today = camp_time.camp_day(now=now)
+    candidates: list[str] = []
+    if lookup_workday == today:
+        candidates.append(camp_time.camp_shift(now=now))
+    candidates.extend([PartTimeShift.MORNING.value, PartTimeShift.AFTERNOON.value])
+    seen: set[str] = set()
+    for shift in candidates:
+        if shift in seen:
+            continue
+        seen.add(shift)
+        if resolve_part_time_slot(part_times, lookup_workday, shift) is not None:
+            return shift
+    return camp_time.camp_shift(now=now)
+
+
 def employee_context_workday_and_shift(
     emp: Employee,
     *,
     lookup_workday: str,
     response_label: str,
+    lookup_shift: str | None = None,
+    now: datetime | None = None,
 ) -> tuple[str | None, str | None]:
     """API ``workday`` / ``shift`` for one employee and a context weekday.
 
     Full-time employees (no ``part_times`` rows) get ``(response_label, "all-day")``.
     Part-time employees get ``(response_label, shift)`` when a row exists for
-    ``lookup_workday``; otherwise ``(None, None)``.
+    ``lookup_workday`` and the resolved lookup shift (list ``?shift=``, else
+    ``camp_shift()`` for today, else the first shift tier that resolves);
+    otherwise ``(None, None)``.
     The ``workday`` label is never a stored aggregate slug (``weekdays``, ``all-week``).
     """
     if employee_is_full_time(emp):
         return project_api_workday_label(response_label), PartTimeShift.ALL_DAY.value
-    pt = resolve_part_time_slot(emp.part_times, lookup_workday)
+    if lookup_shift is None:
+        lookup_shift = _resolve_projection_shift(
+            emp.part_times, lookup_workday, now=now
+        )
+    pt = resolve_part_time_slot(emp.part_times, lookup_workday, lookup_shift)
     if pt is not None:
         return project_api_workday_label(response_label), pt.shift
     return None, None
@@ -217,15 +249,22 @@ def _normalize_shift(shift: str) -> str:
 @dataclass
 class DeletePartTimeQuery:
     workday: str | None
+    shift: str | None
 
     @classmethod
     def from_query(cls, args: Any) -> DeletePartTimeQuery:
-        """Optional ``?workday=`` selects delete-one; absent means delete-all."""
-        raw = args.get("workday")
-        if raw is None:
-            return cls(workday=None)
-        slug = _normalize_workday(str(raw))
-        return cls(workday=slug)
+        """Optional ``?workday=&shift=`` selects delete-one; absent means delete-all."""
+        raw_workday = args.get("workday")
+        raw_shift = args.get("shift")
+        if raw_workday is None and raw_shift is None:
+            return cls(workday=None, shift=None)
+        if raw_workday is None:
+            raise APIError("INVALID_PART_TIME_WORKDAY", 400)
+        if raw_shift is None:
+            raise APIError("INVALID_PART_TIME_SHIFT", 400)
+        workday = _normalize_workday(str(raw_workday))
+        shift = _normalize_shift(str(raw_shift))
+        return cls(workday=workday, shift=shift)
 
 
 # ---------------------------------------------------------------------
@@ -265,10 +304,10 @@ class CreatePartTimeRequest:
 # ---------------------------------------------------------------------
 @dataclass
 class UpdatePartTimeRequest:
-    """Partial PUT body; ``workday`` is the lookup key (not renamable)."""
+    """Partial PUT body; ``workday`` and ``shift`` are lookup keys (not renamable)."""
 
     workday: str
-    shift: Any = _UNSET
+    shift: str
     notes: Any = _UNSET
 
     @classmethod
@@ -276,16 +315,15 @@ class UpdatePartTimeRequest:
         if not data or not isinstance(data, dict):
             raise APIError("REQUEST_BODY_MUST_BE_A_JSON_OBJECT", 400)
         workday_raw = data.get("workday")
+        shift_raw = data.get("shift")
         if workday_raw is None or (
             isinstance(workday_raw, str) and not workday_raw.strip()
         ):
             raise APIError("REQUIRED_JSON_INPUT_MISSING_OR_EMPTY", 400)
+        if shift_raw is None or (isinstance(shift_raw, str) and not shift_raw.strip()):
+            raise APIError("REQUIRED_JSON_INPUT_MISSING_OR_EMPTY", 400)
         workday = _normalize_workday(str(workday_raw))
-        shift = (
-            _normalize_shift(str(data["shift"]))
-            if "shift" in data and data["shift"] is not None
-            else _UNSET
-        )
+        shift = _normalize_shift(str(shift_raw))
         notes = (data.get("notes") or None) if "notes" in data else _UNSET
         return cls(workday=workday, shift=shift, notes=notes)
 

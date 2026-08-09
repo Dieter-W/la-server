@@ -183,7 +183,7 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | POST   | `/api/part-time/<employee_number>`             | Create part-time row                        | admin required                   |
 | PUT    | `/api/part-time/<employee_number>`             | Update part-time row                        | admin required                   |
 | DELETE | `/api/part-time/<employee_number>`             | Delete all part-time rows                   | admin required                   |
-| DELETE | `/api/part-time/<employee_number>?workday=`    | Delete one part-time row                    | admin required                   |
+| DELETE | `/api/part-time/<employee_number>?workday=&shift=` | Delete one part-time row                    | admin required                   |
 | POST   | `/api/attendance/check-in/<employee_number>`   | Record check-in for camp today              | staff or higher                  |
 | POST   | `/api/attendance/check-out/<employee_number>`  | Record optional check-out for camp today    | staff or higher                  |
 | GET    | `/api/attendance/check-ins?workday=`           | List check-ins for a camp day               | public                           |
@@ -2051,7 +2051,7 @@ Admin CRUD on stored **`part_times`** rows at **`/api/part-time/{employee_number
 
 Every route validates path **`employee_number`** before database access (same rules as the Employee API): invalid format/checksum → **`400`** **`EMPLOYEE_NUMBER_WRONG`**; valid number but no employee row → **`404`** **`EMPLOYEE_NOT_FOUND`**.
 
-**Write validation** (POST, PUT, and DELETE-one **`?workday=`**):
+**Write validation** (POST, PUT, and DELETE-one **`?workday=&shift=`**):
 
 1. **`verify_part_time_stored_workday`** → **`400`** **`INVALID_PART_TIME_WORKDAY`**
 2. **`verify_part_time_shift`** → **`400`** **`INVALID_PART_TIME_SHIFT`**
@@ -2116,7 +2116,7 @@ None.
 ### Create part-time row - /api/part-time/<employee_number>
 
 **Explanation**
-Creates one stored row. **`workday`** is required; **`shift`** defaults to **`all-day`**; **`notes`** is optional. Duplicate **`workday`** for the same employee → **`409`** **`CONSTRAINT_VIOLATION`** (enforced by the DB unique constraint `uq_part_times_employee_workday`). **Authorization:** admin required.
+Creates one stored row. **`workday`** is required; **`shift`** defaults to **`all-day`**; **`notes`** is optional. Duplicate **`(workday, shift)`** for the same employee → **`409`** **`CONSTRAINT_VIOLATION`** (enforced by the DB unique constraint `uq_part_times_employee_workday_shift`). **Authorization:** admin required.
 
 **Parameters** (path)
 
@@ -2176,7 +2176,7 @@ curl -s -X POST "http://localhost:5000/api/part-time/M00252" \
 ### Update part-time row - /api/part-time/<employee_number>
 
 **Explanation**
-Partial update by stored **`workday`** lookup key (**`workday`** is not renamable). Include **`shift`** and/or **`notes`** to change them. Unknown row → **`404`** **`PART_TIME_NOT_FOUND`**. **Authorization:** admin required.
+Partial update by stored **`workday`** + **`shift`** lookup keys (neither is renamable). Include **`notes`** to change it. Unknown row → **`404`** **`PART_TIME_NOT_FOUND`**. **Authorization:** admin required.
 
 **Parameters** (path)
 
@@ -2205,7 +2205,7 @@ curl -s -X PUT "http://localhost:5000/api/part-time/M00252" \
 | Field     | Required | Description |
 | --------- | -------- | ----------- |
 | `workday` | Yes      | Lookup key (stored slug) |
-| `shift`   | No       | New shift when present |
+| `shift`   | Yes      | Lookup key (stored slug) |
 | `notes`   | No       | New notes; send `null` to clear |
 
 **JSON response**
@@ -2225,7 +2225,7 @@ Same shape as create (**`200`**).
 ### Delete all part-time rows - /api/part-time/<employee_number>
 
 **Explanation**
-Removes every stored row for the employee (idempotent when already empty). Restores full-time: **`GET /api/employees/{employee_number}`** then shows **`full_time`: true**, **`workday`: `"today"`**, **`shift`: `"all-day"`** (when calendar today applies). **Authorization:** admin required. When **`?workday=`** is present, see [Delete one part-time row](#delete-one-part-time-row---apipart-timeemployee_numberworkday).
+Removes every stored row for the employee (idempotent when already empty). Restores full-time: **`GET /api/employees/{employee_number}`** then shows **`full_time`: true**, **`workday`: `"today"`**, **`shift`: `"all-day"`** (when calendar today applies). **Authorization:** admin required. When **`?workday=&shift=`** is present, see [Delete one part-time row](#delete-one-part-time-row---apipart-timeemployee_numberworkdayshift).
 
 **Parameters** (path)
 
@@ -2269,12 +2269,12 @@ None.
 
 ---
 
-<a id="delete-one-part-time-row---apipart-timeemployee_numberworkday"></a>
+<a id="delete-one-part-time-row---apipart-timeemployee_numberworkdayshift"></a>
 
-### Delete one part-time row - /api/part-time/<employee_number>?workday=
+### Delete one part-time row - /api/part-time/<employee_number>?workday=&shift=
 
 **Explanation**
-Deletes the row for one stored **`workday`** slug. Unknown row → **`404`** **`PART_TIME_NOT_FOUND`**. **Authorization:** admin required.
+Deletes the row for one stored **`workday`** + **`shift`** pair. Both query parameters are required together. Unknown row → **`404`** **`PART_TIME_NOT_FOUND`**. **Authorization:** admin required.
 
 **Parameters** (path)
 
@@ -2286,18 +2286,19 @@ Deletes the row for one stored **`workday`** slug. Unknown row → **`404`** **`
 
 | Name      | Required | Description |
 | --------- | -------- | ----------- |
-| `workday` | Yes      | Stored slug to delete |
+| `workday` | Yes      | Stored slug |
+| `shift`   | Yes      | Stored slug |
 
 **Endpoint sample**
 
 ```http
-DELETE /api/part-time/M00252?workday=weekdays HTTP/1.1
+DELETE /api/part-time/M00252?workday=weekdays&shift=morning HTTP/1.1
 Host: localhost:5000
 Authorization: Bearer <jwt-access-token>
 ```
 
 ```bash
-curl -s -X DELETE "http://localhost:5000/api/part-time/M00252?workday=weekdays" \
+curl -s -X DELETE "http://localhost:5000/api/part-time/M00252?workday=weekdays&shift=morning" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -2317,7 +2318,7 @@ None.
 | Code | Meaning |
 | ---- | ------- |
 | 200  | OK |
-| 400  | `{"error": "INVALID_PART_TIME_WORKDAY"}` |
+| 400  | Validation errors (`INVALID_PART_TIME_WORKDAY`, `INVALID_PART_TIME_SHIFT`, …) |
 | 403  | Not admin |
 | 404  | `{"error": "EMPLOYEE_NOT_FOUND"}` or `{"error": "PART_TIME_NOT_FOUND"}` |
 
