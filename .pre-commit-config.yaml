@@ -3,13 +3,27 @@ fail_fast: true
 
 repos:
   # ------------------------------------
+  # Patch version bump (every commit)
+  # ------------------------------------
+  - repo: local
+    hooks:
+      - id: bump-patch-version
+        name: Bump patch version
+        entry: "python scripts/development/bump_patch_version.py"
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+        stages: [commit]
+
+  # ------------------------------------
   # Generate requirements.txt if needed
   # ------------------------------------
   - repo: local
     hooks:
       - id: requirements.txt
         name: Create requirements.txt
-        entry: "python scripts/$check_poetry_to_requirements.py"
+        entry: "python scripts/development/$check_poetry_to_requirements.py"
         language: system
         # Only Poetry inputs matter; hook ignores argv and uses staged files.
         # Do not match all Python files: pre-commit runs those invocations in
@@ -55,9 +69,6 @@ repos:
         types: [python]
         pass_filenames: true
 
-      # ------------------------
-      # Pytest (pre-push)
-      # ------------------------
       - id: pytest
         name: Run Pytest
         entry: "poetry run pytest"
@@ -66,3 +77,18 @@ repos:
         pass_filenames: false
         always_run: true
         require_serial: true
+        stages: [commit]
+
+  # ------------------------------------
+  # Pre-push: minor bump on hash change
+  # ------------------------------------
+  - repo: local
+    hooks:
+      - id: bump-minor-on-hash-change
+        name: Bump minor version on compatibility hash change
+        entry: "python scripts/development/bump_minor_on_hash_change.py"
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+        stages: [push]

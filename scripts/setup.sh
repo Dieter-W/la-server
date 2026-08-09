@@ -35,7 +35,7 @@ Production (no Poetry): data/requirements.txt is a poetry export; edit pyproject
 - provision: verify .env was customized, create .venv, pip install -r, create database.
 
 Development (Poetry: poetry install --with dev, pre-commit, optional checks):
-- development: poetry self add poetry-plugin-export, poetry install --with dev, pre-commit install, optional pytest/MariaDB checks.
+- development: poetry self add poetry-plugin-export, poetry install --with dev, pre-commit install (commit + push hooks), optional pytest/MariaDB checks.
 - help: show this help (same as -h, --help).
 
 Options:
@@ -380,8 +380,8 @@ echo "Installing dependencies (poetry install --with dev)..."
 poetry install --with dev
 
 echo ""
-echo "Installing Git pre-commit hooks (poetry run pre-commit install)..."
-poetry run pre-commit install
+echo "Installing Git pre-commit and pre-push hooks (poetry run pre-commit install)..."
+poetry run pre-commit install --hook-type pre-commit --hook-type pre-push
 
 if [[ "$SKIP_TEST_ENV_CHECK" -eq 1 ]]; then
   echo ""
