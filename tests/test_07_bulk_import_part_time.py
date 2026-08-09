@@ -11,9 +11,15 @@ _EMPLOYEES_CSV = "./data/csv-example/employees_sample.csv"
 _PART_TIME_CSV = "./data/csv-example/part_time_sample.csv"
 
 
-def _run_bulk_import(script: str, csv_path: str) -> subprocess.CompletedProcess:
+def _run_bulk_import(
+    script: str,
+    csv_path: str,
+    *,
+    check: bool = True,
+) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, script, csv_path],
+        check=check,
         capture_output=True,
         text=True,
         cwd=str(_REPO_ROOT),
@@ -85,8 +91,9 @@ def test_bulk_import_part_time_name_mismatch(app, db_session, tmp_path):
     result = _run_bulk_import(
         "./scripts/bulk_import_part_time.py",
         str(bad_csv),
+        check=False,
     )
-    assert result.returncode == 1
+    assert result.returncode == 1, result.stderr
 
     data = PartTime.query.all()
     assert len(data) == 0

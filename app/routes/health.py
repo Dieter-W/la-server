@@ -1,5 +1,6 @@
 """Health check and status endpoints."""
 
+import logging
 import os
 import sys
 import time
@@ -7,9 +8,12 @@ import time
 from flask import Blueprint, current_app, g, jsonify
 from sqlalchemy import text
 from sqlalchemy.engine.url import make_url
+from sqlalchemy.exc import ArgumentError
 from sqlalchemy.pool import QueuePool
 
 from app.auth.decorations import admin_required
+
+logger = logging.getLogger(__name__)
 
 health_bp = Blueprint("health", __name__)
 
@@ -34,7 +38,9 @@ def _pool_stats(engine) -> dict:
         try:
             out["status"] = pool.status()
         except Exception:  # pragma: no cover - defensive
-            pass
+            logger.warning(
+                "Could not read pool status for %s", type(pool).__name__, exc_info=True
+            )
     return out
 
 
@@ -50,7 +56,7 @@ def _database_summary(config: dict) -> dict:
             "port": u.port,
             "database": u.database,
         }
-    except Exception as e:
+    except ArgumentError as e:
         return {"error": "could not parse database URL", "detail": str(e)}
 
 
@@ -111,7 +117,7 @@ def db_health_check():
         g.db.execute(text("SELECT 1"))
         return jsonify({"status": "ok", "database": "connected"})
     except Exception as e:
-        # codeql[py/stack-trace-exposure]
+        logger.warning("Database health check failed", exc_info=True)
         return jsonify({"status": "error", "database": str(e)}), 503
 
 

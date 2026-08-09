@@ -16,7 +16,6 @@ class Base(DeclarativeBase):
     """Base class for SQLAlchemy models."""
 
 
-
 db = SQLAlchemy(model_class=Base)
 
 logger = logging.getLogger(__name__)

@@ -30,9 +30,9 @@ payload_put = {
 # ---------------------------------------------------------------------
 # POST /job-assignments — invalid payload
 # ---------------------------------------------------------------------
-def test_job_assignments_create_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_job_assignments_create_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     """POST with non-JSON body returns 400 REQUEST_BODY_MUST_BE_A_JSON_OBJECT."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/job-assignments",
@@ -46,9 +46,9 @@ def test_job_assignments_create_invalid_payload_error_1(client, sample_authentic
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
-def test_job_assignments_create_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_job_assignments_create_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     """POST without company_name returns 400 REQUIRED_JSON_INPUT_MISSING_OR_EMPTY."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/job-assignments",
@@ -62,9 +62,9 @@ def test_job_assignments_create_invalid_payload_error_2(client, sample_authentic
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_job_assignments_create_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_job_assignments_create_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     """POST without employee_number returns 400 REQUIRED_JSON_INPUT_MISSING_OR_EMPTY."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/job-assignments",
@@ -78,9 +78,9 @@ def test_job_assignments_create_invalid_payload_error_3(client, sample_authentic
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_job_assignments_create_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_job_assignments_create_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     """POST with empty company_name returns 400 REQUIRED_JSON_INPUT_MISSING_OR_EMPTY."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/job-assignments",
@@ -94,9 +94,9 @@ def test_job_assignments_create_invalid_payload_error_4(client, sample_authentic
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_job_assignments_create_invalid_payload_error_5(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_job_assignments_create_invalid_payload_error_5(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     """POST with empty employee_number returns 400 REQUIRED_JSON_INPUT_MISSING_OR_EMPTY."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/job-assignments",
@@ -110,14 +110,14 @@ def test_job_assignments_create_invalid_payload_error_5(client, sample_authentic
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_job_assignments_create_invalid_payload_error_6(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_job_assignments_create_invalid_payload_error_6(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     """POST with invalid employee_number returns 400 EMPLOYEE_NUMBER_WRONG_IN_JSON."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/job-assignments",
         headers={"Authorization": f"Bearer {token}"},
-        json={"company_name": "Test", "employee_number": "Wrong"}, # fmt: skip
+        json={"company_name": "Test", "employee_number": "Wrong"},
     )
     if response.status_code != 400:
         print(response.text)
@@ -129,9 +129,9 @@ def test_job_assignments_create_invalid_payload_error_6(client, sample_authentic
 # ---------------------------------------------------------------------
 # POST /job-assignments/reset — invalid payload
 # ---------------------------------------------------------------------
-def test_job_assignments_reset_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_job_assignments_reset_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     """POST reset with non-JSON body returns 400 REQUEST_BODY_MUST_BE_A_JSON_OBJECT."""
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/job-assignments/reset",
@@ -145,9 +145,9 @@ def test_job_assignments_reset_invalid_payload_error_1(client, sample_authentica
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
-def test_job_assignments_reset_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_job_assignments_reset_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     """POST reset without company_name returns 400 REQUIRED_JSON_INPUT_MISSING_OR_EMPTY."""
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/job-assignments/reset",
@@ -161,9 +161,9 @@ def test_job_assignments_reset_invalid_payload_error_2(client, sample_authentica
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_job_assignments_reset_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_job_assignments_reset_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     """POST reset with empty company_name returns 400 REQUIRED_JSON_INPUT_MISSING_OR_EMPTY."""
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/job-assignments/reset",
@@ -207,6 +207,7 @@ def test_job_assignments_get_ok(client, sample_company, sample_employee, sample_
         for job_data in data["job_assignments"]
     )
 
+
 def test_job_assignments_get_ok_empty(client, sample_company, sample_employee,):  # fmt: skip
     """GET /api/job-assignments with no rows returns 200, empty list, and count 0."""
     response = client.get("/api/job-assignments")
@@ -219,12 +220,13 @@ def test_job_assignments_get_ok_empty(client, sample_company, sample_employee,):
     assert data["job_assignments"] == []
     assert data["count"] == 0
 
+
 # ---------------------------------------------------------------------
 # Create job_assignment API
 # ---------------------------------------------------------------------
-def test_job_assignments_create_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_create_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
     """POST creates assignment with generated number and increments list count."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.get("/api/job-assignments")
     if response.status_code != 200:
@@ -257,9 +259,10 @@ def test_job_assignments_create_ok(client, sample_authentication, sample_company
     data = response.get_json()
     assert data["count"] == 3
 
-def test_job_assignments_create_error_1(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+
+def test_job_assignments_create_error_1(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
     """POST with unknown company returns 404 COMPANY_NOT_FOUND."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     payload_wrong = payload_create.copy()
     payload_wrong["company_name"] = "Wrong"
@@ -275,9 +278,9 @@ def test_job_assignments_create_error_1(client, sample_authentication, sample_co
     assert data["error"] == "COMPANY_NOT_FOUND"
 
 
-def test_job_assignments_create_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_create_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
     """POST with inactive company returns 400 COMPANY_NOT_ACTIVE."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     payload_wrong = payload_create.copy()
     payload_wrong["company_name"] = "Bank"
@@ -293,9 +296,9 @@ def test_job_assignments_create_error_2(client, sample_authentication, sample_co
     assert data["error"] == "COMPANY_NOT_ACTIVE"
 
 
-def test_job_assignments_create_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_create_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
     """POST with unknown employee returns 404 EMPLOYEE_NOT_FOUND."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     payload_wrong = payload_create.copy()
     payload_wrong["employee_number"] = "TEST00753"
@@ -311,9 +314,10 @@ def test_job_assignments_create_error_3(client, sample_authentication, sample_co
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
-def test_job_assignments_create_error_4(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+
+def test_job_assignments_create_error_4(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
     """POST with inactive employee returns 400 EMPLOYEE_NOT_ACTIVE."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     payload_wrong = payload_create.copy()
     payload_wrong["employee_number"] = "M00155"
@@ -329,9 +333,9 @@ def test_job_assignments_create_error_4(client, sample_authentication, sample_co
     assert data["error"] == "EMPLOYEE_NOT_ACTIVE"
 
 
-def test_job_assignments_create_error_5(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_create_error_5(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
     """Duplicate POST for same company and employee returns 400 JOB_ALREADY_ASSIGNED."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/job-assignments",
@@ -354,9 +358,9 @@ def test_job_assignments_create_error_5(client, sample_authentication, sample_co
     assert data["error"] == "JOB_ALREADY_ASSIGNED"
 
 
-def test_job_assignments_create_error_6(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_create_error_6(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
     """POST when company has no jobs left returns 400 NO_JOB_LEFT."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     payload_wrong = payload_create.copy()
     payload_wrong["company_name"] = "Bauhof"
@@ -402,9 +406,9 @@ def test_job_assignments_create_error_7_effective_schedule_cap(
 # ---------------------------------------------------------------------
 # Deleted job_assignment API
 # ---------------------------------------------------------------------
-def test_job_assignments_delete_ok(client, sample_authentication, sample_company,  sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_delete_ok(client, sample_authentication, sample_company,  sample_employee, sample_job_assignment,):  # fmt: skip
     """DELETE by assignment number returns 200 with job deleted message."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     job_assignment_number = create_job_assignment_number(sample_job_assignment.id)
     response = client.delete(
@@ -420,7 +424,7 @@ def test_job_assignments_delete_ok(client, sample_authentication, sample_company
 
 def test_job_assignments_delete_error_1(client, sample_authentication, sample_employee):
     """DELETE with invalid assignment number returns 400 JOB_ASSIGNMENT_NUMBER_WRONG."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     job_assignment_number = "Wrong"
     response = client.delete(
@@ -434,9 +438,9 @@ def test_job_assignments_delete_error_1(client, sample_authentication, sample_em
     assert data["error"] == "JOB_ASSIGNMENT_NUMBER_WRONG"
 
 
-def test_job_assignments_delete_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_delete_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
     """DELETE with malformed assignment number returns 400 JOB_ASSIGNMENT_NUMBER_WRONG."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     job_assignment_number = "*0000000"
     response = client.delete(
@@ -450,9 +454,9 @@ def test_job_assignments_delete_error_2(client, sample_authentication, sample_co
     assert data["error"] == "JOB_ASSIGNMENT_NUMBER_WRONG"
 
 
-def test_job_assignments_delete_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_delete_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
     """DELETE with unknown assignment number returns 404 JOB_ASSIGNMENT_NOT_FOUND."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     job_assignment_number = create_job_assignment_number(99999)
     response = client.delete(
@@ -584,9 +588,9 @@ def test_job_assignments_delete_by_employee_gate_kids_switch_on_succeeds_after_c
 # ---------------------------------------------------------------------
 # Reset job_assignment API
 # ---------------------------------------------------------------------
-def test_job_assignments_reset_ok(client, sample_authentication, sample_company,  sample_employee, sample_job_assignment,): # fmt: skip
+def test_job_assignments_reset_ok(client, sample_authentication, sample_company,  sample_employee, sample_job_assignment,):  # fmt: skip
     """Admin POST reset without company_name deletes all assignments and returns count."""
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/job-assignments/reset",
@@ -599,9 +603,10 @@ def test_job_assignments_reset_ok(client, sample_authentication, sample_company,
     assert data["message"] == "reset successful"
     assert data["count"] == 2
 
-def test_job_assignments_reset_ok_empty(client, sample_authentication, sample_company,  sample_employee, ): # fmt: skip
+
+def test_job_assignments_reset_ok_empty(client, sample_authentication, sample_company,  sample_employee, ):  # fmt: skip
     """Admin reset for company with no assignments returns count 0."""
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/job-assignments/reset",
@@ -615,9 +620,10 @@ def test_job_assignments_reset_ok_empty(client, sample_authentication, sample_co
     assert data["message"] == "reset successful"
     assert data["count"] == 0
 
-def test_job_assignments_reset_ok_company(client, sample_authentication, sample_company,  sample_employee, sample_job_assignment,): # fmt: skip
+
+def test_job_assignments_reset_ok_company(client, sample_authentication, sample_company,  sample_employee, sample_job_assignment,):  # fmt: skip
     """Admin reset scoped to company_name deletes only that company's assignments."""
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/job-assignments/reset",
@@ -631,9 +637,10 @@ def test_job_assignments_reset_ok_company(client, sample_authentication, sample_
     assert data["message"] == "reset successful"
     assert data["count"] == 1
 
-def test_job_assignments_reset_error_1(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
+
+def test_job_assignments_reset_error_1(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
     """Admin reset with unknown company returns 404 COMPANY_NOT_FOUND."""
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     payload_wrong = payload_create.copy()
     payload_wrong["company_name"] = "Wrong"
@@ -672,7 +679,7 @@ def test_job_assignments_gate_kids_switch_on_blocks_without_check_in(
     camp_today_is_monday,
 ):
     """Kids switch on: POST and DELETE return ATTENDANCE_CHECK_IN_REQUIRED without check-in."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
     with patch("app.schemas.attendance.require_attendance_for_kids", return_value=True):
         response = client.post(
             "/api/job-assignments",
@@ -719,8 +726,8 @@ def test_job_assignments_gate_kids_switch_on_succeeds_after_check_in(
     camp_today_is_monday,
 ):
     """Kids switch on: POST and DELETE succeed after today's check-in."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
-    staff_token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
+    staff_token = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/attendance/check-in/M00252",
@@ -759,7 +766,7 @@ def test_job_assignments_gate_kids_switch_off_allows_without_check_in(
     camp_today_is_monday,
 ):
     """Kids switch off: create and delete job assignments without check-in."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
     with patch(
         "app.schemas.attendance.require_attendance_for_kids", return_value=False
     ):
@@ -791,8 +798,8 @@ def test_job_assignments_gate_staff_switch_off_allows_without_check_in(
     camp_today_is_monday,
 ):
     """Staff switch off: staff POST and admin DELETE proceed without check-in."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
-    staff_token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
+    staff_token = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
     with patch(
         "app.schemas.attendance.require_attendance_for_staff", return_value=False
     ):
@@ -824,8 +831,8 @@ def test_job_assignments_gate_staff_switch_on_blocks_without_check_in(
     camp_today_is_monday,
 ):
     """Staff switch on: POST and DELETE return ATTENDANCE_CHECK_IN_REQUIRED without check-in."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
-    staff_token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
+    staff_token = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
     with patch(
         "app.schemas.attendance.require_attendance_for_staff", return_value=True
     ):
@@ -861,8 +868,8 @@ def test_job_assignments_gate_staff_switch_on_succeeds_after_check_in(
     camp_today_is_monday,
 ):
     """Staff switch on: POST and DELETE succeed after today's check-in."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
-    staff_token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
+    staff_token = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/attendance/check-in/A00265",
@@ -920,8 +927,8 @@ def test_job_assignments_gate_kid_checked_out_still_allows_post_and_delete(
     camp_today_is_monday,
 ):
     """Optional check-out does not block job POST/DELETE when today's check-in row exists."""
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
-    staff_token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
+    staff_token = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/attendance/check-in/M00252",

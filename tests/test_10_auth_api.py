@@ -13,7 +13,7 @@ from tests.test_utils import (
 # ---------------------------------------------------------------------
 # POST /api/auth/login — invalid payload
 # ---------------------------------------------------------------------
-def test_auth_login_invalid_payload_error_1(client, sample_company, sample_employee,): # fmt: skip
+def test_auth_login_invalid_payload_error_1(client, sample_company, sample_employee,):  # fmt: skip
     response = client.post("/api/auth/login", json="{wrong = JSON}")
     if response.status_code != 400:
         print(response.text)
@@ -22,7 +22,7 @@ def test_auth_login_invalid_payload_error_1(client, sample_company, sample_emplo
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
-def test_auth_login_invalid_payload_error_2(client, sample_company, sample_employee,): # fmt: skip
+def test_auth_login_invalid_payload_error_2(client, sample_company, sample_employee,):  # fmt: skip
     response = client.post(
         "/api/auth/login",
         json={
@@ -36,7 +36,7 @@ def test_auth_login_invalid_payload_error_2(client, sample_company, sample_emplo
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_auth_login_invalid_payload_error_3(client, sample_company, sample_employee,): # fmt: skip
+def test_auth_login_invalid_payload_error_3(client, sample_company, sample_employee,):  # fmt: skip
     response = client.post(
         "/api/auth/login",
         json={"password": "TEST"},
@@ -48,7 +48,7 @@ def test_auth_login_invalid_payload_error_3(client, sample_company, sample_emplo
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_auth_login_invalid_payload_error_4(client, sample_company, sample_employee,): # fmt: skip
+def test_auth_login_invalid_payload_error_4(client, sample_company, sample_employee,):  # fmt: skip
     response = client.post(
         "/api/auth/login",
         json={"employee_number": "", "password": "TEST"},
@@ -60,7 +60,7 @@ def test_auth_login_invalid_payload_error_4(client, sample_company, sample_emplo
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_auth_login_invalid_payload_error_5(client, sample_company, sample_employee,): # fmt: skip
+def test_auth_login_invalid_payload_error_5(client, sample_company, sample_employee,):  # fmt: skip
     response = client.post(
         "/api/auth/login",
         json={"employee_number": "TEST", "password": ""},
@@ -72,7 +72,7 @@ def test_auth_login_invalid_payload_error_5(client, sample_company, sample_emplo
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_auth_login_invalid_payload_error_6(client, sample_company, sample_employee,): # fmt: skip
+def test_auth_login_invalid_payload_error_6(client, sample_company, sample_employee,):  # fmt: skip
     response = client.post(
         "/api/auth/login",
         json={"employee_number": "Wrong", "password": "TEST"},
@@ -87,7 +87,7 @@ def test_auth_login_invalid_payload_error_6(client, sample_company, sample_emplo
 # ---------------------------------------------------------------------
 # POST /api/auth/set-auth-group — invalid payload
 # ---------------------------------------------------------------------
-def test_auth_set_auth_group_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_auth_set_auth_group_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -105,8 +105,8 @@ def test_auth_set_auth_group_invalid_payload_error_1(client, sample_authenticati
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
-def test_auth_set_auth_group_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_auth_set_auth_group_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/set-auth-group",
@@ -122,8 +122,8 @@ def test_auth_set_auth_group_invalid_payload_error_2(client, sample_authenticati
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_auth_set_auth_group_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_auth_set_auth_group_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/set-auth-group",
@@ -135,8 +135,8 @@ def test_auth_set_auth_group_invalid_payload_error_3(client, sample_authenticati
     assert response.status_code == 400
 
 
-def test_auth_set_auth_group_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_auth_set_auth_group_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/set-auth-group",
@@ -150,8 +150,8 @@ def test_auth_set_auth_group_invalid_payload_error_4(client, sample_authenticati
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_auth_set_auth_group_invalid_payload_error_5(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_auth_set_auth_group_invalid_payload_error_5(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/set-auth-group",
@@ -162,7 +162,8 @@ def test_auth_set_auth_group_invalid_payload_error_5(client, sample_authenticati
         print(response.text)
     assert response.status_code == 400
 
-def test_auth_set_auth_group_invalid_payload_error_6(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+
+def test_auth_set_auth_group_invalid_payload_error_6(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -179,7 +180,8 @@ def test_auth_set_auth_group_invalid_payload_error_6(client, sample_authenticati
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NUMBER_WRONG_IN_JSON"
 
-def test_auth_set_auth_group_invalid_payload_error_7(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+
+def test_auth_set_auth_group_invalid_payload_error_7(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -200,10 +202,11 @@ def test_auth_set_auth_group_invalid_payload_error_7(client, sample_authenticati
     data = response.get_json()
     assert data["error"] == "INVALID_AUTH_GROUP_IN_JSON"
 
+
 # ---------------------------------------------------------------------
 # POST /api/auth/password/set-password — invalid payload
 # ---------------------------------------------------------------------
-def test_auth_set_password_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_auth_set_password_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_employee(
         client,
         sample_authentication,
@@ -221,8 +224,8 @@ def test_auth_set_password_invalid_payload_error_1(client, sample_authentication
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
-def test_auth_set_password_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+def test_auth_set_password_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/password/set-password",
@@ -236,8 +239,8 @@ def test_auth_set_password_invalid_payload_error_2(client, sample_authentication
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_auth_set_password_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+def test_auth_set_password_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/password/set-password",
@@ -249,8 +252,8 @@ def test_auth_set_password_invalid_payload_error_3(client, sample_authentication
     assert response.status_code == 400
 
 
-def test_auth_set_password_invalid_payload_error_5(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+def test_auth_set_password_invalid_payload_error_5(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/password/set-password",
@@ -267,8 +270,8 @@ def test_auth_set_password_invalid_payload_error_5(client, sample_authentication
 # ---------------------------------------------------------------------
 # POST /api/auth/password/reset-password — invalid payload
 # ---------------------------------------------------------------------
-def test_auth_reset_password_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_auth_reset_password_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/password/reset-password",
@@ -282,8 +285,8 @@ def test_auth_reset_password_invalid_payload_error_1(client, sample_authenticati
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
-def test_auth_reset_password_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_auth_reset_password_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/password/reset-password",
@@ -299,8 +302,8 @@ def test_auth_reset_password_invalid_payload_error_2(client, sample_authenticati
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_auth_reset_password_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_auth_reset_password_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/password/reset-password",
@@ -316,8 +319,8 @@ def test_auth_reset_password_invalid_payload_error_3(client, sample_authenticati
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_auth_reset_password_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_auth_reset_password_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/password/reset-password",
@@ -334,17 +337,19 @@ def test_auth_reset_password_invalid_payload_error_4(client, sample_authenticati
 # ---------------------------------------------------------------------
 # Authentication Login API
 # ---------------------------------------------------------------------
-def test_authenticate_as_employee_ok(client, sample_authentication, sample_employee,): # fmt: skip
-    _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
-
-def test_authenticate_as_staff_ok(client, sample_authentication,sample_employee,): # fmt: skip
-    _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
-
-def test_authenticate_as_admin_ok(client, sample_authentication,sample_employee,): # fmt: skip
-    _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_authenticate_as_employee_ok(client, sample_authentication, sample_employee,):  # fmt: skip
+    _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
 
-def test_authenticate_error_1(client, sample_authentication,sample_employee,): # fmt: skip
+def test_authenticate_as_staff_ok(client, sample_authentication,sample_employee,):  # fmt: skip
+    _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
+
+
+def test_authenticate_as_admin_ok(client, sample_authentication,sample_employee,):  # fmt: skip
+    _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
+
+
+def test_authenticate_error_1(client, sample_authentication,sample_employee,):  # fmt: skip
     response = client.post(
         "/api/auth/login",
         json={"employee_number": "TEST00753", "password": "Created-User"},
@@ -355,7 +360,8 @@ def test_authenticate_error_1(client, sample_authentication,sample_employee,): #
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
-def test_authenticate_error_2(client, sample_authentication,sample_employee,): # fmt: skip
+
+def test_authenticate_error_2(client, sample_authentication,sample_employee,):  # fmt: skip
     response = client.post(
         "/api/auth/login",
         json={"employee_number": "M00155", "password": "Mustermann"},
@@ -366,7 +372,8 @@ def test_authenticate_error_2(client, sample_authentication,sample_employee,): #
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NOT_ACTIVE"
 
-def test_authenticate_error_3(client, sample_authentication,sample_employee,): # fmt: skip
+
+def test_authenticate_error_3(client, sample_authentication,sample_employee,):  # fmt: skip
     response = client.post(
         "/api/auth/login",
         json={"employee_number": "M00252", "password": "Wrong"},
@@ -381,8 +388,8 @@ def test_authenticate_error_3(client, sample_authentication,sample_employee,): #
 # ---------------------------------------------------------------------
 # Authentication ME API
 # ---------------------------------------------------------------------
-def test_me_as_employee_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+def test_me_as_employee_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.get(
         "/api/auth/me",
@@ -399,8 +406,8 @@ def test_me_as_employee_ok(client, sample_authentication, sample_company, sample
     assert data["shift"] == "all-day"
 
 
-def test_me_as_staff_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+def test_me_as_staff_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.get(
         "/api/auth/me",
@@ -413,8 +420,9 @@ def test_me_as_staff_ok(client, sample_authentication, sample_company, sample_em
     assert data["employee_number"] == "A00265"
     assert data["auth_group"] == "staff"
 
-def test_me_as_admin_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_me_as_admin_ok(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.get(
         "/api/auth/me",
@@ -440,8 +448,9 @@ def test_me_as_admin_ok(client, sample_authentication, sample_company, sample_em
     assert data["workday"] == "today"
     assert data["shift"] == "all-day"
 
-def test_me_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_me_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.get(
         "/api/auth/me",
@@ -454,9 +463,10 @@ def test_me_error_1(client, sample_authentication, sample_company, sample_employ
     assert data["error"] == "INVALID_TOKEN"
     assert data["message"] == "Invalid crypto padding"
 
-def test_me_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
-    token_staff = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_me_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token_admin = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
+    token_staff = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
 
     employee_number = "A00265"
     response = client.delete(
@@ -477,9 +487,10 @@ def test_me_error_2(client, sample_authentication, sample_company, sample_employ
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
-def test_me_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
-    token_staff = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_me_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token_admin = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
+    token_staff = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
 
     employee_number = "A00265"
     response = client.put(
@@ -520,8 +531,8 @@ def test_me_error_4(client, sample_authentication, sample_employee,):  # fmt: sk
 # ---------------------------------------------------------------------
 # Authentication Set Auth Group API
 # ---------------------------------------------------------------------
-def test_set_auth_group_ok(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_set_auth_group_ok(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/set-auth-group",
@@ -540,8 +551,8 @@ def test_set_auth_group_ok(client, sample_authentication, sample_company, sample
     assert data["employee_number"] == "A00265"
 
 
-def test_set_auth_group_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_set_auth_group_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/set-auth-group",
@@ -559,8 +570,8 @@ def test_set_auth_group_error_1(client, sample_authentication, sample_company, s
     assert data["message"] == "Invalid crypto padding"
 
 
-def test_set_auth_group_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token= _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_set_auth_group_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token= _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     employee_number = "Test00753"
     response = client.post(
@@ -578,8 +589,8 @@ def test_set_auth_group_error_2(client, sample_authentication, sample_company, s
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
 
-def test_set_auth_group_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_set_auth_group_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     employee_number = "A00265"
     response = client.put(
@@ -609,8 +620,8 @@ def test_set_auth_group_error_3(client, sample_authentication, sample_company, s
 # ---------------------------------------------------------------------
 # Authentication Set Password API
 # ---------------------------------------------------------------------
-def test_set_password_ok(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+def test_set_password_ok(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/password/set-password",
@@ -623,8 +634,9 @@ def test_set_password_ok(client, sample_authentication, sample_company, sample_e
     data = response.get_json()
     assert data["message"] == "Password set"
 
-def test_set_password_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_set_password_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/password/set-password",
@@ -638,9 +650,10 @@ def test_set_password_error_1(client, sample_authentication, sample_company, sam
     assert data["error"] == "INVALID_TOKEN"
     assert data["message"] == "Invalid crypto padding"
 
-def test_set_password_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
-    token_staff = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_set_password_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token_admin = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
+    token_staff = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
 
     employee_number = "A00265"
     response = client.delete(
@@ -662,9 +675,10 @@ def test_set_password_error_2(client, sample_authentication, sample_company, sam
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
-def test_set_password_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
-    token_staff = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_set_password_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token_admin = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
+    token_staff = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
 
     employee_number = "A00265"
     response = client.put(
@@ -687,8 +701,9 @@ def test_set_password_error_3(client, sample_authentication, sample_company, sam
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NOT_ACTIVE"
 
-def test_set_password_error_4(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_set_password_error_4(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/password/set-password",
@@ -701,11 +716,12 @@ def test_set_password_error_4(client, sample_authentication, sample_company, sam
     data = response.get_json()
     assert data["error"] == "OLD_PASSWORD_IS_INCORRECT"
 
+
 # ---------------------------------------------------------------------
 # Authentication Reset Password API
 # ---------------------------------------------------------------------
-def test_reset_password_ok(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_reset_password_ok(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/password/reset-password",
@@ -718,8 +734,9 @@ def test_reset_password_ok(client, sample_authentication, sample_company, sample
     data = response.get_json()
     assert data["message"] == "Password reset"
 
-def test_reset_password_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_reset_password_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/password/reset-password",
@@ -733,8 +750,9 @@ def test_reset_password_error_1(client, sample_authentication, sample_company, s
     assert data["error"] == "INVALID_TOKEN"
     assert data["message"] == "Invalid crypto padding"
 
-def test_reset_password_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_reset_password_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
 
     employee_number = "A00265"
     response = client.delete(
@@ -756,10 +774,11 @@ def test_reset_password_error_2(client, sample_authentication, sample_company, s
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
+
 # ---------------------------------------------------------------------
 # Authentication Refresh Token API
 # ---------------------------------------------------------------------
-def test_refresh_token_ok(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_refresh_token_ok(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     refresh_token = _get_refresh_token(client, "M00252", "Mustermann")
 
     response = client.post(
@@ -774,7 +793,7 @@ def test_refresh_token_ok(client, sample_authentication, sample_company, sample_
     assert data["token"] is not None
 
 
-def test_refresh_token_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_refresh_token_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     refresh_token = _get_refresh_token(client, "M00252", "Mustermann")
 
     response = client.post(
@@ -788,8 +807,9 @@ def test_refresh_token_error_1(client, sample_authentication, sample_company, sa
     assert data["error"] == "INVALID_TOKEN"
     assert data["message"] == "Invalid crypto padding"
 
-def test_refresh_token_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_refresh_token_error_2(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token_admin = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
     refresh_token_employee = _get_refresh_token(client, "M00252", "Mustermann")
 
     employee_number = "M00252"
@@ -811,8 +831,9 @@ def test_refresh_token_error_2(client, sample_authentication, sample_company, sa
     data = response.get_json()
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
-def test_refresh_token_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,): # fmt: skip
-    token_admin = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_refresh_token_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment,):  # fmt: skip
+    token_admin = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
     refresh_token_employee = _get_refresh_token(client, "M00252", "Mustermann")
 
     employee_number = "M00252"
@@ -854,8 +875,8 @@ def test_refresh_token_error_4(client, sample_authentication, sample_employee,):
 # ---------------------------------------------------------------------
 # Authentication Logout API
 # ---------------------------------------------------------------------
-def test_logout_ok(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+def test_logout_ok(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/logout",
@@ -868,10 +889,11 @@ def test_logout_ok(client, sample_authentication, sample_company, sample_employe
     assert data["message"] == "Logged out"
     assert data["token"] is not None
 
+
 # ---------------------------------------------------------------------
 # Authentication level checks
 # ---------------------------------------------------------------------
-def test_auth_level_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_auth_level_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     response = client.post(
         "/api/auth/password/reset-password",
         json={"employee_number": "A00265"},
@@ -883,8 +905,9 @@ def test_auth_level_error_1(client, sample_authentication, sample_company, sampl
     assert data["error"] == "AUTHORIZATION_REQUIRED"
     assert data["message"] == "Missing Authorization Header"
 
-def test_auth_level_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_auth_level_error_2(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.post(
         "/api/auth/password/reset-password",
@@ -897,8 +920,9 @@ def test_auth_level_error_2(client, sample_authentication, sample_company, sampl
     data = response.get_json()
     assert data["error"] == "FORBIDDEN_WRONG_AUTH_GROUP"
 
-def test_auth_level_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_employee(client, sample_authentication, sample_employee,) # fmt: skip
+
+def test_auth_level_error_3(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_employee(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.get(
         "/api/health/runtime",
@@ -911,8 +935,8 @@ def test_auth_level_error_3(client, sample_authentication, sample_company, sampl
     assert data["error"] == "FORBIDDEN_WRONG_AUTH_GROUP"
 
 
-def test_auth_level_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
-    token = _login_as_staff(client, sample_authentication, sample_employee,) # fmt: skip
+def test_auth_level_error_4(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
+    token = _login_as_staff(client, sample_authentication, sample_employee,)  # fmt: skip
 
     response = client.get(
         "/api/health/runtime",

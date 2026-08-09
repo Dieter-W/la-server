@@ -32,7 +32,9 @@ payload_put = {
 # ---------------------------------------------------------------------
 # Employees bulk import with API check
 # ---------------------------------------------------------------------
-def test_bulk_import_employees_create_ok(client,): # fmt: skip
+def test_bulk_import_employees_create_ok(
+    client,
+):
     # Bulk insert
     result = subprocess.run(
         [
@@ -72,7 +74,7 @@ def test_bulk_import_employees_create_ok(client,): # fmt: skip
 # ---------------------------------------------------------------------
 # Employees bulk update with API check
 # ---------------------------------------------------------------------
-def test_bulk_import_employees_update_ok(client,): # fmt: skip
+def test_bulk_import_employees_update_ok(client,):  # fmt: skip
 
     # Bulk insert
     result = subprocess.run(

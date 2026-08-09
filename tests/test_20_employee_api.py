@@ -25,10 +25,11 @@ payload_put = {
     "notes": "Updated by test",
 }
 
+
 # ---------------------------------------------------------------------
 # POST /employees — invalid payload
 # ---------------------------------------------------------------------
-def test_employees_create_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -47,7 +48,7 @@ def test_employees_create_invalid_payload_error_1(client, sample_authentication,
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
 
-def test_employees_create_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -71,7 +72,7 @@ def test_employees_create_invalid_payload_error_2(client, sample_authentication,
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_employees_create_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -95,7 +96,7 @@ def test_employees_create_invalid_payload_error_3(client, sample_authentication,
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_employees_create_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -119,7 +120,7 @@ def test_employees_create_invalid_payload_error_4(client, sample_authentication,
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_employees_create_invalid_payload_error_5(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_5(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -142,7 +143,8 @@ def test_employees_create_invalid_payload_error_5(client, sample_authentication,
     data = response.get_json()
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
-def test_employees_create_invalid_payload_error_6(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+
+def test_employees_create_invalid_payload_error_6(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -165,7 +167,8 @@ def test_employees_create_invalid_payload_error_6(client, sample_authentication,
     data = response.get_json()
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
-def test_employees_create_invalid_payload_error_7(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+
+def test_employees_create_invalid_payload_error_7(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -190,7 +193,7 @@ def test_employees_create_invalid_payload_error_7(client, sample_authentication,
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_employees_create_invalid_payload_error_8(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_8(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -215,7 +218,7 @@ def test_employees_create_invalid_payload_error_8(client, sample_authentication,
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_employees_create_invalid_payload_error_9(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_9(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -240,7 +243,7 @@ def test_employees_create_invalid_payload_error_9(client, sample_authentication,
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_employees_create_invalid_payload_error_10(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_10(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -265,7 +268,7 @@ def test_employees_create_invalid_payload_error_10(client, sample_authentication
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_employees_create_invalid_payload_error_11(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_11(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -290,7 +293,7 @@ def test_employees_create_invalid_payload_error_11(client, sample_authentication
     assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
-def test_employees_create_invalid_payload_error_12(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_12(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -316,7 +319,7 @@ def test_employees_create_invalid_payload_error_12(client, sample_authentication
     assert data["error"] == "EMPLOYEE_NUMBER_WRONG_IN_JSON"
 
 
-def test_employees_create_invalid_payload_error_13(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_13(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -342,7 +345,7 @@ def test_employees_create_invalid_payload_error_13(client, sample_authentication
     assert data["error"] == "INVALID_AUTH_GROUP_IN_JSON"
 
 
-def test_employees_create_invalid_payload_error_14(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_14(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -368,7 +371,7 @@ def test_employees_create_invalid_payload_error_14(client, sample_authentication
     assert data["error"] == "INVALID_AGE_IN_JSON"
 
 
-def test_employees_create_invalid_payload_error_15(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_15(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -394,7 +397,7 @@ def test_employees_create_invalid_payload_error_15(client, sample_authentication
     assert data["error"] == "INVALID_AGE_IN_JSON"
 
 
-def test_employees_create_invalid_payload_error_16(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_16(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -420,7 +423,7 @@ def test_employees_create_invalid_payload_error_16(client, sample_authentication
     assert data["error"] == "INVALID_AGE_IN_JSON"
 
 
-def test_employees_create_invalid_payload_error_17(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_17(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -447,7 +450,7 @@ def test_employees_create_invalid_payload_error_17(client, sample_authentication
     assert data["error"] == "INVALID_JSON_BOOLEAN_IN_JSON"
 
 
-def test_employees_create_invalid_payload_error_18(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_invalid_payload_error_18(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -477,7 +480,7 @@ def test_employees_create_invalid_payload_error_18(client, sample_authentication
 # ---------------------------------------------------------------------
 # PUT /employees — invalid payload
 # ---------------------------------------------------------------------
-def test_employees_update_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_update_invalid_payload_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -496,7 +499,8 @@ def test_employees_update_invalid_payload_error_1(client, sample_authentication,
     data = response.get_json()
     assert data["error"] == "REQUEST_BODY_MUST_BE_A_JSON_OBJECT"
 
-def test_employees_update_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+
+def test_employees_update_invalid_payload_error_2(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -518,7 +522,7 @@ def test_employees_update_invalid_payload_error_2(client, sample_authentication,
     assert data["error"] == "EMPLOYEE_NUMBER_WRONG_IN_JSON"
 
 
-def test_employees_update_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_update_invalid_payload_error_3(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -538,7 +542,7 @@ def test_employees_update_invalid_payload_error_3(client, sample_authentication,
     assert data["error"] == "INVALID_AGE_IN_JSON"
 
 
-def test_employees_update_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_update_invalid_payload_error_4(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -561,7 +565,7 @@ def test_employees_update_invalid_payload_error_4(client, sample_authentication,
 # ---------------------------------------------------------------------
 # Employees  Get-all API
 # ---------------------------------------------------------------------
-def test_employees_query_all_employees(client, sample_company, sample_employee, sample_job_assignment): # fmt: skip
+def test_employees_query_all_employees(client, sample_company, sample_employee, sample_job_assignment):  # fmt: skip
     response = client.get("/api/employees")
     if response.status_code != 200:
         print(response.text)
@@ -791,7 +795,7 @@ def test_employees_list_checked_in_maybe_treated_as_false(
     assert numbers == {"A00265", "P00370"}
 
 
-def test_employees_query_all_empty(client, db_session,): # fmt: skip
+def test_employees_query_all_empty(client, db_session,):  # fmt: skip
     response = client.get("/api/employees")
     if response.status_code != 200:
         print(response.text)
@@ -806,7 +810,7 @@ def test_employees_query_all_empty(client, db_session,): # fmt: skip
 # ---------------------------------------------------------------------
 # Employees Get API
 # ---------------------------------------------------------------------
-def test_employees_query(client, sample_company, sample_employee, sample_job_assignment): # fmt: skip
+def test_employees_query(client, sample_company, sample_employee, sample_job_assignment):  # fmt: skip
     employee_number = sample_employee.employee_number
     response = client.get(f"/api/employees/{employee_number}")
     if response.status_code != 200:
@@ -854,7 +858,7 @@ def test_employees_query_error_2(client, sample_employee):
 # ---------------------------------------------------------------------
 # Employees Create API
 # ---------------------------------------------------------------------
-def test_employees_create(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -902,7 +906,7 @@ def test_employees_create(client, sample_authentication, sample_company, sample_
     assert data["password_must_change"] is True
 
 
-def test_employees_create_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_create_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -930,7 +934,7 @@ def test_employees_create_error_1(client, sample_authentication, sample_company,
 # ---------------------------------------------------------------------
 # Employees Update API
 # ---------------------------------------------------------------------
-def test_employees_update(client, sample_authentication, sample_company, sample_employee, sample_job_assignment): # fmt: skip
+def test_employees_update(client, sample_authentication, sample_company, sample_employee, sample_job_assignment):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -969,7 +973,7 @@ def test_employees_update(client, sample_authentication, sample_company, sample_
     assert data2["employee_number"] == payload_put["employee_number"]
 
 
-def test_employees_update_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_update_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -989,7 +993,7 @@ def test_employees_update_error_1(client, sample_authentication, sample_company,
     assert data["error"] == "EMPLOYEE_NUMBER_WRONG"
 
 
-def test_employees_update_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_update_error_2(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -1009,7 +1013,7 @@ def test_employees_update_error_2(client, sample_authentication, sample_company,
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
 
-def test_employees_update_error_3(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_update_error_3(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -1033,7 +1037,7 @@ def test_employees_update_error_3(client, sample_authentication, sample_company,
 # ---------------------------------------------------------------------
 # Employees Delete API
 # ---------------------------------------------------------------------
-def test_employees_delete_soft(client, sample_authentication, sample_company, sample_employee, sample_job_assignment): # fmt: skip
+def test_employees_delete_soft(client, sample_authentication, sample_company, sample_employee, sample_job_assignment):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -1072,7 +1076,7 @@ def test_employees_delete_soft(client, sample_authentication, sample_company, sa
     assert data["active"] is not True
 
 
-def test_employees_delete_hard(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_delete_hard(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -1096,7 +1100,7 @@ def test_employees_delete_hard(client, sample_authentication, sample_company, sa
     assert response.status_code == 404
 
 
-def test_employees_delete_error_1(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_delete_error_1(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -1115,7 +1119,7 @@ def test_employees_delete_error_1(client, sample_authentication, sample_company,
     assert data["error"] == "EMPLOYEE_NUMBER_WRONG"
 
 
-def test_employees_delete_error_2(client, sample_authentication, sample_company, sample_employee,): # fmt: skip
+def test_employees_delete_error_2(client, sample_authentication, sample_company, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,
@@ -1134,7 +1138,7 @@ def test_employees_delete_error_2(client, sample_authentication, sample_company,
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
 
-def test_employees_delete_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment): # fmt: skip
+def test_employees_delete_error_3(client, sample_authentication, sample_company, sample_employee, sample_job_assignment):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,

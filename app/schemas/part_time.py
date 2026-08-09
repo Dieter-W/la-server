@@ -176,14 +176,14 @@ def _resolve_projection_shift(
     lookup_workday: str,
     *,
     explicit_shift: str | None = None,
+    response_label: str | None = None,
     now: datetime | None = None,
 ) -> str:
     """Pick the shift slug used to project ``workday``/``shift`` on employee JSON."""
     if explicit_shift is not None:
         return explicit_shift
-    today = camp_time.camp_day(now=now)
     candidates: list[str] = []
-    if lookup_workday == today:
+    if response_label == "today":
         candidates.append(camp_time.camp_shift(now=now))
     candidates.extend([PartTimeShift.MORNING.value, PartTimeShift.AFTERNOON.value])
     seen: set[str] = set()
@@ -217,7 +217,10 @@ def employee_context_workday_and_shift(
         return project_api_workday_label(response_label), PartTimeShift.ALL_DAY.value
     if lookup_shift is None:
         lookup_shift = _resolve_projection_shift(
-            emp.part_times, lookup_workday, now=now
+            emp.part_times,
+            lookup_workday,
+            response_label=response_label,
+            now=now,
         )
     pt = resolve_part_time_slot(emp.part_times, lookup_workday, lookup_shift)
     if pt is not None:

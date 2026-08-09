@@ -22,7 +22,7 @@ def _read_project_version() -> str:
         with open(toml_path, "rb") as f:
             data = tomllib.load(f)
         return data.get("project", {}).get("version", "unknown")
-    except Exception:
+    except FileNotFoundError:
         return "unknown"
 
 

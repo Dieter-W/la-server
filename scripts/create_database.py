@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Create the MariaDB database and tables (e.g. employees) if they do not exist."""
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -18,6 +19,8 @@ from app import create_app
 from app.config import Config
 
 load_dotenv(project_root / ".env")
+
+logger = logging.getLogger(__name__)
 
 
 def create_database() -> None:
@@ -46,5 +49,6 @@ if __name__ == "__main__":
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
+        logger.exception("Database setup failed")
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
