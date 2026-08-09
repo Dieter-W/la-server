@@ -6,12 +6,12 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app import camp_time
 from app.auth.utils import hash_password
 from app.errors import APIError
 from app.models import Authentication, Employee
 from app.repositories.attendance import AttendanceRepository
 from app.repositories.employee import EmployeeRepository
-import app.camp_time as camp_time
 from app.schemas.employee import (
     CreateEmployeeRequest,
     EmployeeResponse,

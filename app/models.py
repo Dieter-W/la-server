@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from sqlalchemy import (
     Boolean,
@@ -25,7 +25,7 @@ from app.database import db
 # ---------------------------------------------------------------------
 def utc_now() -> datetime:
     """Return current UTC time as timezone-aware datetime."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # ---------------------------------------------------------------------

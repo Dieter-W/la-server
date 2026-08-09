@@ -1,7 +1,7 @@
 """Bulk import company job-capacity schedules and update them"""
 
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 from app.models import CompanyJobsMax

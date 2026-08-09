@@ -4,15 +4,16 @@
 import csv
 import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Add project root to path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from app import create_app  # noqa: E402
-from app.config import Config  # noqa: E402
-from app.models import Company  # noqa: E402
+from app import create_app
+from app.config import Config
+from app.models import Company
 
 load_dotenv(project_root / ".env")
 

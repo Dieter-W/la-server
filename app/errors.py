@@ -2,7 +2,7 @@
 
 import logging
 
-from flask import current_app, jsonify, g
+from flask import current_app, g, jsonify
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 logger = logging.getLogger(__name__)

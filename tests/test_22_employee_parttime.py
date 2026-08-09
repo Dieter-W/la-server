@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
 
 import app.village_config as village_config_module
-from app.errors import APIError
 from app.camp_time import camp_day
+from app.errors import APIError
 from app.schemas.part_time import (
     ALL_WEEK_WORKDAY,
     PART_TIME_CALENDAR_WORKDAYS,
@@ -48,7 +48,7 @@ def test_camp_day_naive_now_uses_camp_tz():
 
 def test_camp_day_utc_instant_resolves_in_camp_tz():
     # 2026-05-17 22:00 UTC = 2026-05-18 00:00 CEST (Monday) in Berlin
-    utc_sunday_night = datetime(2026, 5, 17, 22, 0, tzinfo=timezone.utc)
+    utc_sunday_night = datetime(2026, 5, 17, 22, 0, tzinfo=UTC)
     assert camp_day(now=utc_sunday_night, tz=BERLIN) == "monday"
 
 

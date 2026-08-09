@@ -5,9 +5,8 @@ import os
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
 import pymysql
-
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
 # Add project root to path and load .env
@@ -15,8 +14,8 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 
-from app import create_app  # noqa: E402
-from app.config import Config  # noqa: E402
+from app import create_app
+from app.config import Config
 
 load_dotenv(project_root / ".env")
 

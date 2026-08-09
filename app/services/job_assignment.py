@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
-from datetime import timezone
+from datetime import UTC
 
 from sqlalchemy.orm import Session
 
+from app import camp_time
 from app.errors import APIError
 from app.models import Employee, JobAssignment, JobAssignmentHistory, utc_now
 from app.repositories.attendance import AttendanceRepository
@@ -14,8 +15,6 @@ from app.repositories.company import CompanyRepository
 from app.repositories.employee import EmployeeRepository
 from app.repositories.job_assignment import JobAssignmentRepository
 from app.repositories.job_assignment_history import JobAssignmentHistoryRepository
-import app.camp_time as camp_time
-from app.village_config import get_hourly_pay_increase, get_hourly_pay_tax
 from app.schemas.attendance import participant_requires_attendance
 from app.schemas.company_jobs_max import effective_jobs_max
 from app.schemas.job_assignment import (
@@ -24,6 +23,7 @@ from app.schemas.job_assignment import (
     JobAssignmentResponse,
     ResetJobAssignmentRequest,
 )
+from app.village_config import get_hourly_pay_increase, get_hourly_pay_tax
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class JobAssignmentService:
 
         started_at = job.created_at
         if started_at.tzinfo is None:
-            started_at = started_at.replace(tzinfo=timezone.utc)
+            started_at = started_at.replace(tzinfo=UTC)
         ended_at = utc_now()
         started_camp_date = camp_time.camp_instant(now=started_at).date()
         ended_camp_date = camp_time.camp_instant(now=ended_at).date()

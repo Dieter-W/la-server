@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-import app.camp_time as camp_time
+from app import camp_time
 from app.camp_time import (
     CALENDAR_WEEKDAY_SLUGS,
     CAMP_SHIFTS,

@@ -1,8 +1,7 @@
 """Bulk insert/update employees and validate them with an API call"""
 
-import sys
 import subprocess
-
+import sys
 from pathlib import Path
 from urllib.parse import quote
 

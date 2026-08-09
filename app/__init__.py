@@ -5,9 +5,9 @@ import time
 from flask import Flask, g, jsonify
 
 from app.database import init_db
-from app.peak_tracking import PeakCounter
 from app.errors import register_error_handlers
 from app.logging_config import configure_logging
+from app.peak_tracking import PeakCounter
 
 
 # ---------------------------------------------------------------------

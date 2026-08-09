@@ -10,10 +10,9 @@ from __future__ import annotations
 import configparser
 import logging
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.errors import APIError
-
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 _DEFAULT_CAMP_TIMEZONE = "Europe/Berlin"
 

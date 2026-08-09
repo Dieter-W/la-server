@@ -3,19 +3,18 @@
 import csv
 import io
 from dataclasses import fields
-from datetime import timezone
+from datetime import UTC
 from unittest.mock import patch
 from urllib.parse import quote
 
+from app.schemas.job_assignment_history import JobAssignmentHistoryRowResponse
 from app.services.job_assignment_history import (
     CSV_BOM,
     CSV_COLUMNS,
     JobAssignmentHistoryService,
 )
-from app.schemas.job_assignment_history import JobAssignmentHistoryRowResponse
 from app.utils import create_job_assignment_number
 from app.village_config import get_hourly_pay_increase, get_hourly_pay_tax
-
 from tests.test_camp_time import CAMP_MONDAY
 from tests.test_utils import (
     _login_as_admin,
@@ -407,7 +406,7 @@ def test_job_assignment_history_list_filter_workday(
     admin_token = _login_as_admin(client, sample_authentication, sample_employee)
     staff_token = _login_as_staff(client, sample_authentication, sample_employee)
 
-    camp_monday_utc = CAMP_MONDAY.astimezone(timezone.utc)
+    camp_monday_utc = CAMP_MONDAY.astimezone(UTC)
     with patch("app.services.job_assignment.utc_now", return_value=camp_monday_utc):
         _reset_all_assignments(client, admin_token)
 

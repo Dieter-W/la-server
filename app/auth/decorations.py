@@ -1,7 +1,7 @@
 """Decorations for the authentication routes."""
 
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable
 
 from flask_jwt_extended import get_jwt, verify_jwt_in_request
 

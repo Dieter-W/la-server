@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock, patch
 
 from app.routes.health import _database_summary
-
 from tests.test_utils import _login_as_admin
 
 
