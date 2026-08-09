@@ -4,6 +4,7 @@ import os
 import sys
 import pytest
 
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -126,6 +127,21 @@ def db_session(app):
     connection.close()
 
 
+@contextmanager
+def _session_scope(app):
+    """App-context ``SessionLocal`` that is closed even when the test body raises.
+
+    A session left open holds a metadata lock on the tables it touched, which
+    deadlocks the ``drop_all`` teardown in the ``app`` fixture.
+    """
+    with app.app_context():
+        session = app.SessionLocal()
+        try:
+            yield session
+        finally:
+            session.close()
+
+
 # ---------------------------------------------------------
 # 4. Sample data fixture
 # ---------------------------------------------------------
@@ -135,9 +151,7 @@ def sample_authentication(
     sample_employee,
 ):
     """Add 4 authentication employees for testing"""
-    with app.app_context():
-        session = app.SessionLocal()
-
+    with _session_scope(app) as session:
         authentication = Authentication(
             employee_id=1,  # M00155
             password_hash=hash_password("Mustermann"),
@@ -178,17 +192,13 @@ def sample_authentication(
 
         yield authentication
 
-        session.close()
-
 
 @pytest.fixture()
 def sample_company(
     app,
 ):
     """Add 4 companies for testing"""
-    with app.app_context():
-        session = app.SessionLocal()
-
+    with _session_scope(app) as session:
         company = Company(
             company_name="Bank",
             jobs_max=5,
@@ -225,17 +235,13 @@ def sample_company(
 
         yield company
 
-        session.close()
-
 
 @pytest.fixture()
 def sample_employee(
     app,
 ):
     """Add 4 employees for testing"""
-    with app.app_context():
-        session = app.SessionLocal()
-
+    with _session_scope(app) as session:
         employee = Employee(
             first_name="Max",
             last_name="Mustermann",
@@ -288,8 +294,6 @@ def sample_employee(
 
         yield employee
 
-        session.close()
-
 
 @pytest.fixture()
 def sample_employee_part_time(
@@ -297,8 +301,7 @@ def sample_employee_part_time(
     sample_employee,
 ):
     """Add 2 part-time employees for testing"""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_part_time_rows(
             session,
             [
@@ -312,7 +315,6 @@ def sample_employee_part_time(
             session.query(PartTime).order_by(PartTime.id.desc()).first()
         )
         yield part_time_employee
-        session.close()
 
 
 @pytest.fixture()
@@ -322,9 +324,7 @@ def sample_job_assignment(
     sample_company,
 ):
     """Add 2 job assignments for testing"""
-    with app.app_context():
-        session = app.SessionLocal()
-
+    with _session_scope(app) as session:
         job_assignment = JobAssignment(
             company_id=1,  # Bank
             employee_id=1,  # M00155
@@ -342,8 +342,6 @@ def sample_job_assignment(
         session.commit()
 
         yield job_assignment
-
-        session.close()
 
 
 # ---------------------------------------------------------
@@ -416,8 +414,7 @@ def camp_shift_afternoon():
 @pytest.fixture
 def part_time_monika(app, sample_employee):
     """Monika (id 2): Monday morning + Tuesday afternoon part-time slots."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_part_time_rows(
             session,
             [
@@ -425,41 +422,33 @@ def part_time_monika(app, sample_employee):
                 (2, "tuesday", "afternoon"),
             ],
         )
-        session.close()
 
 
 @pytest.fixture
 def part_time_anna_all_day(app, sample_employee):
     """Anna (id 3): Monday slot with default full-day shift (all-day)."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_part_time_rows(session, [(3, "monday", "all-day")])
-        session.close()
 
 
 @pytest.fixture
 def part_time_anna_weekdays_morning(app, sample_employee):
     """Anna (id 3): ``weekdays`` morning aggregate slot."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_part_time_rows(session, [(3, WEEKDAYS_WORKDAY, "morning")])
-        session.close()
 
 
 @pytest.fixture
 def part_time_anna_all_week_morning(app, sample_employee):
     """Anna (id 3): ``all-week`` morning aggregate slot."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_part_time_rows(session, [(3, ALL_WEEK_WORKDAY, "morning")])
-        session.close()
 
 
 @pytest.fixture
 def part_time_anna_weekdays_and_friday_afternoon(app, sample_employee):
     """Anna (id 3): ``weekdays`` morning + Friday afternoon override."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_part_time_rows(
             session,
             [
@@ -467,14 +456,12 @@ def part_time_anna_weekdays_and_friday_afternoon(app, sample_employee):
                 (3, "friday", "afternoon"),
             ],
         )
-        session.close()
 
 
 @pytest.fixture
 def part_time_monika_unsorted_rows(app, sample_employee):
     """Monika (id 2): rows in non-canonical order for list-sort tests."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_part_time_rows(
             session,
             [
@@ -484,7 +471,6 @@ def part_time_monika_unsorted_rows(app, sample_employee):
                 (2, ALL_WEEK_WORKDAY, "afternoon"),
             ],
         )
-        session.close()
 
 
 # ---------------------------------------------------------
@@ -493,8 +479,7 @@ def part_time_monika_unsorted_rows(app, sample_employee):
 @pytest.fixture
 def company_jobs_max_bank_weekdays(app, sample_company):
     """Bank (id 1): ``weekdays`` morning cap 2 + afternoon cap 1."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_company_jobs_max_rows(
             session,
             [
@@ -502,14 +487,12 @@ def company_jobs_max_bank_weekdays(app, sample_company):
                 (1, WEEKDAYS_WORKDAY, "afternoon", 1),
             ],
         )
-        session.close()
 
 
 @pytest.fixture
 def company_jobs_max_bank_wednesday_override(app, sample_company):
     """Bank (id 1): ``weekdays`` morning 2 + Wednesday morning override 5."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_company_jobs_max_rows(
             session,
             [
@@ -517,23 +500,19 @@ def company_jobs_max_bank_wednesday_override(app, sample_company):
                 (1, "wednesday", "morning", 5),
             ],
         )
-        session.close()
 
 
 @pytest.fixture
 def company_jobs_max_bauhof_morning_only(app, sample_company):
     """Bauhof (id 4): ``weekdays`` morning cap 1 (for NO_JOB_LEFT assignment tests)."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_company_jobs_max_rows(session, [(4, WEEKDAYS_WORKDAY, "morning", 1)])
-        session.close()
 
 
 @pytest.fixture
 def company_jobs_max_bauhof_weekdays(app, sample_company):
     """Bauhof (id 4): ``weekdays`` morning cap 2 + afternoon cap 1."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_company_jobs_max_rows(
             session,
             [
@@ -541,60 +520,47 @@ def company_jobs_max_bauhof_weekdays(app, sample_company):
                 (4, WEEKDAYS_WORKDAY, "afternoon", 1),
             ],
         )
-        session.close()
 
 
 @pytest.fixture
 def company_jobs_max_bank_morning_only(app, sample_company):
     """Bank (id 1): ``weekdays`` morning cap 1 (for NO_JOB_LEFT assignment tests)."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_company_jobs_max_rows(session, [(1, WEEKDAYS_WORKDAY, "morning", 1)])
-        session.close()
 
 
 @pytest.fixture
 def bank_active(app, sample_company):
     """Bank (id 1): set ``active=True`` so assignment tests can target Bank."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         bank = session.get(Company, 1)
         bank.active = True
         session.commit()
-        session.close()
 
 
 @pytest.fixture
 def company_jobs_max_bank_all_week_morning(app, sample_company):
     """Bank (id 1): ``all-week`` morning cap 4."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_company_jobs_max_rows(session, [(1, ALL_WEEK_WORKDAY, "morning", 4)])
-        session.close()
 
 
 @pytest.fixture
 def company_jobs_max_bank_wednesday_allday(app, sample_company):
     """Bank (id 1): Wednesday ``all-day`` cap 3 (fallback when no shift-specific row)."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_company_jobs_max_rows(session, [(1, "wednesday", "all-day", 3)])
-        session.close()
 
 
 @pytest.fixture
 def company_jobs_max_bank_wednesday_allday_cap1(app, sample_company):
     """Bank (id 1): Wednesday ``all-day`` cap 1 (for assignment enforcement tests)."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_company_jobs_max_rows(session, [(1, "wednesday", "all-day", 1)])
-        session.close()
 
 
 @pytest.fixture
 def company_jobs_max_bank_morning_zero(app, sample_company):
     """Bank (id 1): ``weekdays`` morning cap 0 (available may go negative)."""
-    with app.app_context():
-        session = app.SessionLocal()
+    with _session_scope(app) as session:
         seed_company_jobs_max_rows(session, [(1, WEEKDAYS_WORKDAY, "morning", 0)])
-        session.close()

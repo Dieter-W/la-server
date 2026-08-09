@@ -207,7 +207,7 @@ Staff-facing read API and CSV export: [developer-guide.md — Job assignment his
 | `notes`       | `Text`      | nullable                                       |
 | `created_at`, `updated_at` | datetime (tz) | from `BaseModel`                    |
 
-**Indexes:** primary key on `id`; foreign key on `employee_id`; unique constraint on (`employee_id`, `workday`) — at most one part-time row per camp participant per stored `workday` key (calendar day or aggregate).
+**Indexes:** primary key on `id`; foreign key on `employee_id`; unique constraint on (`employee_id`, `workday`, `shift`) — at most one part-time row per camp participant per stored **`workday`** + **`shift`** pair (`uq_part_times_employee_workday_shift`; calendar day or aggregate).
 
 **ORM:** `PartTime.employee` ↔ `Employee.part_times` (collection; may be empty).
 `Employee.part_times` may be empty. No related rows means the participant is treated as working **full time** on every day (see [design decisions](#part-time-design-decisions)).
@@ -228,16 +228,19 @@ Two cases are easy to confuse. **Zero rows** means the participant works **full 
 3. **One calendar day, half day.** A row with a calendar `workday` and `shift` = `morning` or `afternoon` means the participant works **only that shift** on that weekday — not the full day.
 4. **Weekday bundle (`weekdays`).** A row with `workday` = `weekdays` and `shift` = `morning` or `afternoon` applies that shift on **Monday through Friday** (*Werktage*). It does **not** apply on Saturday or Sunday. See [Aggregate workdays](#aggregate-workdays-weekdays-all-week).
 5. **Whole-week bundle (`all-week`).** A row with `workday` = `all-week` and `shift` = `morning` or `afternoon` applies that shift on **every day** Monday through Sunday.
-6. **Precedence when rows overlap.** For each calendar day, pick **one** effective slot in this order: **calendar-day row** → **`weekdays` row** (Mon–Fri only) → **`all-week` row** → **no slot**.
+6. **Precedence when rows overlap.** For each calendar day and shift lookup, pick **one** effective row in two steps:
+   1. **Shift-specific match** — filter by the lookup shift (`morning`, `afternoon`, or `all-day`), then workday precedence: **calendar-day row** → **`weekdays` row** (Mon–Fri only) → **`all-week` row**.
+   2. **`all-day` fallback** — only if step 1 finds nothing and the lookup shift is **`morning`** or **`afternoon`**: same workday precedence for rows with `shift` = **`all-day`**. Shift-specific rows always beat **`all-day`** on the same scope (e.g. `wednesday/morning` beats `wednesday/all-day` for a morning lookup).
+   If neither step matches → **no slot** (API `workday`/`shift` null).
    - Example: `weekdays/morning` + `friday/afternoon` → Mon–Thu morning, Fri afternoon, Sat–Sun no slot (unless `all-week` is also stored).
    - Example: `all-week/morning` + `tuesday/afternoon` → Tue afternoon; all other days morning.
 7. **Invalid combinations and query-only values.**
    - **`weekdays` or `all-week` + `all-day`** is invalid — aggregates are only for half-day shifts. Full time everywhere = **zero rows** (rule 1), not an aggregate row.
    - Valid stored `workday` values: `monday` … `sunday`, `weekdays`, or `all-week`.
    - List query **`workday=all`** is filter-only and is **never** stored.
-   - **Write enforcement:** **`POST`**, **`PUT`**, and **`DELETE ?workday=`** on **`/api/part-time/{employee_number}`** call [`validate_part_time_combination()`](../app/schemas/part_time.py) and [`verify_part_time_stored_workday()`](../app/schemas/part_time.py) before persisting. Invalid combinations → **`400`** **`INVALID_PART_TIME_COMBINATION`**. MariaDB alone does not reject invalid rows; direct SQL inserts can still bypass the API.
+   - **Write enforcement:** **`POST`**, **`PUT`**, and **`DELETE ?workday=&shift=`** on **`/api/part-time/{employee_number}`** call [`validate_part_time_combination()`](../app/schemas/part_time.py) and [`verify_part_time_stored_workday()`](../app/schemas/part_time.py) before persisting. Invalid combinations → **`400`** **`INVALID_PART_TIME_COMBINATION`**. MariaDB alone does not reject invalid rows; direct SQL inserts can still bypass the API.
 
-A participant may have **multiple** `part_times` rows (e.g. `weekdays/morning` plus `friday/afternoon`, or three calendar-day rows). The database enforces **at most one row per (`employee_id`, `workday`)** — you cannot store two different shifts for the same stored `workday` key in separate rows; pick `morning`, `afternoon`, or `all-day` (calendar days only) for that key. An employee may hold both a **`weekdays`** row and an **`all-week`** row (different keys); precedence resolves which applies on each calendar day. Days with no matching row after precedence have **no slot** (rule 6). Rule 1 applies only when there are **zero** rows total.
+A participant may have **multiple** `part_times` rows (e.g. `weekdays/morning` plus `weekdays/afternoon`, or `weekdays/morning` plus `friday/afternoon`). The database enforces **at most one row per (`employee_id`, `workday`, `shift`)** — **`weekdays/morning`** and **`weekdays/afternoon`** can coexist as separate rows. An employee may also hold both a **`weekdays`** row and an **`all-week`** row (different keys); precedence resolves which applies on each calendar day. Days with no matching row after precedence have **no slot** (rule 6). Rule 1 applies only when there are **zero** rows total.
 
 ### Aggregate workdays (`weekdays`, `all-week`) {#aggregate-workdays-weekdays-all-week}
 
@@ -268,7 +271,7 @@ Aggregate slugs replace duplicate calendar-day rows when the same shift repeats 
 | **`weekdays`** | Mon–Fri | “Morning every weekday”; weekends off |
 | **`all-week`** | Mon–Sun | Seven-day camp; same shift every day including Sat/Sun |
 
-**Does not apply on Saturday/Sunday:** a **`weekdays`** row never matches Saturday or Sunday — enforced by [`is_weekdays_calendar_day()`](../app/schemas/part_time.py) in slot resolution and list SQL. On those days, only a **calendar-day row** for that day or an **`all-week`** row can supply a slot.
+**Does not apply on Saturday/Sunday:** a **`weekdays`** row never matches Saturday or Sunday — enforced by [`is_weekdays_calendar_day()`](../app/schemas/schedule_slot.py) in slot resolution and list SQL. On those days, only a **calendar-day row** for that day or an **`all-week`** row can supply a slot.
 
 #### Shift pairing (rule 7)
 
@@ -324,7 +327,7 @@ Aggregate rows pair only with **`morning`** or **`afternoon`**. **`weekdays`/`al
 | `saturday` | `morning` | `all-week` |
 | `sunday` | `morning` | `all-week` |
 
-Slot lookup follows the same order as [`resolve_part_time_slot()`](../app/schemas/part_time.py):
+Slot lookup follows [`resolve_schedule_slot()`](../app/schemas/schedule_slot.py) (part-time wrapper: [`resolve_part_time_slot()`](../app/schemas/part_time.py)). **Workday precedence** (within a fixed shift tier):
 
 ```mermaid
 flowchart TD
@@ -344,6 +347,8 @@ flowchart TD
     allWeek -->|no| none
 ```
 
+**Shift resolution** (before the diagram’s workday walk): try an exact shift match (`morning`, `afternoon`, or `all-day`); for **`morning`**/**`afternoon`** lookups with no shift-specific row, fall back to an **`all-day`** row with the same workday precedence. List SQL in [`app/repositories/employee.py`](../app/repositories/employee.py) mirrors this logic.
+
 #### Storage vs API projection
 
 | Layer | What appears |
@@ -356,7 +361,7 @@ flowchart TD
 
 #### Unique constraint
 
-At most **one row per (`employee_id`, `workday`)** — including aggregate keys. An employee may have both **`weekdays`** and **`all-week`** rows (different keys); precedence picks the effective row per calendar day.
+At most **one row per (`employee_id`, `workday`, `shift`)** — including aggregate keys. **`weekdays/morning`** and **`weekdays/afternoon`** can coexist. An employee may have both **`weekdays`** and **`all-week`** rows (different keys); precedence picks the effective row per calendar day and lookup shift.
 
 ### Camp timezone (configuration, not in MariaDB)
 
@@ -371,7 +376,7 @@ Employee JSON includes **`full_time`**, **`workday`**, and **`shift`**. These ar
 | Field       | Source | Meaning |
 |------------|--------|---------|
 | `full_time` | `len(part_times) == 0` | `true` when the participant has no part-time rows (full-time worker). |
-| `workday`   | Effective slot for the context calendar day via [`resolve_part_time_slot()`](../app/schemas/part_time.py) (precedence: calendar > `weekdays` > `all-week`) | Response label when a slot exists: **`today`**, a calendar weekday slug (`monday` … `sunday`), or **`null`**. **Never** **`weekdays`** or **`all-week`**. |
+| `workday`   | Effective slot for the context calendar day via [`resolve_part_time_slot()`](../app/schemas/part_time.py) → [`resolve_schedule_slot()`](../app/schemas/schedule_slot.py) (workday precedence: calendar > `weekdays` > `all-week`; shift-specific tier then **`all-day`** fallback) | Response label when a slot exists: **`today`**, a calendar weekday slug (`monday` … `sunday`), or **`null`**. **Never** **`weekdays`** or **`all-week`**. |
 | `shift`     | Effective row’s `part_times.shift` | **`all-day`**, **`morning`**, or **`afternoon`** when `workday` is set; **`null`** when `workday` is **`null`**. |
 
 **Context weekday** depends on the endpoint:
@@ -385,7 +390,7 @@ Employee JSON includes **`full_time`**, **`workday`**, and **`shift`**. These ar
 
 Example: camp calendar is **Wednesday**, list uses **`?workday=tuesday`** → participants match if they have a direct **`tuesday`** row, or **`weekdays`** (+ shift) with no overriding **`tuesday`** row, or **`all-week`** (+ shift) with no overriding calendar or **`weekdays`** match; each returned row shows **`"workday": "tuesday"`** and the effective **`shift`**. With default **`workday=all`**, all employees are listed; each row’s **`workday`** / **`shift`** describe the slot for **Wednesday** (today), so a participant with only **`weekdays/morning`** shows **`"workday": "today"`** and **`"shift": "morning"`** — not **`"weekdays"`**.
 
-List filters (not stored): optional **`shift`** when **`workday`** is not **`all`** restricts to the effective shift for that filter day (same precedence as slot resolution). Filter values **`weekdays`** and **`all-week`** are invalid → **`400`**. Calendar helpers ([`camp_day()`](../app/camp_time.py)) and part-time query resolution ([`resolve_part_time_slot()`](../app/schemas/part_time.py), [`parse_list_workday_param()`](../app/schemas/part_time.py), [`employee_context_workday_and_shift()`](../app/schemas/part_time.py)) live in [`app/camp_time.py`](../app/camp_time.py) and [`app/schemas/part_time.py`](../app/schemas/part_time.py); list SQL mirrors precedence in [`app/repositories/employee.py`](../app/repositories/employee.py). Staff-facing filter examples: [developer-guide.md — List filter behavior](./developer-guide.md#aggregate-part-time-patterns).
+List filters (not stored): optional **`shift`** when **`workday`** is not **`all`** restricts to the effective shift for that filter day (same shift + workday precedence as slot resolution). Filter values **`weekdays`** and **`all-week`** are invalid → **`400`**. Calendar helpers ([`camp_day()`](../app/camp_time.py)) and part-time query resolution ([`resolve_schedule_slot()`](../app/schemas/schedule_slot.py), [`resolve_part_time_slot()`](../app/schemas/part_time.py), [`parse_list_workday_param()`](../app/schemas/part_time.py), [`employee_context_workday_and_shift()`](../app/schemas/part_time.py)) live in [`app/camp_time.py`](../app/camp_time.py), [`app/schemas/schedule_slot.py`](../app/schemas/schedule_slot.py), and [`app/schemas/part_time.py`](../app/schemas/part_time.py); list SQL mirrors the same logic in [`app/repositories/employee.py`](../app/repositories/employee.py). Staff-facing filter examples: [developer-guide.md — List filter behavior](./developer-guide.md#aggregate-part-time-patterns).
 
 ---
 
@@ -431,9 +436,9 @@ Each stored row is a **`workday`** (which days) plus a **`shift`** (morning, aft
 7. **Invalid combinations.** **`weekdays` or `all-week` + `all-day`** is invalid — same rule as part-time aggregates. Restore the default cap everywhere by **deleting all** schedule rows, not by storing an aggregate **`all-day`** row.
 8. **Write enforcement:** **`POST`**, **`PUT`**, and **`DELETE ?workday=&shift=`** on **`/api/company-jobs-max/{company_name}`** call the same part-time validators plus **`verify_jobs_max()`** for the override cap. Invalid combinations → **`400`** **`INVALID_PART_TIME_COMBINATION`**; invalid cap → **`400`** **`INVALID_JOBS_MAX`**.
 
-Unlike **`part_times`**, the unique key is **`(company_id, workday, shift)`**, so **`weekdays/morning`** and **`weekdays/afternoon`** can coexist as separate rows. Slot lookup tries shift-specific rows first, then falls back to **`all-day`** rows — see [`resolve_company_jobs_max_slot()`](../app/schemas/company_jobs_max.py).
+Both **`part_times`** and **`company_jobs_max`** use unique keys that include **`shift`**: **`(employee_id, workday, shift)`** and **`(company_id, workday, shift)`** respectively, so **`weekdays/morning`** and **`weekdays/afternoon`** can coexist as separate rows. Slot lookup for both tables uses shared [`resolve_schedule_slot()`](../app/schemas/schedule_slot.py) (wrapped by [`resolve_part_time_slot()`](../app/schemas/part_time.py) and [`resolve_company_jobs_max_slot()`](../app/schemas/company_jobs_max.py)): shift-specific rows first, then **`all-day`** fallback for **`morning`**/**`afternoon`** lookups.
 
-Aggregate workday semantics, precedence examples, and storage-vs-projection rules mirror [Part-time design decisions](#part-time-design-decisions) and [Aggregate workdays](#aggregate-workdays-weekdays-all-week); the main differences are the unique key (includes **`shift`**), the payload field **`jobs_max`**, and fallback to **`companies.jobs_max`** when no row matches.
+Aggregate workday semantics, precedence examples, and storage-vs-projection rules mirror [Part-time design decisions](#part-time-design-decisions) and [Aggregate workdays](#aggregate-workdays-weekdays-all-week). **`company_jobs_max`** adds the payload field **`jobs_max`** and falls back to **`companies.jobs_max`** when no row matches.
 
 ### Camp shift boundary {#camp-shift-boundary}
 
@@ -682,7 +687,7 @@ erDiagram
 ### Company jobs max (`company_jobs_max`)
 
 - Optional **workday + shift** overrides for a company's job capacity. **`Company.company_jobs_max` may be empty** — then **`companies.jobs_max`** applies everywhere.
-- Unique on (`company_id`, `workday`, `shift`) — morning and afternoon caps can coexist on the same stored `workday` key (unlike `part_times`).
+- Unique on (`company_id`, `workday`, `shift`) — morning and afternoon caps can coexist on the same stored `workday` key (same pattern as `part_times`).
 - **`ON DELETE CASCADE`:** if a company row is removed, all its schedule rows are removed with it.
 - **`workday`** and **`shift`** use the same slug sets as [`part_times`](#part_times); aggregate + **`all-day`** combination rules match part-time rule 7.
 - **`jobs_max`** on each row is the override cap when that slot matches camp now ([`camp_day()`](../app/camp_time.py) + [`camp_shift()`](../app/camp_time.py)).
@@ -705,7 +710,7 @@ erDiagram
 ### Part-time (`part_times`)
 
 - **`Employee.part_times` may be empty.** No rows: participant works **full time**. One or more rows: each defines part-time for a stored `workday` key (calendar day or aggregate), scoped by `shift` — see [Part-time design decisions](#part-time-design-decisions) and [Aggregate workdays](#aggregate-workdays-weekdays-all-week).
-- Multiple rows per `employees.id` are allowed (e.g. `weekdays/morning` + `friday/afternoon`, or three calendar days). Unique on (`employee_id`, `workday`) — at most one row per stored key, including **`weekdays`** and **`all-week`**. **`ON DELETE CASCADE`:** if a camp participant row is removed, all their part-time rows are removed with it.
+- Multiple rows per `employees.id` are allowed (e.g. `weekdays/morning` + `weekdays/afternoon`, or `weekdays/morning` + `friday/afternoon`). Unique on (`employee_id`, `workday`, `shift`) — at most one row per stored key + shift, including **`weekdays`** and **`all-week`**. **`ON DELETE CASCADE`:** if a camp participant row is removed, all their part-time rows are removed with it.
 - `workday` (`NOT NULL`): calendar slug (`monday` … `sunday`) or aggregate slug (**`weekdays`**, **`all-week`**).
 - `shift` (`NOT NULL`, default `all-day`): on calendar days, `all-day` = full day; `morning` or `afternoon` = that shift only. On aggregates, only `morning` or `afternoon` is valid.
 - **API projection:** list/get/profile responses add **`full_time`**, **`workday`**, and **`shift`** via slot resolution plus camp timezone — see [API projection: `full_time`, `workday`, and `shift`](#api-projection-workday-shift). JSON **`workday`** is always a **context label** (`today`, calendar name, or `null`); aggregate slugs are **never** exposed in employee responses.

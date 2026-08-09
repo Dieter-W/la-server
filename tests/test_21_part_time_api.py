@@ -26,12 +26,13 @@ payload_create_aggregate = {
 
 payload_put = {
     "workday": "monday",
-    "shift": "afternoon",
+    "shift": "morning",
     "notes": "Updated",
 }
 
 payload_put_notes_only = {
     "workday": "tuesday",
+    "shift": "afternoon",
     "notes": "Notes only",
 }
 
@@ -335,13 +336,42 @@ def test_part_time_create_employee_not_found(
     assert data["error"] == "EMPLOYEE_NOT_FOUND"
 
 
+def test_part_time_create_same_workday_different_shift(
+    client,
+    sample_authentication,
+    sample_employee,
+    sample_employee_part_time,
+):
+    """Same workday with a different shift is allowed (``(employee, workday, shift)`` key)."""
+    token = _login_as_admin(client, sample_authentication, sample_employee)
+    response = client.post(
+        "/api/part-time/A00265",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"workday": "monday", "shift": "all-day"},
+    )
+    if response.status_code != 201:
+        print(response.text)
+    assert response.status_code == 201
+
+    response = client.get("/api/part-time/A00265")
+    if response.status_code != 200:
+        print(response.text)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 3
+    monday_shifts = {
+        row["shift"] for row in data["part_times"] if row["workday"] == "monday"
+    }
+    assert monday_shifts == {"morning", "all-day"}
+
+
 def test_part_time_create_duplicate_workday(
     client,
     sample_authentication,
     sample_employee,
     sample_employee_part_time,
 ):
-    """Duplicate ``(employee, workday)`` is rejected by the DB unique constraint."""
+    """Duplicate ``(employee, workday, shift)`` is rejected by the DB unique constraint."""
     token = _login_as_admin(client, sample_authentication, sample_employee)
     response = client.post(
         "/api/part-time/A00265",
@@ -463,26 +493,23 @@ def test_part_time_update_invalid_payload_error_3(
 
 
 def test_part_time_update_invalid_payload_error_4(
-    client, sample_authentication, sample_employee
+    client,
+    sample_authentication,
+    sample_employee,
+    sample_employee_part_time,
 ):
-    """Aggregate workdays reject ``all-day`` shift on PUT."""
+    """PUT requires both ``workday`` and ``shift`` lookup keys."""
     token = _login_as_admin(client, sample_authentication, sample_employee)
-    headers = {"Authorization": f"Bearer {token}"}
-    client.post(
-        "/api/part-time/M00252",
-        headers=headers,
-        json=payload_create_aggregate,
-    )
     response = client.put(
-        "/api/part-time/M00252",
-        headers=headers,
-        json={"workday": WEEKDAYS_WORKDAY, "shift": "all-day"},
+        "/api/part-time/A00265",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"workday": "monday"},
     )
     if response.status_code != 400:
         print(response.text)
     assert response.status_code == 400
     data = response.get_json()
-    assert data["error"] == "INVALID_PART_TIME_COMBINATION"
+    assert data["error"] == "REQUIRED_JSON_INPUT_MISSING_OR_EMPTY"
 
 
 def test_part_time_update_not_found(client, sample_authentication, sample_employee):
@@ -537,7 +564,7 @@ def test_part_time_update_employee_not_found(
 def test_part_time_update(
     client, sample_authentication, sample_employee, sample_employee_part_time
 ):
-    """Admin PUT updates shift and notes; workday is lookup key only."""
+    """Admin PUT updates notes; workday and shift are lookup keys only."""
     token = _login_as_admin(client, sample_authentication, sample_employee)
     response = client.put(
         "/api/part-time/A00265",
@@ -549,7 +576,7 @@ def test_part_time_update(
     assert response.status_code == 200
     data = response.get_json()
     assert data["workday"] == payload_put["workday"]
-    assert data["shift"] == payload_put["shift"]
+    assert data["shift"] == "morning"
     assert data["notes"] == payload_put["notes"]
 
     response = client.get("/api/part-time/A00265")
@@ -558,7 +585,7 @@ def test_part_time_update(
     assert response.status_code == 200
     list_data = response.get_json()
     monday = next(row for row in list_data["part_times"] if row["workday"] == "monday")
-    assert monday["shift"] == payload_put["shift"]
+    assert monday["shift"] == "morning"
     assert monday["notes"] == payload_put["notes"]
 
 
@@ -706,6 +733,24 @@ def test_part_time_delete_one_requires_admin(
     assert data["error"] == "AUTHORIZATION_REQUIRED"
 
 
+def test_part_time_delete_one_missing_shift(
+    client,
+    sample_authentication,
+    sample_employee,
+    sample_employee_part_time,
+):
+    token = _login_as_admin(client, sample_authentication, sample_employee)
+    response = client.delete(
+        "/api/part-time/A00265?workday=monday",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 400:
+        print(response.text)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "INVALID_PART_TIME_SHIFT"
+
+
 def test_part_time_delete_one_invalid_workday(
     client,
     sample_authentication,
@@ -714,7 +759,7 @@ def test_part_time_delete_one_invalid_workday(
 ):
     token = _login_as_admin(client, sample_authentication, sample_employee)
     response = client.delete(
-        "/api/part-time/A00265?workday=today",
+        "/api/part-time/A00265?workday=today&shift=morning",
         headers={"Authorization": f"Bearer {token}"},
     )
     if response.status_code != 400:
@@ -727,7 +772,7 @@ def test_part_time_delete_one_invalid_workday(
 def test_part_time_delete_one_not_found(client, sample_authentication, sample_employee):
     token = _login_as_admin(client, sample_authentication, sample_employee)
     response = client.delete(
-        "/api/part-time/M00252?workday=friday",
+        "/api/part-time/M00252?workday=friday&shift=morning",
         headers={"Authorization": f"Bearer {token}"},
     )
     if response.status_code != 404:
@@ -742,7 +787,7 @@ def test_part_time_delete_one_invalid_employee_number(
 ):
     token = _login_as_admin(client, sample_authentication, sample_employee)
     response = client.delete(
-        "/api/part-time/Wrong?workday=monday",
+        "/api/part-time/Wrong?workday=monday&shift=morning",
         headers={"Authorization": f"Bearer {token}"},
     )
     if response.status_code != 400:
@@ -757,7 +802,7 @@ def test_part_time_delete_one_employee_not_found(
 ):
     token = _login_as_admin(client, sample_authentication, sample_employee)
     response = client.delete(
-        "/api/part-time/TEST00753?workday=monday",
+        "/api/part-time/TEST00753?workday=monday&shift=morning",
         headers={"Authorization": f"Bearer {token}"},
     )
     if response.status_code != 404:
@@ -772,7 +817,7 @@ def test_part_time_delete_one(
 ):
     token = _login_as_admin(client, sample_authentication, sample_employee)
     response = client.delete(
-        "/api/part-time/A00265?workday=tuesday",
+        "/api/part-time/A00265?workday=tuesday&shift=afternoon",
         headers={"Authorization": f"Bearer {token}"},
     )
     if response.status_code != 200:
@@ -802,7 +847,7 @@ def test_part_time_delete_one_aggregate_workday(
         json=payload_create_aggregate,
     )
     response = client.delete(
-        f"/api/part-time/M00252?workday={WEEKDAYS_WORKDAY}",
+        f"/api/part-time/M00252?workday={WEEKDAYS_WORKDAY}&shift=morning",
         headers=headers,
     )
     if response.status_code != 200:

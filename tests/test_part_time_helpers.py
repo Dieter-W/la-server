@@ -5,7 +5,7 @@ from __future__ import annotations
 from app.models import CompanyJobsMax, Employee, PartTime
 from app.schemas.part_time import (
     PART_TIME_AGGREGATE_STORED_SLUGS,
-    resolve_part_time_slot,
+    part_time_slot_exists,
 )
 
 PartTimeRow = tuple[int, str, str]
@@ -70,12 +70,7 @@ def employee_matches_workday_filter(
     shift: str | None = None,
 ) -> bool:
     """True when ``resolve_part_time_slot`` would include the employee in a list filter."""
-    slot = resolve_part_time_slot(part_times, filter_day)
-    if slot is None:
-        return False
-    if shift is not None and slot.shift != shift:
-        return False
-    return True
+    return part_time_slot_exists(part_times, filter_day, lookup_shift=shift)
 
 
 def count_employees_matching_workday_filter(

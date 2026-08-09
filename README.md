@@ -404,7 +404,7 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | POST   | `/api/part-time/<employee_number>`             | Create part-time row                        | admin required                   |
 | PUT    | `/api/part-time/<employee_number>`             | Update part-time row                        | admin required                   |
 | DELETE | `/api/part-time/<employee_number>`             | Delete all part-time rows                   | admin required                   |
-| DELETE | `/api/part-time/<employee_number>?workday=`    | Delete one part-time row                    | admin required                   |
+| DELETE | `/api/part-time/<employee_number>?workday=&shift=` | Delete one part-time row                    | admin required                   |
 | POST   | `/api/attendance/check-in/<employee_number>`   | Record check-in for camp today              | staff or higher                  |
 | POST   | `/api/attendance/check-out/<employee_number>`  | Record optional check-out for camp today    | staff or higher                  |
 | GET    | `/api/attendance/check-ins?workday=`           | List check-ins for a camp day               | public                           |

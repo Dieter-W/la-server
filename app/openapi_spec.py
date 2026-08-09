@@ -248,10 +248,24 @@ def build_openapi_dict() -> dict:
                 "enum": PART_TIME_STORED_WORKDAYS,
             },
             "description": (
-                "Stored workday slug. When set, delete one row for that key; omit to delete all "
-                "part-time rows for the employee (restores full-time when none remain)."
+                "Stored workday slug. When set together with **`shift`**, delete one part-time row; "
+                "omit both to delete all part-time rows for the employee (restores full-time when "
+                "none remain)."
             ),
-        }
+        },
+        {
+            "name": "shift",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "type": "string",
+                "enum": ["all-day", "morning", "afternoon"],
+            },
+            "description": (
+                "Stored shift slug. Required together with **`workday`** for delete-one; omit both "
+                "for delete-all. Setting only one query param → `400`."
+            ),
+        },
     ]
     query_company_jobs_max_delete = [
         {
@@ -659,7 +673,7 @@ def build_openapi_dict() -> dict:
             ),
             **_op(
                 "delete",
-                "Delete all part-time rows, or one when `?workday=` is set",
+                "Delete all part-time rows, or one when `?workday=&shift=` is set",
                 tag="Part-time",
                 security=_BEARER,
                 parameters=parameters_employee_number + query_part_time_delete,
@@ -667,7 +681,7 @@ def build_openapi_dict() -> dict:
                     "200": {
                         "description": (
                             "All rows deleted (`DeleteAllPartTimesResponse`) or one row "
-                            "(`DeleteOnePartTimeResponse` when `?workday=` is set)."
+                            "(`DeleteOnePartTimeResponse` when `?workday=` and `?shift=` are set)."
                         ),
                         "content": {
                             "application/json": {
@@ -1848,10 +1862,10 @@ def build_openapi_dict() -> dict:
                 },
                 "UpdatePartTimeRequest": {
                     "type": "object",
-                    "required": ["workday"],
+                    "required": ["workday", "shift"],
                     "description": (
-                        "Partial update. **`workday`** is the lookup key only (not renamable). "
-                        "Include **`shift`** and/or **`notes`** to change them."
+                        "Partial update. **`workday`** and **`shift`** are lookup keys only "
+                        "(not renamable). Include **`notes`** to change them."
                     ),
                     "properties": {
                         "workday": {
@@ -1863,6 +1877,7 @@ def build_openapi_dict() -> dict:
                         "shift": {
                             "type": "string",
                             "enum": ["all-day", "morning", "afternoon"],
+                            "description": "Stored row to update.",
                             "example": "morning",
                         },
                         "notes": {
