@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """Bulk import camp participants (employee rows) from CSV.
 
 Checksum validation follows ``VALIDATE_CHECK_SUM`` in ``.env`` (see app config).

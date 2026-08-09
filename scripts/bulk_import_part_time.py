@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """Bulk import part-time schedules from CSV.
 
 Prerequisite: employees must exist (import employees first).

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """Create the MariaDB database and tables (e.g. employees) if they do not exist."""
 
 import logging

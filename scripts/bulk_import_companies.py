@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """Bulk import companies from CSV. Run with: python ./scripts/bulk_import_companies.py <path_to_csv>"""
 
 import csv
