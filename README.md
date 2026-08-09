@@ -383,6 +383,7 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | GET    | `/api/health`                                  | Liveness                                    | public                           |
 | GET    | `/api/health/db`                               | Database connectivity                       | public                           |
 | GET    | `/api/health/runtime`                          | Pool, peaks, redacted DB (no customer data) | admin required                   |
+| GET    | `/api/version`                                 | Release tag and API/schema compatibility hashes | public                       |
 | POST   | `/api/auth/login`                              | Sign in                                     | public                           |
 | POST   | `/api/auth/set-auth-group`                     | Change another user’s permission level      | admin required                   |
 | GET    | `/api/auth/me`                                 | Current employee profile                    | employee or higher               |
@@ -478,6 +479,8 @@ curl -s -o job-assignment-history-today.csv \
 ## Development
 
 If you build or integrate a client, see [docs/developer-guide.md](docs/developer-guide.md) for the exact headers and flows. With the server running, **`GET /api/openapi.json`** serves the OpenAPI 3.0 schema and **`GET /api/docs`** serves Swagger UI (same host and port as the API).
+
+**API compatibility:** Client apps should call **`GET /api/version`** at startup and compare **`api_compatibility_hashes`** (and optionally **`schema_compatibility_hashes`**) for the resource keys their build uses — exact match required. **`server_version`** is the human release label only; do not use it as a strict compatibility gate. See [developer-guide.md — API and schema compatibility](./docs/developer-guide.md#api-and-schema-compatibility).
 
 - For developer information see: `[./docs/developer-guide.md](./docs/developer-guide.md)` — tools, API usage for client developers and backend notes for contributors.
 - For information about the database layout see:   `[./docs/database_design.md](./docs/database_design.md)` — database schema and design.

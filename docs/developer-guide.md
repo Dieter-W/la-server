@@ -14,6 +14,60 @@ For environment variables, production setup (`setup.ps1` / `setup.sh` with `init
 
 By default the server listens on **`http://localhost:5000`**. In deployment, use `http://<HOST>:<PORT>` where `HOST` and `PORT` come from `.env` (see [.env.example](../.env.example)). TLS termination is assumed to happen in a reverse proxy if you serve HTTPS.
 
+## API and schema compatibility
+
+At **client startup**, call **`GET /api/version`** (public, no sign-in). Compare the returned hashes against values **pinned in your client build** for every API area and database table your app depends on. Use **exact string match** on the 16-character hex values — partial overlap or semver-style ranges are not supported.
+
+| JSON field | Purpose |
+| ---------- | ------- |
+| **`server_version`** | Release tag from [`pyproject.toml`](../pyproject.toml) (informational for support and about screens). **Do not** use it as the strict compatibility gate. |
+| **`api_compatibility_hashes`** | **Primary** client check — one hash per API resource group (paths + related schemas). |
+| **`schema_compatibility_hashes`** | **Optional** client check — one hash per business database table behind the server. |
+
+**Structure-only policy:** hashes change when the **contract shape** changes, not when documentation prose changes.
+
+| Source | Affects hash? |
+| ------ | ------------- |
+| OpenAPI `description`, `summary`, `example`, `examples`, `externalDocs`, schema `title`, operation `tags` | **No** |
+| OpenAPI properties, types, `required`, parameters, paths | **Yes** |
+| OpenAPI `components/responses` bodies referenced by an operation | **Yes** |
+| This developer guide | **No** |
+| [`app/models.py`](../app/models.py) columns, foreign keys, constraints (not index or unique-constraint **names**) | **Yes** |
+| [`docs/database_design.md`](./database_design.md) | **No** |
+
+**`api_compatibility_hashes` keys** (one entry each): `auth`, `employees`, `companies`, `part_time`, `company_jobs_max`, `job_assignments`, `job_assignment_history`, `attendance`, `village_data`, `health`, `version`. Each key covers the OpenAPI slice for the matching `/api/…` path prefix (see [`app/contract_version.py`](../app/contract_version.py)).
+
+**`schema_compatibility_hashes` keys:** one entry per business table (`authentications`, `companies`, `employees`, …). The internal `schema_metadata` table is excluded.
+
+**Client startup protocol** (illustrative — pin only keys your build uses; authoritative hash values live in [`app/compatibility_hashes.json`](../app/compatibility_hashes.json)):
+
+```python
+EXPECTED_API_COMPAT = {
+    "auth": "5460225c9f6e6d4c",
+    "employees": "910f51af853a61b2",
+    "village_data": "e501f4f69fe59581",
+}
+EXPECTED_SCHEMA_COMPAT = {  # optional
+    "employees": "bfd28130ebc43583",
+}
+
+info = GET("/api/version")
+
+for resource, expected in EXPECTED_API_COMPAT.items():
+    if info["api_compatibility_hashes"][resource] != expected:
+        block(f"{resource} API incompatible — update this app")
+
+for table, expected in EXPECTED_SCHEMA_COMPAT.items():
+    if info["schema_compatibility_hashes"][table] != expected:
+        block(f"Database schema for {table} incompatible — migrate or update app")
+```
+
+On mismatch, block further API use and tell the user to update the client (or, for schema hashes, that the server database may need migration). **`GET /api/village-data`** exposes a **`la-server`** block with **`server_version`** and runtime config only — compatibility hashes stay on **`GET /api/version`** only.
+
+**Server contributors:** when you intentionally change OpenAPI structure or SQLAlchemy models, regenerate [`app/compatibility_hashes.json`](../app/compatibility_hashes.json) with `poetry run python scripts/update_compatibility_hashes.py --write` and commit the diff; [`tests/test_04_compatibility_hashes.py`](../tests/test_04_compatibility_hashes.py) asserts computed hashes match that file. On startup, [`init_db()`](../app/database.py) still seeds/verifies the legacy integer **`schema_metadata.version`** row; future releases may store **`applied_hashes`** aligned with **`schema_compatibility_hashes`**. Bumping **`_SCHEMA_VERSION`** in code has no automatic DB update — after applying the manual migration SQL, an operator must run `UPDATE schema_metadata SET version = <new_version> WHERE id = 1`.
+
+Endpoint detail: [Version](#version).
+
 ## Authentication
 
 **Normative reference:** Full **request/response shapes and HTTP status codes** for every auth route are under **[Auth API](#auth-api)** — start with [Login service](#login-service) and [Me service](#me-service), then the `POST` operations in that section. **This heading** explains **how JWTs fit into client calls** and includes a **short walkthrough**; it is **not** the complete specification for each endpoint.
@@ -157,6 +211,7 @@ If an admin changes another person’s access (`POST /api/auth/set-auth-group`),
 | GET    | `/api/health`                                  | Liveness                                    | public                           |
 | GET    | `/api/health/db`                               | Database connectivity                       | public                           |
 | GET    | `/api/health/runtime`                          | Pool, peaks, redacted DB (no customer data) | admin required                   |
+| GET    | `/api/version`                                 | Release tag and API/schema compatibility hashes | public                       |
 | POST   | `/api/auth/login`                              | Sign in                                     | public                           |
 | GET    | `/api/auth/me`                                 | Current employee profile                    | employee or higher               |
 | POST   | `/api/auth/set-auth-group`                     | Change another user’s permission level      | admin required                   |
@@ -248,7 +303,8 @@ None.
 ```json
 {
   "status": "ok",
-  "service": "Kinderspielstadt Los Ämmerles - LA-Server"
+  "service": "Kinderspielstadt Los Ämmerles - LA-Server",
+  "server_version": "1.1.0"
 }
 ```
 
@@ -389,6 +445,71 @@ None.
 | 403  | Error: `{"error": "FORBIDDEN_WRONG_AUTH_GROUP"}` (not admin) |
 
 Missing or invalid JWT behavior matches [Errors and status codes](#errors-and-status-codes).
+
+
+---
+
+## Version
+
+### Release and compatibility hashes - /api/version
+
+**Explanation**
+Returns the server release tag and auto-computed **compatibility hashes** for API resource groups and database tables. Clients should call this at startup and compare pinned expected values ([API and schema compatibility](#api-and-schema-compatibility)). **`server_version`** is informational only.
+
+**Parameters**
+None.
+
+**Endpoint sample**
+
+```http
+GET /api/version HTTP/1.1
+Host: localhost:5000
+```
+
+```bash
+curl -s http://localhost:5000/api/version
+```
+
+**JSON request**
+None.
+
+**JSON response** (illustrative — `server_version` comes from the running build; hash values are computed at runtime and match [`app/compatibility_hashes.json`](../app/compatibility_hashes.json) at release time)
+
+```json
+{
+  "server_version": "1.1.0",
+  "api_compatibility_hashes": {
+    "attendance": "87b39ab97f188edc",
+    "auth": "5460225c9f6e6d4c",
+    "companies": "fe7605b9695ed4f4",
+    "company_jobs_max": "95547adaa7121b1c",
+    "employees": "910f51af853a61b2",
+    "health": "9523b633fca0d2dc",
+    "job_assignment_history": "0f47c24fd0080599",
+    "job_assignments": "2d519eb5a8b05ffb",
+    "part_time": "13d4b122d1248c79",
+    "version": "4401c35321b46c17",
+    "village_data": "e501f4f69fe59581"
+  },
+  "schema_compatibility_hashes": {
+    "attendances": "f41eb55f24b514b7",
+    "authentications": "7c77216cd4788408",
+    "companies": "ee6b0865b7c8adf8",
+    "company_jobs_max": "f169353320a3d6dc",
+    "employees": "bfd28130ebc43583",
+    "job_assignment_history": "fdb32ba0df88fdfc",
+    "job_assignments": "83b901fd409ab6bc",
+    "part_times": "f2ba6cf0cfbad8cb"
+  }
+}
+```
+
+**HTTP status codes**
+
+
+| Code | Meaning |
+| ---- | ------- |
+| 200  | OK      |
 
 
 ---

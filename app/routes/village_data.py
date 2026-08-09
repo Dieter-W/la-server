@@ -11,7 +11,8 @@ from flask import Blueprint, Response, current_app, jsonify, request, send_file
 from app.auth.utils import AUTH_GROUPS
 from app.errors import APIError
 from app.schemas.part_time import PART_TIME_SHIFTS, PART_TIME_STORED_WORKDAYS
-from app.village_config import _DATA_DIR, load_village_data
+from app.version import SERVER_VERSION
+from app.village_config import _DATA_DIR, get_camp_timezone, load_village_data
 
 village_data_bp = Blueprint("village_data", __name__)
 
@@ -58,11 +59,13 @@ def _build_la_server_block() -> dict:
     access_td = cfg.get("JWT_ACCESS_TOKEN_EXPIRES") or timedelta(minutes=15)
     refresh_td = cfg.get("JWT_REFRESH_TOKEN_EXPIRES") or timedelta(hours=3)
     return {
+        "server_version": SERVER_VERSION,
         "auth_groups": list(AUTH_GROUPS),
         "part_time_shifts": list(PART_TIME_SHIFTS),
         "part_time_workdays": list(PART_TIME_STORED_WORKDAYS),
         "company_jobs_max_shifts": list(PART_TIME_SHIFTS),
         "company_jobs_max_workdays": list(PART_TIME_STORED_WORKDAYS),
+        "camp_timezone": str(get_camp_timezone()),
         "validate_employee_number_checksum": validate,
         "employee_number_checksum_algorithm": (
             "ISO_7064_MOD_97_10" if validate else None
