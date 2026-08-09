@@ -1,7 +1,7 @@
 """Fixed camp timezone anchors and camp_time unit tests."""
 
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, time
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -53,7 +53,7 @@ def camp_today_patch(camp_instant: datetime):
 # camp_shift — afternoon boundary at 13:00 camp-local
 # ---------------------------------------------------------------------
 def test_camp_afternoon_starts_at_1300():
-    assert CAMP_AFTERNOON_STARTS_AT == datetime(2026, 1, 1, 13, 0).time()
+    assert CAMP_AFTERNOON_STARTS_AT == time(13, 0)
 
 
 def test_camp_shift_morning_at_1259():

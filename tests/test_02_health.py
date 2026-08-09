@@ -45,7 +45,7 @@ def test_db_connectivity_error_1(client):
 # ---------------------------------------------------------------------
 # Health runtime check
 # ---------------------------------------------------------------------
-def test_health_runtime_ok(client, sample_authentication, sample_employee,): # fmt: skip
+def test_health_runtime_ok(client, sample_authentication, sample_employee,):  # fmt: skip
     token = _login_as_admin(
         client,
         sample_authentication,

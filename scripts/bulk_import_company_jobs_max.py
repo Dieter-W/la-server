@@ -6,6 +6,7 @@ Run with: python ./scripts/bulk_import_company_jobs_max.py <path_to_csv>
 """
 
 import csv
+import logging
 import sys
 from pathlib import Path
 
@@ -28,6 +29,8 @@ from app.schemas.part_time import (
 )
 
 load_dotenv(project_root / ".env")
+
+logger = logging.getLogger(__name__)
 
 REQUIRED_COLUMNS = ("company_name", "workday", "shift", "jobs_max", "notes")
 
@@ -87,18 +90,18 @@ def import_row(session, row: dict, row_num: int) -> bool:
         return False
 
     workday = workday_raw.lower()
-    valid, err = verify_part_time_stored_workday(workday)
+    valid, _err = verify_part_time_stored_workday(workday)
     if not valid:
         print(f"  Row {row_num}: SKIP - invalid workday {workday_raw!r}")
         return False
 
     shift = shift_raw.lower() if shift_raw else PartTimeShift.ALL_DAY.value
-    valid, err = verify_part_time_shift(shift)
+    valid, _err = verify_part_time_shift(shift)
     if not valid:
         print(f"  Row {row_num}: SKIP - invalid shift {shift_raw!r}")
         return False
 
-    valid, err = validate_part_time_combination(workday, shift)
+    valid, _err = validate_part_time_combination(workday, shift)
     if not valid:
         print(
             f"  Row {row_num}: SKIP - invalid workday/shift combination "
@@ -179,6 +182,7 @@ def main() -> int:
                         failed += 1
                 except Exception as e:
                     session.rollback()
+                    logger.exception("Row %s import failed", i)
                     print(f"  Row {i}: ERROR - {e}")
                     failed += 1
         finally:

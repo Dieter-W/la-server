@@ -28,7 +28,9 @@ payload_put = {
 # ---------------------------------------------------------------------
 # Companies bulk import with API check
 # ---------------------------------------------------------------------
-def test_bulk_import_companies_create_ok(client,): # fmt: skip
+def test_bulk_import_companies_create_ok(
+    client,
+):
     # Bulk insert
     result = subprocess.run(
         [
@@ -36,6 +38,7 @@ def test_bulk_import_companies_create_ok(client,): # fmt: skip
             "./scripts/bulk_import_companies.py",
             "./data/csv-example/companies_sample.csv",
         ],
+        check=True,
         capture_output=True,
         text=True,
     )
@@ -81,8 +84,8 @@ def test_bulk_import_companies_create_ok(client,): # fmt: skip
 # ---------------------------------------------------------------------
 # Companies bulk update with API check
 # ---------------------------------------------------------------------
-def test_bulk_import_companies_update_ok(client, sample_authentication, sample_employee,): # fmt: skip
-    token = _login_as_admin(client, sample_authentication, sample_employee,) # fmt: skip
+def test_bulk_import_companies_update_ok(client, sample_authentication, sample_employee,):  # fmt: skip
+    token = _login_as_admin(client, sample_authentication, sample_employee,)  # fmt: skip
     # Bulk insert
     result = subprocess.run(
         [
@@ -90,6 +93,7 @@ def test_bulk_import_companies_update_ok(client, sample_authentication, sample_e
             "./scripts/bulk_import_companies.py",
             "./data/csv-example/companies_sample.csv",
         ],
+        check=True,
         capture_output=True,
         text=True,
     )
@@ -122,6 +126,7 @@ def test_bulk_import_companies_update_ok(client, sample_authentication, sample_e
             "./scripts/bulk_import_companies.py",
             "./data/csv-example/companies_sample.csv",
         ],
+        check=True,
         capture_output=True,
         text=True,
     )

@@ -23,7 +23,7 @@ def list_job_assignments():
     with g.db.begin():
         service = JobAssignmentService(g.db)
         assignments, count = service.list_assignments()
-    return jsonify({"job_assignments": [a.to_dict() for a in assignments], "count": count}), 200 # fmt: skip
+    return jsonify({"job_assignments": [a.to_dict() for a in assignments], "count": count}), 200  # fmt: skip
 
 
 # ---------------------------------------------------------------------

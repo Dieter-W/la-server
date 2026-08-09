@@ -68,8 +68,6 @@ def _ini_raw_to_dict(raw: str) -> dict:
 # ---------------------------------------------------------------------
 def load_village_data() -> dict | None:
     """Load village.ini as a nested dict (JSON-serialisable), with mtime caching."""
-    global _cache
-
     village_ini = _DATA_DIR / "village.ini"
     try:
         mtime = village_ini.stat().st_mtime

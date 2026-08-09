@@ -14,6 +14,7 @@ _COMPANY_JOBS_MAX_CSV = "./data/csv-example/company_jobs_max_sample.csv"
 def _run_bulk_import(script: str, csv_path: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, script, csv_path],
+        check=True,
         capture_output=True,
         text=True,
         cwd=str(_REPO_ROOT),

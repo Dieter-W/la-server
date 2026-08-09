@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol, TypeVar
+from typing import Protocol
 
 from app.camp_time import CALENDAR_WEEKDAY_SLUGS, CampShift
 
@@ -21,10 +21,7 @@ class ScheduleRow(Protocol):
     shift: str
 
 
-T = TypeVar("T", bound=ScheduleRow)
-
-
-def resolve_schedule_slot_for_shift(
+def resolve_schedule_slot_for_shift[T](
     rows: list[T],
     lookup_workday: str,
     shift: str,
@@ -46,7 +43,7 @@ def resolve_schedule_slot_for_shift(
     return all_week_row
 
 
-def resolve_schedule_slot(
+def resolve_schedule_slot[T](
     rows: list[T],
     lookup_workday: str,
     lookup_shift: str,
