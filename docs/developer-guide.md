@@ -64,7 +64,7 @@ for table, expected in EXPECTED_SCHEMA_COMPAT.items():
 
 On mismatch, block further API use and tell the user to update the client (or, for schema hashes, that the server database may need migration). **`GET /api/village-data`** exposes a **`la-server`** block with **`server_version`** and runtime config only — compatibility hashes stay on **`GET /api/version`** only.
 
-**Server contributors:** when you intentionally change OpenAPI structure or SQLAlchemy models, regenerate [`app/compatibility_hashes.json`](../app/compatibility_hashes.json) with `poetry run python scripts/update_compatibility_hashes.py --write` and commit the diff; [`tests/test_04_compatibility_hashes.py`](../tests/test_04_compatibility_hashes.py) asserts computed hashes match that file. On startup, [`init_db()`](../app/database.py) still seeds/verifies the legacy integer **`schema_metadata.version`** row; future releases may store **`applied_hashes`** aligned with **`schema_compatibility_hashes`**. Bumping **`_SCHEMA_VERSION`** in code has no automatic DB update — after applying the manual migration SQL, an operator must run `UPDATE schema_metadata SET version = <new_version> WHERE id = 1`.
+**Server contributors:** when you intentionally change OpenAPI structure or SQLAlchemy models, regenerate [`app/compatibility_hashes.json`](../app/compatibility_hashes.json) with `poetry run python scripts/development/update_compatibility_hashes.py --write` and commit the diff; [`tests/test_04_compatibility_hashes.py`](../tests/test_04_compatibility_hashes.py) asserts computed hashes match that file. On startup, [`init_db()`](../app/database.py) still seeds/verifies the legacy integer **`schema_metadata.version`** row; future releases may store **`applied_hashes`** aligned with **`schema_compatibility_hashes`**. Bumping **`_SCHEMA_VERSION`** in code has no automatic DB update — after applying the manual migration SQL, an operator must run `UPDATE schema_metadata SET version = <new_version> WHERE id = 1`.
 
 Endpoint detail: [Version](#version).
 
@@ -3593,7 +3593,7 @@ The **development** script:
 
 1. Ensures **`.env`** exists (copies from **`.env.example`** only if it is still missing—use **`init-env`** above so you control creation explicitly).
 2. Runs **`poetry install --with dev`** so runtime and **development** dependencies are installed (same as [`.github/workflows/pre-commit.yml`](../.github/workflows/pre-commit.yml)).
-3. Runs **`poetry run pre-commit install`** so **pre-commit** runs on **commit** (see [`.pre-commit-config.yaml`](../.pre-commit-config.yaml)).
+3. Runs **`poetry run pre-commit install --hook-type pre-commit --hook-type pre-push`** so **pre-commit** runs on **commit** and **pre-push** (see [`.pre-commit-config.yaml`](../.pre-commit-config.yaml)).
 4. Validates the **test environment**: `pytest --collect-only`, then a short **MariaDB** connection using `Config.admin_db_uri()` and your `.env` credentials.
 
 If MariaDB is not available yet (e.g. offline), use `--skip-test-env-check` / `-SkipTestEnvCheck`:
@@ -3628,15 +3628,52 @@ Typical workflow:
 2. In `la-loadtest`: copy `.env.example` to `.env`, `poetry install`, run Locust (see [`la-loadtest/README.md`](../../la-loadtest/README.md)).
 3. Optionally poll `GET /api/health/runtime` (admin JWT) during a run — [Runtime diagnostics](#runtime-diagnostics---apihealthruntime) — to watch SQLAlchemy pool and concurrency peaks.
 
+## Scripts layout
+
+Contributor and hook tooling lives under **`scripts/development/`** (Poetry dev environment):
+
+| Script | Role |
+| ------ | ---- |
+| [`$check_poetry_to_requirements.py`](../scripts/development/$check_poetry_to_requirements.py) | Pre-commit: export `data/requirements.txt` when Poetry deps change |
+| [`update_compatibility_hashes.py`](../scripts/development/update_compatibility_hashes.py) | Regenerate or verify [`app/compatibility_hashes.json`](../app/compatibility_hashes.json) |
+| [`version_bump.py`](../scripts/development/version_bump.py) | Shared semver and `pyproject.toml` helpers for version hooks |
+| [`bump_patch_version.py`](../scripts/development/bump_patch_version.py) | Pre-commit: patch bump on every commit |
+| [`bump_minor_on_hash_change.py`](../scripts/development/bump_minor_on_hash_change.py) | Pre-push: minor bump when compatibility hashes changed vs remote |
+
+Operational scripts stay at **`scripts/`** root: [`setup.ps1`](../scripts/setup.ps1) / [`setup.sh`](../scripts/setup.sh), [`create_database.py`](../scripts/create_database.py), [`database_backup.py`](../scripts/database_backup.py), and bulk CSV import helpers.
+
+## Release versioning
+
+The semver in [`pyproject.toml`](../pyproject.toml) **`[project].version`** is the server release version (also exposed as **`server_version`** on **`GET /api/version`**). Two Git hooks maintain it automatically:
+
+| Trigger | Bump | Hook |
+| ------- | ---- | ---- |
+| Every local commit | **patch** +1 | pre-commit (`bump_patch_version.py`) |
+| `app/compatibility_hashes.json` changed vs remote tracking ref | **minor** +1, patch → 0 | pre-push (`bump_minor_on_hash_change.py`) |
+
+**Patch on commit:** each commit increments the patch segment unless you already staged a **higher** version in `pyproject.toml` (manual semver increases are respected). Merges in progress skip the patch bump.
+
+**Minor on push:** the pre-push hook compares [`app/compatibility_hashes.json`](../app/compatibility_hashes.json) at the remote tracking ref vs the commits being pushed. If the file changed and the current version is still below **`bump_minor(remote_version)`**, the hook writes the new version, creates a commit, and **aborts the push** (exit 1). Run **`git push`** again so the minor bump commit is included.
+
+**Pytest on commit:** after ruff format and lint, the pre-commit hook runs **`poetry run pytest`**. Pre-push hooks do **not** run tests.
+
+**Manual bumps:** editing `pyproject.toml` to a higher semver before commit still works; the hooks never downgrade.
+
+**Bypassing hooks:** `git commit --no-verify` / `git push --no-verify` skip automatic bumps (and commit-stage pytest). Use only when you understand the versioning impact.
+
+**CI:** GitHub Actions runs **`pre-commit run --all-files`**, which executes **commit-stage** hooks (including pytest) — not pre-push hooks (no automatic minor bump in CI).
+
 ## Day-to-day commands
 
 | Task | Command |
 | ---- | ------- |
 | Run tests | `poetry run pytest` |
-| Run all pre-commit hooks on the tree (same idea as CI) | `poetry run pre-commit run --all-files` |
+| Run all pre-commit hooks on the tree (same idea as CI; commit stage only, includes pytest) | `poetry run pre-commit run --all-files` |
+| Run pre-push hooks locally (minor bump check only) | `poetry run pre-commit run --hook-stage push --all-files` |
+| Run pytest hook only (commit stage) | `poetry run pre-commit run pytest --hook-stage commit` |
 | Start the server (after configuring `.env`) | `.\start.ps1` / `./start.sh` or `poetry run python main.py` |
 
-CI runs **`poetry install --with dev`** then **`poetry run pre-commit run --all-files`** on push and pull requests; keeping your local hook install and dependencies aligned avoids surprises.
+CI runs **`poetry install --with dev`** then **`poetry run pre-commit run --all-files`** on push and pull requests (commit-stage hooks only); keeping your local hook install and dependencies aligned avoids surprises.
 
 ## Editor / IDE
 
