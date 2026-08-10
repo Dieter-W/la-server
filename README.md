@@ -480,7 +480,7 @@ curl -s -o job-assignment-history-today.csv \
 
 If you build or integrate a client, see [docs/developer-guide.md](docs/developer-guide.md) for the exact headers and flows. With the server running, **`GET /api/openapi.json`** serves the OpenAPI 3.0 schema and **`GET /api/docs`** serves Swagger UI (same host and port as the API).
 
-**API compatibility:** Client apps should call **`GET /api/version`** at startup and compare **`api_compatibility_hashes`** (and optionally **`schema_compatibility_hashes`**) for the resource keys their build uses — exact match required. **`server_version`** is the human release label only; do not use it as a strict compatibility gate. See [developer-guide.md — API and schema compatibility](./docs/developer-guide.md#api-and-schema-compatibility).
+**API compatibility:** Client apps should call **`GET /api/version`** at startup and compare **`api_compatibility_hashes`** (and optionally **`api_method_compatibility_hashes`** for finer verb-level pinning, or **`schema_compatibility_hashes`**) for the resource keys their build uses — exact match required. **`server_version`** is the human release label only; do not use it as a strict compatibility gate. See [developer-guide.md — API and schema compatibility](./docs/developer-guide.md#api-and-schema-compatibility).
 
 - For developer information see: `[./docs/developer-guide.md](./docs/developer-guide.md)` — tools, API usage for client developers and backend notes for contributors. Contributor hook scripts (pre-commit, compatibility hashes, version bumps) live under **`scripts/development/`**.
 - For information about the database layout see:   `[./docs/database_design.md](./docs/database_design.md)` — database schema and design.

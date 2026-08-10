@@ -14,6 +14,7 @@ from scripts.development.version_bump import (
     COMPATIBILITY_HASHES_PATH,
     PYPROJECT_PATH,
     collect_hash_baseline_refs,
+    fetch_baseline_refs,
     format_minor_bump_commit_message,
     format_version,
     is_checked_out_head,
@@ -52,6 +53,7 @@ def main() -> int:
         )
         return 1
 
+    fetch_baseline_refs()
     baseline_refs = collect_hash_baseline_refs(from_ref)
     if not baseline_refs:
         print(

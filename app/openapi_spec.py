@@ -431,9 +431,10 @@ def build_openapi_dict() -> dict:
     )
     paths["/api/version"]["get"]["description"] = (
         "Public endpoint for client startup compatibility checks. Compare "
-        "**`api_compatibility_hashes`** (and optionally **`schema_compatibility_hashes`**) "
-        "against values pinned in your client build. **`server_version`** is informational "
-        "only — not a strict gate. See developer-guide.md — API and schema compatibility."
+        "**`api_compatibility_hashes`** (or the finer-grained **`api_method_compatibility_hashes`**) "
+        "and optionally **`schema_compatibility_hashes`** against values pinned in your client build. "
+        "**`server_version`** is informational only — not a strict gate. "
+        "See developer-guide.md — API and schema compatibility."
     )
 
     # --- Auth ---
@@ -1319,6 +1320,7 @@ def build_openapi_dict() -> dict:
                     "required": [
                         "server_version",
                         "api_compatibility_hashes",
+                        "api_method_compatibility_hashes",
                         "schema_compatibility_hashes",
                     ],
                     "example": _VERSION_INFO_EXAMPLE,
@@ -1343,6 +1345,22 @@ def build_openapi_dict() -> dict:
                             "additionalProperties": {
                                 "type": "string",
                                 "pattern": "^[0-9a-f]{16}$",
+                            },
+                        },
+                        "api_method_compatibility_hashes": {
+                            "type": "object",
+                            "description": (
+                                "One 16-character hex hash per API resource group and HTTP method "
+                                "(`get`, `post`, `put`, `delete`). Only methods present in the "
+                                "OpenAPI spec for that resource are included. A resource's `get` "
+                                "hash covers all GET operations under its path prefix."
+                            ),
+                            "additionalProperties": {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "string",
+                                    "pattern": "^[0-9a-f]{16}$",
+                                },
                             },
                         },
                         "schema_compatibility_hashes": {

@@ -4,6 +4,7 @@ import copy
 
 from app.contract_version import (
     _API_RESOURCE_PATH_PREFIXES,
+    _HTTP_METHODS,
     _build_openapi_dict_cached,
     _canonical_hash,
     _openapi_slice_for_resource,
@@ -12,18 +13,30 @@ from app.contract_version import (
     _table_contract_descriptor,
     _walk_refs,
     compute_api_compatibility_hashes,
+    compute_api_method_compatibility_hashes,
     compute_schema_compatibility_hashes,
 )
 from app.version import SERVER_VERSION, load_committed_hashes
 
 _committed_hashes = load_committed_hashes()
 COMMITTED_API_COMPATIBILITY_HASHES = _committed_hashes["api_compatibility_hashes"]
+COMMITTED_API_METHOD_COMPATIBILITY_HASHES = _committed_hashes[
+    "api_method_compatibility_hashes"
+]
 COMMITTED_SCHEMA_COMPATIBILITY_HASHES = _committed_hashes["schema_compatibility_hashes"]
 
 
 def test_api_compatibility_hashes_match_committed_baseline():
     """Each API resource group hash matches the committed baseline."""
     assert compute_api_compatibility_hashes() == COMMITTED_API_COMPATIBILITY_HASHES
+
+
+def test_api_method_compatibility_hashes_match_committed_baseline():
+    """Each API resource/method hash matches the committed baseline."""
+    assert (
+        compute_api_method_compatibility_hashes()
+        == COMMITTED_API_METHOD_COMPATIBILITY_HASHES
+    )
 
 
 def test_schema_compatibility_hashes_match_committed_baseline():
@@ -34,7 +47,7 @@ def test_schema_compatibility_hashes_match_committed_baseline():
 
 
 def test_version_endpoint_returns_compatibility_hashes(client):
-    """GET /api/version exposes release tag and both compatibility hash maps."""
+    """GET /api/version exposes release tag and all compatibility hash maps."""
     response = client.get("/api/version")
     if response.status_code != 200:
         print(response.text)
@@ -42,12 +55,32 @@ def test_version_endpoint_returns_compatibility_hashes(client):
     data = response.get_json()
     assert data["server_version"] == SERVER_VERSION
     assert data["api_compatibility_hashes"] == COMMITTED_API_COMPATIBILITY_HASHES
+    assert (
+        data["api_method_compatibility_hashes"]
+        == COMMITTED_API_METHOD_COMPATIBILITY_HASHES
+    )
     assert data["schema_compatibility_hashes"] == COMMITTED_SCHEMA_COMPATIBILITY_HASHES
 
 
 def test_api_hashes_cover_all_resource_groups():
     """Hash map keys match the documented API resource groups."""
     assert set(compute_api_compatibility_hashes()) == set(_API_RESOURCE_PATH_PREFIXES)
+
+
+def test_api_method_hashes_cover_all_resource_groups_and_methods():
+    """Per-method hash keys match each resource group and its OpenAPI HTTP methods."""
+    from app.contract_version import _cached_openapi_dict
+
+    openapi = _cached_openapi_dict()
+    method_hashes = compute_api_method_compatibility_hashes()
+
+    assert set(method_hashes) == set(_API_RESOURCE_PATH_PREFIXES)
+    for resource_key, path_prefix in _API_RESOURCE_PATH_PREFIXES.items():
+        paths = _paths_for_resource(openapi, path_prefix)
+        expected_methods = sorted(
+            {key for item in paths.values() for key in item if key in _HTTP_METHODS}
+        )
+        assert sorted(method_hashes[resource_key]) == expected_methods
 
 
 def test_every_openapi_path_matches_exactly_one_resource_prefix():
@@ -70,6 +103,23 @@ def _api_hashes_for_openapi(openapi) -> dict[str, str]:
         )
         for resource_key in _API_RESOURCE_PATH_PREFIXES
     }
+
+
+def _api_method_hashes_for_openapi(openapi) -> dict[str, dict[str, str]]:
+    """Recompute per-resource/method API hashes from an OpenAPI document copy."""
+    result: dict[str, dict[str, str]] = {}
+    for resource_key, path_prefix in _API_RESOURCE_PATH_PREFIXES.items():
+        paths = _paths_for_resource(openapi, path_prefix)
+        methods = sorted(
+            {key for item in paths.values() for key in item if key in _HTTP_METHODS}
+        )
+        result[resource_key] = {
+            method: _canonical_hash(
+                _openapi_slice_for_resource(openapi, resource_key, method=method)
+            )
+            for method in methods
+        }
+    return result
 
 
 def _resources_referencing_response(openapi, response_name: str) -> set[str]:
@@ -253,6 +303,32 @@ def test_documentation_only_openapi_changes_do_not_change_api_hashes():
     assert after == before
 
 
+def test_documentation_only_openapi_changes_do_not_change_api_method_hashes():
+    """Mutating descriptions/summaries/examples alone leaves per-method hashes stable."""
+    from app.contract_version import _cached_openapi_dict
+
+    openapi = _cached_openapi_dict()
+    paths = openapi["paths"]
+    first_path = next(iter(paths.values()))
+    first_op = next(iter(first_path.values()))
+    first_op["description"] = "Mutated description for hash stability test"
+    first_op["summary"] = "Mutated summary"
+    first_op["tags"] = ["MutatedTag"]
+
+    schemas = openapi.get("components", {}).get("schemas", {})
+    if schemas:
+        first_schema = next(iter(schemas.values()))
+        first_schema["description"] = "Mutated schema description"
+        first_schema["title"] = "MutatedTitle"
+        properties = first_schema.get("properties")
+        if isinstance(properties, dict) and properties:
+            next(iter(properties.values()))["example"] = "mutated-example"
+
+    before = compute_api_method_compatibility_hashes()
+    after = _api_method_hashes_for_openapi(openapi)
+    assert after == before
+
+
 def test_structural_openapi_changes_change_resource_hash():
     """Adding a required response field changes only the affected resource hash."""
     from app.contract_version import _cached_openapi_dict
@@ -288,6 +364,35 @@ def test_structural_openapi_changes_change_resource_hash():
     assert after["employees"] != before["employees"]
     unchanged = {key: value for key, value in before.items() if key != "employees"}
     assert {key: after[key] for key in unchanged} == unchanged
+
+
+def test_structural_post_change_changes_only_employees_post_method_hash():
+    """Adding a required response field on POST /api/employees changes only employees.post."""
+    from app.contract_version import _cached_openapi_dict
+
+    openapi = _cached_openapi_dict()
+    before = _api_method_hashes_for_openapi(openapi)
+
+    post_op = openapi["paths"]["/api/employees"]["post"]
+    responses = post_op.setdefault("responses", {})
+    created = responses.setdefault("201", {"description": "Created"})
+    content = created.setdefault("content", {})
+    json_content = content.setdefault("application/json", {})
+    schema = json_content.setdefault("schema", {"type": "object", "properties": {}})
+    schema.setdefault("properties", {})["_contract_test_field"] = {"type": "string"}
+    required = schema.setdefault("required", [])
+    if "_contract_test_field" not in required:
+        required.append("_contract_test_field")
+
+    after = _api_method_hashes_for_openapi(openapi)
+
+    assert after["employees"]["post"] != before["employees"]["post"]
+    for method in ("get", "put", "delete"):
+        assert after["employees"][method] == before["employees"][method]
+    for resource_key in _API_RESOURCE_PATH_PREFIXES:
+        if resource_key == "employees":
+            continue
+        assert after[resource_key] == before[resource_key]
 
 
 def test_structural_model_changes_change_table_hash():

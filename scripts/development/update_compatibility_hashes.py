@@ -10,31 +10,33 @@ sys.path.insert(0, str(project_root))
 
 from app.contract_version import (
     compute_api_compatibility_hashes,
+    compute_api_method_compatibility_hashes,
     compute_schema_compatibility_hashes,
 )
 
 HASHES_PATH = project_root / "app" / "compatibility_hashes.json"
 
 
-def compute_hashes() -> dict[str, dict[str, str]]:
+def compute_hashes() -> dict[str, dict]:
     return {
         "api_compatibility_hashes": compute_api_compatibility_hashes(),
+        "api_method_compatibility_hashes": compute_api_method_compatibility_hashes(),
         "schema_compatibility_hashes": compute_schema_compatibility_hashes(),
     }
 
 
-def format_hashes(payload: dict[str, dict[str, str]]) -> str:
+def format_hashes(payload: dict[str, dict]) -> str:
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
-def load_file_hashes() -> dict[str, dict[str, str]] | None:
+def load_file_hashes() -> dict[str, dict] | None:
     if not HASHES_PATH.is_file():
         return None
     with open(HASHES_PATH, encoding="utf-8") as f:
         return json.load(f)
 
 
-def write_hashes(payload: dict[str, dict[str, str]]) -> None:
+def write_hashes(payload: dict[str, dict]) -> None:
     HASHES_PATH.write_text(format_hashes(payload), encoding="utf-8")
 
 

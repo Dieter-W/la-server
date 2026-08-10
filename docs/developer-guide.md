@@ -22,6 +22,7 @@ At **client startup**, call **`GET /api/version`** (public, no sign-in). Compare
 | ---------- | ------- |
 | **`server_version`** | Release tag from [`pyproject.toml`](../pyproject.toml) (informational for support and about screens). **Do not** use it as the strict compatibility gate. |
 | **`api_compatibility_hashes`** | **Primary** client check — one hash per API resource group (paths + related schemas). |
+| **`api_method_compatibility_hashes`** | **Optional finer-grained** client check — one hash per resource group **and HTTP method** (`get`, `post`, `put`, `delete`). Only methods that exist for a resource are present. Pin `("employees", "get")`-style entries when your client uses a subset of verbs. |
 | **`schema_compatibility_hashes`** | **Optional** client check — one hash per business database table behind the server. |
 
 **Structure-only policy:** hashes change when the **contract shape** changes, not when documentation prose changes.
@@ -37,6 +38,8 @@ At **client startup**, call **`GET /api/version`** (public, no sign-in). Compare
 
 **`api_compatibility_hashes` keys** (one entry each): `auth`, `employees`, `companies`, `part_time`, `company_jobs_max`, `job_assignments`, `job_assignment_history`, `attendance`, `village_data`, `health`, `version`. Each key covers the OpenAPI slice for the matching `/api/…` path prefix (see [`app/contract_version.py`](../app/contract_version.py)).
 
+**`api_method_compatibility_hashes` keys:** same top-level resource keys as above; each value is an object keyed by HTTP method (`get`, `post`, `put`, `delete`) with one hash per method that exists in the OpenAPI spec for that resource. A resource's `get` hash folds together all GET operations under its path prefix (e.g. list and single-item routes).
+
 **`schema_compatibility_hashes` keys:** one entry per business table (`authentications`, `companies`, `employees`, …). The internal `schema_metadata` table is excluded.
 
 **Client startup protocol** (illustrative — pin only keys your build uses; authoritative hash values live in [`app/compatibility_hashes.json`](../app/compatibility_hashes.json)):
@@ -47,6 +50,10 @@ EXPECTED_API_COMPAT = {
     "employees": "910f51af853a61b2",
     "village_data": "e501f4f69fe59581",
 }
+EXPECTED_API_METHOD_COMPAT = {  # optional — pin only resource/method pairs you use
+    ("employees", "get"): "dd93c3f1c328aa03",
+    ("employees", "post"): "067bf27dd6f3e4d1",
+}
 EXPECTED_SCHEMA_COMPAT = {  # optional
     "employees": "bfd28130ebc43583",
 }
@@ -56,6 +63,10 @@ info = GET("/api/version")
 for resource, expected in EXPECTED_API_COMPAT.items():
     if info["api_compatibility_hashes"][resource] != expected:
         block(f"{resource} API incompatible — update this app")
+
+for (resource, method), expected in EXPECTED_API_METHOD_COMPAT.items():
+    if info["api_method_compatibility_hashes"][resource][method] != expected:
+        block(f"{resource}.{method} API incompatible — update this app")
 
 for table, expected in EXPECTED_SCHEMA_COMPAT.items():
     if info["schema_compatibility_hashes"][table] != expected:
@@ -481,15 +492,66 @@ None.
   "api_compatibility_hashes": {
     "attendance": "87b39ab97f188edc",
     "auth": "5460225c9f6e6d4c",
-    "companies": "fe7605b9695ed4f4",
+    "companies": "d5ab26a2b562528b",
     "company_jobs_max": "95547adaa7121b1c",
     "employees": "910f51af853a61b2",
     "health": "9523b633fca0d2dc",
     "job_assignment_history": "0f47c24fd0080599",
     "job_assignments": "2d519eb5a8b05ffb",
     "part_time": "13d4b122d1248c79",
-    "version": "4401c35321b46c17",
+    "version": "f7ebcaa76970c40c",
     "village_data": "e501f4f69fe59581"
+  },
+  "api_method_compatibility_hashes": {
+    "attendance": {
+      "get": "5c59ef1490499442",
+      "post": "b5f5e2b707adbe4e"
+    },
+    "auth": {
+      "get": "cab02bdf6da285b7",
+      "post": "ff3ab3a52ae2c7de"
+    },
+    "companies": {
+      "delete": "ef8c7a5917e8065e",
+      "get": "773cd48370e19929",
+      "post": "ae6e558fa04abf42",
+      "put": "d5c64106142a311e"
+    },
+    "company_jobs_max": {
+      "delete": "3148e08fa63b9822",
+      "get": "439ca2dfac45ce55",
+      "post": "827baceb591b4855",
+      "put": "c366ba7efa5f03cc"
+    },
+    "employees": {
+      "delete": "2ed7e84d4b2a5202",
+      "get": "dd93c3f1c328aa03",
+      "post": "067bf27dd6f3e4d1",
+      "put": "126e8569b849ec0a"
+    },
+    "health": {
+      "get": "9523b633fca0d2dc"
+    },
+    "job_assignment_history": {
+      "get": "0f47c24fd0080599"
+    },
+    "job_assignments": {
+      "delete": "2855af2bb052707c",
+      "get": "120696747cfd6dc4",
+      "post": "02511d322ba0b43e"
+    },
+    "part_time": {
+      "delete": "b6d3b38f18b0f548",
+      "get": "a8001fa3f44549e6",
+      "post": "b1d3b73bfc1ecc38",
+      "put": "a2e0bbb29348baff"
+    },
+    "version": {
+      "get": "f7ebcaa76970c40c"
+    },
+    "village_data": {
+      "get": "e501f4f69fe59581"
+    }
   },
   "schema_compatibility_hashes": {
     "attendances": "f41eb55f24b514b7",
@@ -3658,7 +3720,7 @@ The semver in [`pyproject.toml`](../pyproject.toml) **`[project].version`** is t
 
 **Patch on commit:** each commit increments the patch segment unless you already staged a **higher** version in `pyproject.toml` (manual semver increases are respected). Merges in progress skip the patch bump.
 
-**Minor on push:** the pre-push hook compares [`app/compatibility_hashes.json`](../app/compatibility_hashes.json) at the remote tracking ref vs the commits being pushed. If the file changed and the current version is still below **`bump_minor(remote_version)`**, the hook writes the new version, creates a commit, and **aborts the push** (exit 1). Run **`git push`** again so the minor bump commit is included.
+**Minor on push:** the pre-push hook runs **`git fetch origin`** (non-fatal; adds a short network round-trip on every push) so remote-tracking refs are current, then compares [`app/compatibility_hashes.json`](../app/compatibility_hashes.json) at the remote tracking ref vs the commits being pushed. If the file changed and the current version is still below **`bump_minor(remote_version)`**, the hook writes the new version, creates a commit, and **aborts the push** (exit 1). Run **`git push`** again so the minor bump commit is included.
 
 **Pytest on commit:** after ruff format and lint, the pre-commit hook runs **`poetry run pytest`**. Pre-push hooks do **not** run tests.
 
