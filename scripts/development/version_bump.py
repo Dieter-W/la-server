@@ -17,6 +17,8 @@ VERSION_PATTERN = re.compile(
 
 PYPROJECT_PATH = "pyproject.toml"
 COMPATIBILITY_HASHES_PATH = "app/compatibility_hashes.json"
+NULL_REF = "0" * 40
+DEFAULT_BASELINE_REFS = ("origin/main", "origin/master")
 
 
 class Version(NamedTuple):
@@ -128,3 +130,27 @@ def file_changed_between_refs(path: str, from_ref: str, to_ref: str) -> bool:
     before = git_show(from_ref, path)
     after = git_show(to_ref, path)
     return before != after
+
+
+def revision_has_pyproject(revision: str) -> bool:
+    return git_show(revision, PYPROJECT_PATH) is not None
+
+
+def resolve_remote_baseline(from_ref: str) -> str | None:
+    """Ref whose pyproject.toml represents the remote side of the push."""
+    if from_ref and from_ref != NULL_REF and revision_has_pyproject(from_ref):
+        return from_ref
+    for candidate in DEFAULT_BASELINE_REFS:
+        if revision_has_pyproject(candidate):
+            if from_ref in ("", NULL_REF):
+                print(
+                    f"New branch push; using {candidate} as remote baseline "
+                    f"for minor bump check"
+                )
+            else:
+                print(
+                    f"Could not read {PYPROJECT_PATH} at {from_ref!r}; "
+                    f"using {candidate} as remote baseline for minor bump check"
+                )
+            return candidate
+    return None

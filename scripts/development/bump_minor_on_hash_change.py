@@ -17,6 +17,7 @@ from scripts.development.version_bump import (
     file_changed_between_refs,
     format_version,
     read_version_from_revision,
+    resolve_remote_baseline,
     write_version_to_pyproject,
 )
 
@@ -50,11 +51,21 @@ def main() -> int:
         )
         return 1
 
-    if not file_changed_between_refs(COMPATIBILITY_HASHES_PATH, from_ref, to_ref):
-        print(f"{COMPATIBILITY_HASHES_PATH} unchanged since remote; no minor bump")
+    baseline_ref = resolve_remote_baseline(from_ref)
+    if baseline_ref is None:
+        print(
+            f"Could not resolve remote baseline for {PYPROJECT_PATH}; "
+            f"skipping minor bump"
+        )
         return 0
 
-    remote_version = read_version_from_revision(from_ref)
+    if not file_changed_between_refs(COMPATIBILITY_HASHES_PATH, baseline_ref, to_ref):
+        print(
+            f"{COMPATIBILITY_HASHES_PATH} unchanged since {baseline_ref}; no minor bump"
+        )
+        return 0
+
+    remote_version = read_version_from_revision(baseline_ref)
     if remote_version is None:
         print(f"Could not read remote {PYPROJECT_PATH}; skipping minor bump")
         return 0
