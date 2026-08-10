@@ -3593,7 +3593,7 @@ The **development** script:
 
 1. Ensures **`.env`** exists (copies from **`.env.example`** only if it is still missing—use **`init-env`** above so you control creation explicitly).
 2. Runs **`poetry install --with dev`** so runtime and **development** dependencies are installed (same as [`.github/workflows/pre-commit.yml`](../.github/workflows/pre-commit.yml)).
-3. Runs **`poetry run pre-commit install --hook-type pre-commit --hook-type pre-push`** so **pre-commit** runs on **commit** and **pre-push** (see [`.pre-commit-config.yaml`](../.pre-commit-config.yaml)).
+3. Runs **`poetry run pre-commit install`** and **`poetry run pre-commit install --hook-type pre-push`** so shared hooks run on **commit** and optional **local** hooks can run on **push** (see [`.pre-commit-config.yaml`](../.pre-commit-config.yaml) and **Local Git tooling** below).
 4. Validates the **test environment**: `pytest --collect-only`, then a short **MariaDB** connection using `Config.admin_db_uri()` and your `.env` credentials.
 
 If MariaDB is not available yet (e.g. offline), use `--skip-test-env-check` / `-SkipTestEnvCheck`:
@@ -3634,7 +3634,7 @@ Contributor and hook tooling lives under **`scripts/development/`** (Poetry dev 
 
 | Script | Role |
 | ------ | ---- |
-| [`$check_poetry_to_requirements.py`](../scripts/development/$check_poetry_to_requirements.py) | Pre-commit: export `data/requirements.txt` when Poetry deps change |
+| [`check_poetry_to_requirements.py`](../scripts/development/check_poetry_to_requirements.py) | Pre-commit: export `data/requirements.txt` when Poetry deps change |
 | [`update_compatibility_hashes.py`](../scripts/development/update_compatibility_hashes.py) | Regenerate or verify [`app/compatibility_hashes.json`](../app/compatibility_hashes.json) |
 | [`version_bump.py`](../scripts/development/version_bump.py) | Shared semver and `pyproject.toml` helpers for version hooks |
 | [`bump_patch_version.py`](../scripts/development/bump_patch_version.py) | Pre-commit: patch bump on every commit |
@@ -3674,6 +3674,19 @@ The semver in [`pyproject.toml`](../pyproject.toml) **`[project].version`** is t
 | Start the server (after configuring `.env`) | `.\start.ps1` / `./start.sh` or `poetry run python main.py` |
 
 CI runs **`poetry install --with dev`** then **`poetry run pre-commit run --all-files`** on push and pull requests (pre-commit-stage hooks only); keeping your local hook install and dependencies aligned avoids surprises.
+
+## Local Git tooling (`.git-tools/`)
+
+Optional **machine-local** scripts and hooks live in **`.git-tools/`** at the project root (gitignored). The tracked runner [`scripts/development/run_local_git_tool_hook.py`](../scripts/development/run_local_git_tool_hook.py) invokes them when present; if a file is missing, that step is skipped.
+
+Expected hook filenames (see [`.pre-commit-config.yaml`](../.pre-commit-config.yaml)):
+
+| Hook file | When |
+| --------- | ---- |
+| `local-pre-commit-hook.py` | `git commit` (pre-commit stage) |
+| `local-pre-push-hook.py` | `git push` (pre-push stage) |
+
+Copy or recreate **`.git-tools/`** on each machine. Full documentation: **`.git-tools/README.md`** in your working copy (not in the remote repo).
 
 ## Editor / IDE
 

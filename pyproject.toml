@@ -4,12 +4,12 @@
 # `poetry export` needs the install-time plugin: `poetry self add poetry-plugin-export`
 # (development setup and CI add this; see scripts/setup.ps1 and .github/workflows).
 # When you change deps, update the lockfile and re-export. The pre-commit hook
-# scripts/development/$check_poetry_to_requirements.py runs export when pyproject.toml and
+# scripts/development/check_poetry_to_requirements.py runs export when pyproject.toml and
 # poetry.lock are committed together (see .pre-commit-config.yaml).
 
 [project]
 name = "Kinderspielstadt-Los-Ämmerles--LA-Server"
-version = "1.1.4"
+version = "1.1.5"
 description = "The la-server manages and stores all data required to digitalize the Kinderspielstadt.  It provides a cental backend that allows camp participants to connect clients and digitally perform and manage their jobs within the simulation."
 authors = [
     {name = "Dieter Wellerdiek",email  = "developers@los-aemmerles.org"}

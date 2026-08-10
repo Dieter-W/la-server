@@ -400,8 +400,10 @@ elseif ($Mode -eq "development") {
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
         Write-Host ""
-        Write-Host "Installing Git pre-commit and pre-push hooks (poetry run pre-commit install)..." -ForegroundColor Green
-        & poetry run pre-commit install --hook-type pre-commit --hook-type pre-push
+        Write-Host "Installing Git hooks (pre-commit + pre-push)..." -ForegroundColor Green
+        & poetry run pre-commit install
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        & poetry run pre-commit install --hook-type pre-push
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
         if ($SkipTestEnvCheck) {
