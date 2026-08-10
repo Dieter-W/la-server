@@ -14,8 +14,8 @@ from scripts.development.version_bump import (
     COMPATIBILITY_HASHES_PATH,
     PYPROJECT_PATH,
     bump_minor,
-    compare_versions,
     file_changed_between_refs,
+    format_version,
     read_version_from_revision,
     write_version_to_pyproject,
 )
@@ -24,7 +24,7 @@ from scripts.development.version_bump import (
 def git_commit(message: str) -> None:
     try:
         subprocess.run(
-            ["git", "commit", "-m", message],
+            ["git", "commit", "--no-verify", "-m", message, "--", PYPROJECT_PATH],
             cwd=project_root,
             check=True,
         )
@@ -41,6 +41,15 @@ def main() -> int:
         print("PRE_COMMIT_FROM_REF not set; skipping minor bump check")
         return 0
 
+    if to_ref != "HEAD":
+        print(
+            f"Cannot auto-bump minor version when pushing {to_ref!r} "
+            f"(checked-out branch is not the push target); "
+            f"bump {PYPROJECT_PATH} manually and push again",
+            file=sys.stderr,
+        )
+        return 1
+
     if not file_changed_between_refs(COMPATIBILITY_HASHES_PATH, from_ref, to_ref):
         print(f"{COMPATIBILITY_HASHES_PATH} unchanged since remote; no minor bump")
         return 0
@@ -50,36 +59,27 @@ def main() -> int:
         print(f"Could not read remote {PYPROJECT_PATH}; skipping minor bump")
         return 0
 
-    current_version = read_version_from_revision("HEAD")
+    current_version = read_version_from_revision(to_ref)
     if current_version is None:
         print(f"Could not read current {PYPROJECT_PATH}; skipping minor bump")
         return 0
 
     required_version = bump_minor(remote_version)
-    if compare_versions(current_version, required_version) >= 0:
+    if current_version >= required_version:
         print(
-            f"Current version {current_version} satisfies required "
-            f"{required_version} after hash change"
+            f"Current version {format_version(current_version)} satisfies required "
+            f"{format_version(required_version)} after hash change"
         )
         return 0
 
     write_version_to_pyproject(required_version)
-    try:
-        subprocess.run(
-            ["git", "add", PYPROJECT_PATH],
-            cwd=project_root,
-            check=True,
-        )
-    except subprocess.CalledProcessError as exc:
-        print(f"Error staging {PYPROJECT_PATH}: {exc}", file=sys.stderr)
-        sys.exit(1)
     git_commit(
-        f"chore: bump minor version to {required_version.major}."
-        f"{required_version.minor}.{required_version.patch} "
+        f"chore: bump minor version to {format_version(required_version)} "
         f"(compatibility_hashes.json changed)"
     )
     print(
-        f"Bumped minor version to {required_version}; push aborted — run git push again"
+        f"Bumped minor version to {format_version(required_version)}; "
+        f"push aborted — run git push again"
     )
     return 1
 

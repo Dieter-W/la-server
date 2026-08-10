@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
 from typing import NamedTuple
@@ -35,12 +36,33 @@ def format_version(version: Version) -> str:
     return f"{version.major}.{version.minor}.{version.patch}"
 
 
-def compare_versions(left: Version, right: Version) -> int:
-    if left < right:
-        return -1
-    if left > right:
-        return 1
-    return 0
+def get_staged_files(root: Path | None = None) -> set[str]:
+    root = root or project_root
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        print(f"Error checking staged files: {exc}", file=sys.stderr)
+        sys.exit(1)
+    return set(result.stdout.splitlines())
+
+
+def git_add(path: str, root: Path | None = None) -> None:
+    root = root or project_root
+    try:
+        subprocess.run(
+            ["git", "add", path],
+            cwd=root,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        print(f"Error staging {path}: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 def bump_patch(version: Version) -> Version:
