@@ -380,8 +380,9 @@ echo "Installing dependencies (poetry install --with dev)..."
 poetry install --with dev
 
 echo ""
-echo "Installing Git pre-commit and pre-push hooks (poetry run pre-commit install)..."
-poetry run pre-commit install --hook-type pre-commit --hook-type pre-push
+echo "Installing Git hooks (pre-commit + pre-push)..."
+poetry run pre-commit install
+poetry run pre-commit install --hook-type pre-push
 
 if [[ "$SKIP_TEST_ENV_CHECK" -eq 1 ]]; then
   echo ""

@@ -17,13 +17,36 @@ repos:
         stages: [pre-commit]
 
   # ------------------------------------
+  # Optional local hook (.git-tools/, not in repo; skipped when missing)
+  # ------------------------------------
+  - repo: local
+    hooks:
+      - id: local-pre-commit-hook
+        name: Local pre-commit hook (.git-tools)
+        entry: python scripts/development/run_local_git_tool_hook.py local-pre-commit-hook.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+        stages: [pre-commit]
+
+      - id: local-pre-push-hook
+        name: Local pre-push hook (.git-tools)
+        entry: python scripts/development/run_local_git_tool_hook.py local-pre-push-hook.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+        stages: [pre-push]
+
+  # ------------------------------------
   # Generate requirements.txt if needed
   # ------------------------------------
   - repo: local
     hooks:
       - id: requirements.txt
         name: Create requirements.txt
-        entry: "python scripts/development/$check_poetry_to_requirements.py"
+        entry: python scripts/development/check_poetry_to_requirements.py
         language: system
         # Only Poetry inputs matter; hook ignores argv and uses staged files.
         # Do not match all Python files: pre-commit runs those invocations in

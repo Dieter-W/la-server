@@ -44,6 +44,9 @@ Thumbs.db
 # Village data
 village_data/
 
+# Local git tooling (optional hooks/scripts; not shared via repo)
+.git-tools/
+
 # Other
 .cursor/
 .ruff_cache/
