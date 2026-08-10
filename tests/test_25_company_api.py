@@ -2,7 +2,14 @@
 
 from urllib.parse import quote
 
-from tests.test_utils import _login_as_admin, _login_as_employee, _login_as_staff, nfc
+from tests.test_utils import (
+    _login_as_admin,
+    _login_as_employee,
+    _login_as_staff,
+    assert_company_hourly_pay,
+    company_hourly_pay,
+    nfc,
+)
 
 payload_create = {
     "company_name": "TEST_COMPANY",
@@ -177,7 +184,7 @@ def test_companies_query_all(client, sample_company, sample_job_assignment):  # 
         company_data["jobs"]["available"] == 0 for company_data in data["companies"]
     )
     assert any(
-        company_data["hourly_pay"] == sample_company.hourly_pay
+        company_data["hourly_pay"] == company_hourly_pay(sample_company.hourly_pay)
         for company_data in data["companies"]
     )
     assert any(
@@ -248,7 +255,7 @@ def test_companies_query(client, sample_company, sample_job_assignment,):  # fmt
     assert data["shift"] == "all-day"
     assert data["jobs"]["available"] == 0
     assert data["jobs"]["max"] == sample_company.jobs_max
-    assert data["hourly_pay"] == sample_company.hourly_pay
+    assert_company_hourly_pay(data, sample_company.hourly_pay)
     assert data["active"] is sample_company.active
     assert data["notes"] == sample_company.notes
 
@@ -293,7 +300,7 @@ def test_companies_create(client, sample_authentication, sample_company, sample_
     assert data["shift"] == "all-day"
     assert data["jobs"]["available"] == payload_create["jobs_max"]
     assert data["jobs"]["max"] == payload_create["jobs_max"]
-    assert data["hourly_pay"] == payload_create["hourly_pay"]
+    assert_company_hourly_pay(data, payload_create["hourly_pay"])
     assert data["active"] == payload_create["active"]
     assert data["notes"] == payload_create["notes"]
 
@@ -409,7 +416,7 @@ def test_companies_update(client, sample_authentication, sample_company, sample_
     assert data["workday"] == "today"
     assert data["shift"] == "all-day"
     assert nfc(data["company_name"]) == nfc(payload_put["company_name"])
-    assert data["hourly_pay"] == payload_put["hourly_pay"]
+    assert_company_hourly_pay(data, payload_put["hourly_pay"])
     assert data["active"] == payload_put["active"]
     assert data["notes"] == payload_put["notes"]
 

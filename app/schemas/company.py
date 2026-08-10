@@ -118,7 +118,7 @@ class CompanyResponse:
     workday: str | None
     shift: str | None
     jobs: dict
-    hourly_pay: float
+    hourly_pay: dict
     active: bool
     notes: str | None
     created_at: str | None
@@ -147,7 +147,11 @@ class CompanyResponse:
             workday=workday,
             shift=shift,
             jobs={"available": max(0, jobs_max - assigned_jobs), "max": jobs_max},
-            hourly_pay=comp.hourly_pay + hourly_pay_increase,
+            hourly_pay={
+                "base": comp.hourly_pay,
+                "increase": hourly_pay_increase,
+                "total": comp.hourly_pay + hourly_pay_increase,
+            },
             active=comp.active,
             notes=comp.notes,
             created_at=comp.created_at.isoformat() if comp.created_at else None,

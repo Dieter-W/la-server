@@ -4,7 +4,7 @@ import subprocess
 import sys
 from urllib.parse import quote
 
-from tests.test_utils import _login_as_admin, nfc
+from tests.test_utils import _login_as_admin, company_hourly_pay, nfc
 
 company_check = {
     "company_name": "Küche",
@@ -68,7 +68,7 @@ def test_bulk_import_companies_create_ok(
         for company_data in data["companies"]
     )
     assert any(
-        company_data["hourly_pay"] == company_check["hourly_pay"]
+        company_data["hourly_pay"] == company_hourly_pay(company_check["hourly_pay"])
         for company_data in data["companies"]
     )
     assert any(
@@ -115,7 +115,7 @@ def test_bulk_import_companies_update_ok(client, sample_authentication, sample_e
     assert len(data) == 11
     assert data["jobs"]["max"] == payload_put["jobs_max"]
     assert data["jobs"]["available"] == payload_put["jobs_max"]
-    assert data["hourly_pay"] == payload_put["hourly_pay"]
+    assert data["hourly_pay"] == company_hourly_pay(payload_put["hourly_pay"])
     assert data["active"] == payload_put["active"]
     assert data["notes"] == payload_put["notes"]
 
@@ -143,7 +143,7 @@ def test_bulk_import_companies_update_ok(client, sample_authentication, sample_e
     assert nfc(data2["company_name"]) == nfc(company_check["company_name"])
     assert data["jobs"]["max"] == payload_put["jobs_max"]
     assert data["jobs"]["available"] == payload_put["jobs_max"]
-    assert data2["hourly_pay"] == company_check["hourly_pay"]
+    assert data2["hourly_pay"] == company_hourly_pay(company_check["hourly_pay"])
     assert data2["active"] == company_check["active"]
     assert data2["notes"] == company_check["notes"]
 
