@@ -64,5 +64,8 @@ jobs:
       - name: Install dependencies
         run: poetry install --with dev
 
+      - name: Verify compatibility hashes
+        run: poetry run python scripts/development/update_compatibility_hashes.py --check
+
       - name: Run pre-commit
         run: poetry run pre-commit run --all-files

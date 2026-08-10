@@ -56,7 +56,21 @@ repos:
         require_serial: true
 
   # ------------------------------------
-  # scripts/*.py, scripts/*.sh (not /scriptsdevelopment/), and root *.sh executable in git
+  # Update compatibility_hashes.json when contract hashes drift
+  # ------------------------------------
+  - repo: local
+    hooks:
+      - id: compatibility-hashes
+        name: Update compatibility_hashes.json
+        entry: poetry run python scripts/development/check_compatibility_hashes.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+        stages: [pre-commit]
+
+  # ------------------------------------
+  # scripts/*.py, scripts/*.sh (not /scripts/development/), and root *.sh executable in git
   # ------------------------------------
   - repo: local
     hooks:

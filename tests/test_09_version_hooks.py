@@ -1,4 +1,4 @@
-"""Unit tests for scripts/development/version_bump.py helpers and bump decision logic."""
+"""Unit tests for version bump hooks and shared version_bump helpers."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ sys.path.insert(0, str(project_root))
 from scripts.development import (
     bump_minor_on_hash_change,
     bump_patch_version,
+    check_compatibility_hashes,
 )
 from scripts.development.version_bump import (
     COMPATIBILITY_HASHES_PATH,
@@ -22,7 +23,6 @@ from scripts.development.version_bump import (
     Version,
     bump_minor,
     bump_patch,
-    compare_versions,
     file_changed_between_refs,
     format_version,
     parse_version,
@@ -53,16 +53,10 @@ def test_format_version_round_trip() -> None:
     assert parse_version(format_version(version)) == version
 
 
-@pytest.mark.parametrize(
-    ("left", "right", "expected"),
-    [
-        (Version(1, 0, 0), Version(1, 0, 1), -1),
-        (Version(1, 1, 0), Version(1, 0, 9), 1),
-        (Version(2, 0, 0), Version(2, 0, 0), 0),
-    ],
-)
-def test_compare_versions(left: Version, right: Version, expected: int) -> None:
-    assert compare_versions(left, right) == expected
+def test_version_tuple_ordering() -> None:
+    assert Version(1, 0, 0) < Version(1, 0, 1)
+    assert Version(1, 1, 0) > Version(1, 0, 9)
+    assert Version(2, 0, 0) == Version(2, 0, 0)
 
 
 def test_bump_patch() -> None:
@@ -101,6 +95,21 @@ def test_file_changed_between_refs_unchanged() -> None:
         )
 
 
+def test_bump_patch_skips_when_no_staged_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bump_patch_version, "get_staged_files", lambda: set())
+
+    assert bump_patch_version.main() == 0
+
+
+def test_bump_patch_skips_during_merge(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bump_patch_version, "get_staged_files", lambda: {"README.md"})
+    monkeypatch.setattr(bump_patch_version, "merge_in_progress", lambda: True)
+
+    assert bump_patch_version.main() == 0
+
+
 def test_bump_patch_respects_manual_increase(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(bump_patch_version, "get_staged_files", lambda: {"README.md"})
     monkeypatch.setattr(bump_patch_version, "merge_in_progress", lambda: False)
@@ -115,7 +124,7 @@ def test_bump_patch_respects_manual_increase(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(
         bump_patch_version, "write_version_to_pyproject", lambda *_: None
     )
-    monkeypatch.setattr(bump_patch_version, "stage_pyproject", lambda: None)
+    monkeypatch.setattr(bump_patch_version, "git_add", lambda *_: None)
 
     assert bump_patch_version.main() == 0
 
@@ -139,7 +148,67 @@ def test_bump_patch_increments_when_not_manually_raised(
         "write_version_to_pyproject",
         lambda version: written.append(version),
     )
-    monkeypatch.setattr(bump_patch_version, "stage_pyproject", lambda: None)
+    monkeypatch.setattr(bump_patch_version, "git_add", lambda *_: None)
+
+    assert bump_patch_version.main() == 0
+    assert written == [Version(1, 0, 1)]
+
+
+def test_bump_patch_skips_when_worktree_already_bumped(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    written: list[Version] = []
+
+    monkeypatch.setattr(bump_patch_version, "project_root", tmp_path)
+    (tmp_path / PYPROJECT_PATH).write_text(
+        '[project]\nversion = "1.0.1"\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(bump_patch_version, "get_staged_files", lambda: {"README.md"})
+    monkeypatch.setattr(bump_patch_version, "merge_in_progress", lambda: False)
+    monkeypatch.setattr(
+        bump_patch_version,
+        "git_show",
+        lambda revision, path: {
+            ("HEAD", PYPROJECT_PATH): '[project]\nversion = "1.0.0"\n',
+        }.get((revision, path)),
+    )
+    monkeypatch.setattr(
+        bump_patch_version,
+        "write_version_to_pyproject",
+        lambda version: written.append(version),
+    )
+    monkeypatch.setattr(bump_patch_version, "git_add", lambda *_: None)
+
+    assert bump_patch_version.main() == 0
+    assert written == []
+
+
+def test_bump_patch_increments_from_worktree_when_pyproject_not_staged(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    written: list[Version] = []
+
+    monkeypatch.setattr(bump_patch_version, "project_root", tmp_path)
+    (tmp_path / PYPROJECT_PATH).write_text(
+        '[project]\nversion = "1.0.0"\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(bump_patch_version, "get_staged_files", lambda: {"README.md"})
+    monkeypatch.setattr(bump_patch_version, "merge_in_progress", lambda: False)
+    monkeypatch.setattr(
+        bump_patch_version,
+        "git_show",
+        lambda revision, path: {
+            ("HEAD", PYPROJECT_PATH): '[project]\nversion = "1.0.0"\n',
+        }.get((revision, path)),
+    )
+    monkeypatch.setattr(
+        bump_patch_version,
+        "write_version_to_pyproject",
+        lambda version: written.append(version),
+    )
+    monkeypatch.setattr(bump_patch_version, "git_add", lambda *_: None)
 
     assert bump_patch_version.main() == 0
     assert written == [Version(1, 0, 1)]
@@ -157,6 +226,15 @@ def test_bump_minor_skips_when_hashes_unchanged(
     )
 
     assert bump_minor_on_hash_change.main() == 0
+
+
+def test_bump_minor_aborts_when_to_ref_is_not_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PRE_COMMIT_FROM_REF", "origin/main")
+    monkeypatch.setenv("PRE_COMMIT_TO_REF", "refs/heads/feature")
+
+    assert bump_minor_on_hash_change.main() == 1
 
 
 def test_bump_minor_aborts_push_when_version_too_low(
@@ -212,3 +290,63 @@ def test_bump_minor_passes_when_version_already_sufficient(
     )
 
     assert bump_minor_on_hash_change.main() == 0
+
+
+COMPUTED_HASHES = {
+    "api_compatibility_hashes": {"auth": "abc123def4567890"},
+    "schema_compatibility_hashes": {"companies": "fedcba0987654321"},
+}
+STALE_HASHES = {
+    "api_compatibility_hashes": {"auth": "0000000000000000"},
+    "schema_compatibility_hashes": {"companies": "1111111111111111"},
+}
+
+
+def test_compatibility_hashes_noop_when_up_to_date(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    written: list[dict[str, dict[str, str]]] = []
+
+    monkeypatch.setattr(
+        check_compatibility_hashes, "compute_hashes", lambda: COMPUTED_HASHES
+    )
+    monkeypatch.setattr(
+        check_compatibility_hashes, "load_file_hashes", lambda: COMPUTED_HASHES
+    )
+    monkeypatch.setattr(
+        check_compatibility_hashes,
+        "write_hashes",
+        lambda payload: written.append(payload),
+    )
+    monkeypatch.setattr(check_compatibility_hashes, "git_add", lambda *_: None)
+
+    assert check_compatibility_hashes.main() == 0
+    assert written == []
+
+
+def test_compatibility_hashes_updates_on_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    written: list[dict[str, dict[str, str]]] = []
+    staged_calls: list[bool] = []
+
+    monkeypatch.setattr(
+        check_compatibility_hashes, "compute_hashes", lambda: COMPUTED_HASHES
+    )
+    monkeypatch.setattr(
+        check_compatibility_hashes, "load_file_hashes", lambda: STALE_HASHES
+    )
+    monkeypatch.setattr(
+        check_compatibility_hashes,
+        "write_hashes",
+        lambda payload: written.append(payload),
+    )
+    monkeypatch.setattr(
+        check_compatibility_hashes,
+        "git_add",
+        lambda *_: staged_calls.append(True),
+    )
+
+    assert check_compatibility_hashes.main() == 0
+    assert written == [COMPUTED_HASHES]
+    assert staged_calls == [True]
