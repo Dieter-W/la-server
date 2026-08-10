@@ -19,6 +19,7 @@ from scripts.development import (
 )
 from scripts.development.version_bump import (
     COMPATIBILITY_HASHES_PATH,
+    NULL_REF,
     PYPROJECT_PATH,
     Version,
     bump_minor,
@@ -27,6 +28,7 @@ from scripts.development.version_bump import (
     format_version,
     parse_version,
     read_version_from_toml,
+    resolve_remote_baseline,
     write_version_in_toml,
 )
 
@@ -221,6 +223,11 @@ def test_bump_minor_skips_when_hashes_unchanged(
     monkeypatch.setenv("PRE_COMMIT_TO_REF", "HEAD")
     monkeypatch.setattr(
         bump_minor_on_hash_change,
+        "resolve_remote_baseline",
+        lambda from_ref: from_ref,
+    )
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
         "file_changed_between_refs",
         lambda *_args, **_kwargs: False,
     )
@@ -242,6 +249,11 @@ def test_bump_minor_aborts_push_when_version_too_low(
 ) -> None:
     monkeypatch.setenv("PRE_COMMIT_FROM_REF", "origin/main")
     monkeypatch.setenv("PRE_COMMIT_TO_REF", "HEAD")
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "resolve_remote_baseline",
+        lambda from_ref: from_ref,
+    )
     monkeypatch.setattr(
         bump_minor_on_hash_change,
         "file_changed_between_refs",
@@ -277,6 +289,11 @@ def test_bump_minor_passes_when_version_already_sufficient(
     monkeypatch.setenv("PRE_COMMIT_TO_REF", "HEAD")
     monkeypatch.setattr(
         bump_minor_on_hash_change,
+        "resolve_remote_baseline",
+        lambda from_ref: from_ref,
+    )
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
         "file_changed_between_refs",
         lambda *_args, **_kwargs: True,
     )
@@ -290,6 +307,65 @@ def test_bump_minor_passes_when_version_already_sufficient(
     )
 
     assert bump_minor_on_hash_change.main() == 0
+
+
+def test_bump_minor_uses_main_baseline_on_new_branch_push(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PRE_COMMIT_FROM_REF", NULL_REF)
+    monkeypatch.setenv("PRE_COMMIT_TO_REF", "HEAD")
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "resolve_remote_baseline",
+        lambda from_ref: "origin/main" if from_ref == NULL_REF else from_ref,
+    )
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "file_changed_between_refs",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "read_version_from_revision",
+        lambda revision: {
+            "origin/main": Version(1, 1, 3),
+            "HEAD": Version(1, 1, 7),
+        }.get(revision),
+    )
+    written: list[Version] = []
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "write_version_to_pyproject",
+        lambda version: written.append(version),
+    )
+    monkeypatch.setattr(bump_minor_on_hash_change, "git_commit", lambda _message: None)
+
+    assert bump_minor_on_hash_change.main() == 1
+    assert written == [Version(1, 2, 0)]
+
+
+def test_resolve_remote_baseline_prefers_valid_from_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "scripts.development.version_bump.revision_has_pyproject",
+        lambda revision: revision == "origin/hotfix/companies",
+    )
+
+    assert (
+        resolve_remote_baseline("origin/hotfix/companies") == "origin/hotfix/companies"
+    )
+
+
+def test_resolve_remote_baseline_falls_back_to_main_for_null_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "scripts.development.version_bump.revision_has_pyproject",
+        lambda revision: revision == "origin/main",
+    )
+
+    assert resolve_remote_baseline(NULL_REF) == "origin/main"
 
 
 COMPUTED_HASHES = {
