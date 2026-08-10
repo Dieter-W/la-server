@@ -126,6 +126,31 @@ def write_version_to_pyproject(version: Version, root: Path | None = None) -> No
     )
 
 
+def git_rev_parse(revision: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", revision],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError:
+        return None
+    return result.stdout.strip()
+
+
+def is_checked_out_head(revision: str) -> bool:
+    """True when revision refers to the commit currently checked out."""
+    head = git_rev_parse("HEAD")
+    if head is None:
+        return False
+    if revision in ("HEAD", ""):
+        return True
+    target = git_rev_parse(revision)
+    return target is not None and target == head
+
+
 def file_changed_between_refs(path: str, from_ref: str, to_ref: str) -> bool:
     before = git_show(from_ref, path)
     after = git_show(to_ref, path)

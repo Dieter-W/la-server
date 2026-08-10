@@ -240,8 +240,39 @@ def test_bump_minor_aborts_when_to_ref_is_not_head(
 ) -> None:
     monkeypatch.setenv("PRE_COMMIT_FROM_REF", "origin/main")
     monkeypatch.setenv("PRE_COMMIT_TO_REF", "refs/heads/feature")
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "is_checked_out_head",
+        lambda _revision: False,
+    )
 
     assert bump_minor_on_hash_change.main() == 1
+
+
+def test_bump_minor_accepts_head_commit_sha(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    monkeypatch.setenv("PRE_COMMIT_FROM_REF", "origin/main")
+    monkeypatch.setenv("PRE_COMMIT_TO_REF", head_sha)
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "resolve_remote_baseline",
+        lambda from_ref: from_ref,
+    )
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "file_changed_between_refs",
+        lambda *_args, **_kwargs: False,
+    )
+
+    assert bump_minor_on_hash_change.main() == 0
 
 
 def test_bump_minor_aborts_push_when_version_too_low(
@@ -249,6 +280,11 @@ def test_bump_minor_aborts_push_when_version_too_low(
 ) -> None:
     monkeypatch.setenv("PRE_COMMIT_FROM_REF", "origin/main")
     monkeypatch.setenv("PRE_COMMIT_TO_REF", "HEAD")
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "is_checked_out_head",
+        lambda _revision: True,
+    )
     monkeypatch.setattr(
         bump_minor_on_hash_change,
         "resolve_remote_baseline",
@@ -289,6 +325,11 @@ def test_bump_minor_passes_when_version_already_sufficient(
     monkeypatch.setenv("PRE_COMMIT_TO_REF", "HEAD")
     monkeypatch.setattr(
         bump_minor_on_hash_change,
+        "is_checked_out_head",
+        lambda _revision: True,
+    )
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
         "resolve_remote_baseline",
         lambda from_ref: from_ref,
     )
@@ -314,6 +355,11 @@ def test_bump_minor_uses_main_baseline_on_new_branch_push(
 ) -> None:
     monkeypatch.setenv("PRE_COMMIT_FROM_REF", NULL_REF)
     monkeypatch.setenv("PRE_COMMIT_TO_REF", "HEAD")
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "is_checked_out_head",
+        lambda _revision: True,
+    )
     monkeypatch.setattr(
         bump_minor_on_hash_change,
         "resolve_remote_baseline",
