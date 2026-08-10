@@ -5,6 +5,8 @@ from datetime import timedelta
 
 from flask_jwt_extended import create_access_token, create_refresh_token
 
+from app.village_config import get_hourly_pay_increase
+
 
 # ---------------------------------------------------------------------
 # Unicode — normalize for DB round-trip comparisons
@@ -12,6 +14,20 @@ from flask_jwt_extended import create_access_token, create_refresh_token
 def nfc(s: str) -> str:
     """Normalize Unicode so DB round-trips match Python string literals (NFC vs NFD)."""
     return unicodedata.normalize("NFC", s)
+
+
+# ---------------------------------------------------------------------
+# Companies — nested hourly_pay response shape
+# ---------------------------------------------------------------------
+def company_hourly_pay(base: int) -> dict:
+    """Build expected company response hourly_pay object for a stored base rate."""
+    increase = get_hourly_pay_increase()
+    return {"base": base, "increase": increase, "total": base + increase}
+
+
+def assert_company_hourly_pay(data: dict, base: int) -> None:
+    """Assert company JSON hourly_pay matches base + village increase."""
+    assert data["hourly_pay"] == company_hourly_pay(base)
 
 
 # ---------------------------------------------------------------------

@@ -1766,9 +1766,31 @@ def build_openapi_dict() -> dict:
                             },
                         },
                         "hourly_pay": {
-                            "type": "number",
-                            "description": "Effective hourly pay (base + village bonus).",
-                            "example": 14.50,
+                            "type": "object",
+                            "required": ["base", "increase", "total"],
+                            "properties": {
+                                "base": {
+                                    "type": "integer",
+                                    "description": (
+                                        "Stored hourly pay on **`companies.hourly_pay`** "
+                                        "(same value sent in POST/PUT request bodies)."
+                                    ),
+                                    "example": 10,
+                                },
+                                "increase": {
+                                    "type": "integer",
+                                    "description": (
+                                        "Village-wide bonus from **`village.ini`** "
+                                        "**`[hourly_pay] increase`**."
+                                    ),
+                                    "example": 0,
+                                },
+                                "total": {
+                                    "type": "integer",
+                                    "description": "Effective hourly pay (**`base` + `increase`**).",
+                                    "example": 10,
+                                },
+                            },
                         },
                         "active": {"type": "boolean", "example": True},
                         "notes": {"type": "string", "nullable": True, "example": None},

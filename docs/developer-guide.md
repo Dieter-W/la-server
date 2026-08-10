@@ -946,6 +946,9 @@ JWT handling errors match [Errors and status codes](#errors-and-status-codes).
 | **`shift`** | **`all-day`** when **`default_jobs_max`**; matching row shift otherwise; **`null`** when no slot matches. |
 | **`jobs.max`** | Effective cap **right now** (override or fallback). |
 | **`jobs.available`** | **`jobs.max`** minus current assignment count; may be **negative** if the cap was lowered below existing assignments. |
+| **`hourly_pay.base`** | Stored rate on **`companies.hourly_pay`** (same value as POST/PUT request bodies). |
+| **`hourly_pay.increase`** | Village-wide bonus from **`village.ini`** **`[hourly_pay] increase`**. |
+| **`hourly_pay.total`** | **`base` + `increase`** — effective rate for display. |
 
 **Example:** Bank has `jobs_max` = 10 (stored default), plus rows `weekdays/morning` → 5 and `weekdays/afternoon` → 2. On Wednesday at **12:59** camp time → **`jobs.max`: 5**, **`workday`: `"today"`**, **`shift`: `"morning"`**. At **13:00** → **`jobs.max`: 2**, **`shift`: `"afternoon"`**. On Saturday (no matching row) → **`jobs.max`: 10**, **`workday`/`shift`: `null`**, **`default_jobs_max`: false**.
 
@@ -994,7 +997,7 @@ None.
       "workday": "today",
       "shift": "morning",
       "jobs": { "available": 3, "max": 5 },
-      "hourly_pay": 10,
+      "hourly_pay": { "base": 10, "increase": 0, "total": 10 },
       "active": true,
       "notes": null,
       "created_at": "2026-01-15T10:00:00+00:00",
@@ -1007,7 +1010,7 @@ None.
       "workday": "today",
       "shift": "all-day",
       "jobs": { "available": 4, "max": 4 },
-      "hourly_pay": 10,
+      "hourly_pay": { "base": 10, "increase": 0, "total": 10 },
       "active": false,
       "notes": null,
       "created_at": "2026-01-15T10:00:00+00:00",
@@ -1065,7 +1068,7 @@ None.
   "workday": "today",
   "shift": "morning",
   "jobs": { "available": 3, "max": 5 },
-  "hourly_pay": 10,
+  "hourly_pay": { "base": 10, "increase": 0, "total": 10 },
   "active": true,
   "notes": null,
   "created_at": "2026-01-15T10:00:00+00:00",
@@ -1141,7 +1144,7 @@ Example:
   "workday": "today",
   "shift": "all-day",
   "jobs": { "available": 8, "max": 8 },
-  "hourly_pay": 10,
+  "hourly_pay": { "base": 10, "increase": 0, "total": 10 },
   "active": true,
   "notes": null,
   "created_at": "2026-01-15T10:00:00+00:00",

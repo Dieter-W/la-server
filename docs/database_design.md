@@ -132,7 +132,7 @@ Immutable **audit trail** for ended placements. Each row is a **denormalized sna
 | `age` | integer | `NOT NULL` | Copied at end time |
 | **Company snapshot** | | | |
 | `company_name` | `String(255)` | `NOT NULL` | Copied at end time |
-| `hourly_pay` | integer | `NOT NULL` | **Effective** rate at archive: `companies.hourly_pay` + [`get_hourly_pay_increase()`](../app/village_config.py) from `village.ini` `[hourly_pay] increase` (same as **`GET /api/companies`** JSON, not base-only) |
+| `hourly_pay` | integer | `NOT NULL` | **Effective** rate at archive: `companies.hourly_pay` + [`get_hourly_pay_increase()`](../app/village_config.py) from `village.ini` `[hourly_pay] increase` (same as **`GET /api/companies`** **`hourly_pay.total`**, not base-only) |
 | `tax` | integer | `NOT NULL` | Village tax rate at archive from `village.ini` `[hourly_pay] tax` via [`get_hourly_pay_tax()`](../app/village_config.py) (same value clients read via **`GET /api/village-data`**) |
 
 **Application values for `end_reason`:** `deleted` (single DELETE), `reset_company` (admin reset scoped to one company), `reset_all` (admin reset all assignments). Enforced in the service layer; not an enum in the database.
@@ -463,6 +463,9 @@ Company JSON includes **`default_jobs_max`**, **`workday`**, and **`shift`**, pl
 | `shift` | Matching row’s `shift`, or projection default | **`all-day`** when **`default_jobs_max`**; row shift when a slot matches; **`null`** when rows exist but none match. |
 | `jobs.max` | [`effective_jobs_max()`](../app/schemas/company_jobs_max.py) | Effective cap **right now** (override row or fallback to **`companies.jobs_max`**). |
 | `jobs.available` | `jobs.max` − current assignment count | May be **negative** if the cap was lowered below existing assignments. |
+| `hourly_pay.base` | `companies.hourly_pay` | Stored base rate (same value as POST/PUT request bodies). |
+| `hourly_pay.increase` | [`get_hourly_pay_increase()`](../app/village_config.py) | Village-wide bonus from `village.ini` `[hourly_pay] increase`. |
+| `hourly_pay.total` | `base` + `increase` | Effective hourly pay shown to clients. |
 
 **Context** is always **calendar today in camp timezone** plus **`camp_shift()`** — company GET/list/create/update responses do **not** accept **`?workday=`** or **`?shift=`** query parameters.
 
