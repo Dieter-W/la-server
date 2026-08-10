@@ -16,6 +16,7 @@ from scripts.development.version_bump import (
     bump_minor,
     file_changed_between_refs,
     format_version,
+    is_checked_out_head,
     read_version_from_revision,
     resolve_remote_baseline,
     write_version_to_pyproject,
@@ -42,7 +43,7 @@ def main() -> int:
         print("PRE_COMMIT_FROM_REF not set; skipping minor bump check")
         return 0
 
-    if to_ref != "HEAD":
+    if not is_checked_out_head(to_ref):
         print(
             f"Cannot auto-bump minor version when pushing {to_ref!r} "
             f"(checked-out branch is not the push target); "
