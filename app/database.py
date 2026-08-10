@@ -131,7 +131,7 @@ def init_db(app, *, create_schema: bool = True) -> None:
         app.peak_pool_checkouts = PeakCounter()
         _register_pool_peak_listeners(engine, app.peak_pool_checkouts)
 
-        import app.models
+        import app.models as _models  # noqa: F401 — register models; must not shadow ``app``
 
         if create_schema:
             # create_all ensures schema for dev, tests, and fresh installs

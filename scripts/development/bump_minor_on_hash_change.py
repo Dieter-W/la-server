@@ -13,12 +13,11 @@ sys.path.insert(0, str(project_root))
 from scripts.development.version_bump import (
     COMPATIBILITY_HASHES_PATH,
     PYPROJECT_PATH,
-    bump_minor,
-    file_changed_between_refs,
+    collect_hash_baseline_refs,
     format_version,
     is_checked_out_head,
     read_version_from_revision,
-    resolve_remote_baseline,
+    required_version_for_hash_change,
     write_version_to_pyproject,
 )
 
@@ -52,23 +51,20 @@ def main() -> int:
         )
         return 1
 
-    baseline_ref = resolve_remote_baseline(from_ref)
-    if baseline_ref is None:
+    baseline_refs = collect_hash_baseline_refs(from_ref)
+    if not baseline_refs:
         print(
-            f"Could not resolve remote baseline for {PYPROJECT_PATH}; "
+            f"Could not resolve any baseline for {COMPATIBILITY_HASHES_PATH}; "
             f"skipping minor bump"
         )
         return 0
 
-    if not file_changed_between_refs(COMPATIBILITY_HASHES_PATH, baseline_ref, to_ref):
+    required_version = required_version_for_hash_change(to_ref, baseline_refs)
+    if required_version is None:
         print(
-            f"{COMPATIBILITY_HASHES_PATH} unchanged since {baseline_ref}; no minor bump"
+            f"{COMPATIBILITY_HASHES_PATH} unchanged since {', '.join(baseline_refs)}; "
+            f"no minor bump"
         )
-        return 0
-
-    remote_version = read_version_from_revision(baseline_ref)
-    if remote_version is None:
-        print(f"Could not read remote {PYPROJECT_PATH}; skipping minor bump")
         return 0
 
     current_version = read_version_from_revision(to_ref)
@@ -76,7 +72,6 @@ def main() -> int:
         print(f"Could not read current {PYPROJECT_PATH}; skipping minor bump")
         return 0
 
-    required_version = bump_minor(remote_version)
     if current_version >= required_version:
         print(
             f"Current version {format_version(current_version)} satisfies required "

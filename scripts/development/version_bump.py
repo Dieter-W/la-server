@@ -179,3 +179,42 @@ def resolve_remote_baseline(from_ref: str) -> str | None:
                 )
             return candidate
     return None
+
+
+def collect_hash_baseline_refs(from_ref: str) -> list[str]:
+    """Refs to compare ``COMPATIBILITY_HASHES_PATH`` against before push."""
+    refs: list[str] = []
+    seen: set[str] = set()
+
+    def add(ref: str | None) -> None:
+        if ref is None:
+            return
+        sha = git_rev_parse(ref)
+        if sha is None or sha in seen:
+            return
+        if git_show(ref, COMPATIBILITY_HASHES_PATH) is None:
+            return
+        seen.add(sha)
+        refs.append(ref)
+
+    add(resolve_remote_baseline(from_ref))
+    for candidate in DEFAULT_BASELINE_REFS:
+        add(candidate)
+    return refs
+
+
+def required_version_for_hash_change(
+    to_ref: str, baseline_refs: list[str]
+) -> Version | None:
+    """Highest semver required when hashes differ from any baseline."""
+    required: Version | None = None
+    for baseline in baseline_refs:
+        if not file_changed_between_refs(COMPATIBILITY_HASHES_PATH, baseline, to_ref):
+            continue
+        remote_version = read_version_from_revision(baseline)
+        if remote_version is None:
+            continue
+        candidate = bump_minor(remote_version)
+        if required is None or candidate > required:
+            required = candidate
+    return required
