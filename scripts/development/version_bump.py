@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -179,3 +180,88 @@ def resolve_remote_baseline(from_ref: str) -> str | None:
                 )
             return candidate
     return None
+
+
+def collect_hash_baseline_refs(from_ref: str) -> list[str]:
+    """Refs to compare ``COMPATIBILITY_HASHES_PATH`` against before push."""
+    refs: list[str] = []
+    seen: set[str] = set()
+
+    def add(ref: str | None) -> None:
+        if ref is None:
+            return
+        sha = git_rev_parse(ref)
+        if sha is None or sha in seen:
+            return
+        if git_show(ref, COMPATIBILITY_HASHES_PATH) is None:
+            return
+        seen.add(sha)
+        refs.append(ref)
+
+    add(resolve_remote_baseline(from_ref))
+    for candidate in DEFAULT_BASELINE_REFS:
+        add(candidate)
+    return refs
+
+
+def required_version_for_hash_change(
+    to_ref: str, baseline_refs: list[str]
+) -> Version | None:
+    """Highest semver required when hashes differ from any baseline."""
+    required: Version | None = None
+    for baseline in baseline_refs:
+        if not file_changed_between_refs(COMPATIBILITY_HASHES_PATH, baseline, to_ref):
+            continue
+        remote_version = read_version_from_revision(baseline)
+        if remote_version is None:
+            continue
+        candidate = bump_minor(remote_version)
+        if required is None or candidate > required:
+            required = candidate
+    return required
+
+
+def load_hashes_from_revision(revision: str) -> dict[str, dict[str, str]] | None:
+    text = git_show(revision, COMPATIBILITY_HASHES_PATH)
+    if text is None:
+        return None
+    data = json.loads(text)
+    if not isinstance(data, dict):
+        raise TypeError(f"{COMPATIBILITY_HASHES_PATH} root must be a JSON object")
+    return data
+
+
+def changed_compatibility_areas(from_ref: str, to_ref: str) -> list[str]:
+    """Human-readable labels for hash entries that differ between two refs."""
+    before = load_hashes_from_revision(from_ref)
+    after = load_hashes_from_revision(to_ref)
+    if before is None or after is None:
+        return []
+
+    areas: list[str] = []
+    for section, label in (
+        ("api_compatibility_hashes", "API of"),
+        ("schema_compatibility_hashes", "schema"),
+    ):
+        before_section = before.get(section, {})
+        after_section = after.get(section, {})
+        if not isinstance(before_section, dict) or not isinstance(after_section, dict):
+            continue
+        for key in sorted(set(before_section) | set(after_section)):
+            if before_section.get(key) != after_section.get(key):
+                areas.append(f"{label} {key}")
+    return areas
+
+
+def format_minor_bump_commit_message(
+    version: Version, to_ref: str, baseline_refs: list[str]
+) -> str:
+    """Commit subject for a minor semver bump after compatibility hash changes."""
+    tag = f"v{format_version(version)}"
+    areas: set[str] = set()
+    for baseline in baseline_refs:
+        areas.update(changed_compatibility_areas(baseline, to_ref))
+    if not areas:
+        return f"{tag}: compatibility hash bump"
+    area_text = ", ".join(sorted(areas))
+    return f"{tag}: compatibility changed for {area_text}"
