@@ -174,10 +174,22 @@ def _paths_for_resource(openapi: dict[str, Any], path_prefix: str) -> dict[str, 
     return {key: paths[key] for key in sorted(paths) if key.startswith(path_prefix)}
 
 
-def _openapi_slice_for_resource(openapi: dict[str, Any], resource_key: str) -> dict:
+def _openapi_slice_for_resource(
+    openapi: dict[str, Any], resource_key: str, *, method: str | None = None
+) -> dict:
     """Build the canonical JSON subset hashed for one API resource group."""
     path_prefix = _API_RESOURCE_PATH_PREFIXES[resource_key]
     paths = _paths_for_resource(openapi, path_prefix)
+    if method is not None:
+        paths = {
+            path: {
+                key: value
+                for key, value in item.items()
+                if key == method or key not in _HTTP_METHODS
+            }
+            for path, item in paths.items()
+            if method in item
+        }
 
     schema_refs: set[str] = set()
     response_refs: set[str] = set()
@@ -231,6 +243,25 @@ def compute_api_compatibility_hashes() -> dict[str, str]:
         )
         for resource_key in _API_RESOURCE_PATH_PREFIXES
     }
+
+
+@lru_cache(maxsize=1)
+def compute_api_method_compatibility_hashes() -> dict[str, dict[str, str]]:
+    """Return one compatibility hash per API resource group and HTTP method."""
+    openapi = _build_openapi_dict_cached()
+    result: dict[str, dict[str, str]] = {}
+    for resource_key, path_prefix in _API_RESOURCE_PATH_PREFIXES.items():
+        paths = _paths_for_resource(openapi, path_prefix)
+        methods = sorted(
+            {key for item in paths.values() for key in item if key in _HTTP_METHODS}
+        )
+        result[resource_key] = {
+            method: _canonical_hash(
+                _openapi_slice_for_resource(openapi, resource_key, method=method)
+            )
+            for method in methods
+        }
+    return result
 
 
 # ---------------------------------------------------------------------

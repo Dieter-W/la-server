@@ -26,7 +26,7 @@ def _read_project_version() -> str:
         return "unknown"
 
 
-def load_committed_hashes() -> dict[str, dict[str, str]]:
+def load_committed_hashes() -> dict[str, Any]:
     """Load the reviewed compatibility-hash baseline from ``compatibility_hashes.json``.
 
     The file holds hash maps only (no ``server_version``) so releases never need to
@@ -35,8 +35,9 @@ def load_committed_hashes() -> dict[str, dict[str, str]]:
 
     Returns empty dicts with a warning when the file is missing or malformed.
     """
-    empty: dict[str, dict[str, str]] = {
+    empty: dict[str, Any] = {
         "api_compatibility_hashes": {},
+        "api_method_compatibility_hashes": {},
         "schema_compatibility_hashes": {},
     }
     try:
@@ -58,8 +59,13 @@ def load_committed_hashes() -> dict[str, dict[str, str]]:
         return empty
 
     api_hashes = data.get("api_compatibility_hashes")
+    api_method_hashes = data.get("api_method_compatibility_hashes")
     schema_hashes = data.get("schema_compatibility_hashes")
-    if not isinstance(api_hashes, dict) or not isinstance(schema_hashes, dict):
+    if (
+        not isinstance(api_hashes, dict)
+        or not isinstance(schema_hashes, dict)
+        or not isinstance(api_method_hashes, dict)
+    ):
         logger.warning(
             "Missing or invalid hash maps in %s",
             _COMPATIBILITY_HASHES_PATH,
@@ -69,6 +75,13 @@ def load_committed_hashes() -> dict[str, dict[str, str]]:
     return {
         "api_compatibility_hashes": {
             str(key): str(value) for key, value in api_hashes.items()
+        },
+        "api_method_compatibility_hashes": {
+            str(resource): {
+                str(method): str(hash_value) for method, hash_value in methods.items()
+            }
+            for resource, methods in api_method_hashes.items()
+            if isinstance(methods, dict)
         },
         "schema_compatibility_hashes": {
             str(key): str(value) for key, value in schema_hashes.items()

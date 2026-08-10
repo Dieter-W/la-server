@@ -219,6 +219,136 @@ def test_bump_patch_increments_from_worktree_when_pyproject_not_staged(
     assert written == [Version(1, 0, 1)]
 
 
+def test_fetch_baseline_refs_runs_git_fetch_quietly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: list[str],
+        *,
+        cwd: Path | None = None,
+        capture_output: bool = False,
+        text: bool = False,
+        check: bool = False,
+        timeout: float | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("scripts.development.version_bump.subprocess.run", fake_run)
+
+    from scripts.development.version_bump import fetch_baseline_refs
+
+    fetch_baseline_refs()
+
+    assert calls == [["git", "fetch", "--quiet", "origin"]]
+
+
+def test_fetch_baseline_refs_is_non_fatal_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def raise_called_process_error(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.CalledProcessError(1, ["git", "fetch"])
+
+    monkeypatch.setattr(
+        "scripts.development.version_bump.subprocess.run",
+        raise_called_process_error,
+    )
+
+    from scripts.development.version_bump import fetch_baseline_refs
+
+    fetch_baseline_refs()
+
+    assert "Could not fetch origin" in capsys.readouterr().err
+
+
+def test_fetch_baseline_refs_is_non_fatal_on_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def raise_timeout(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(["git", "fetch"], 30)
+
+    monkeypatch.setattr(
+        "scripts.development.version_bump.subprocess.run",
+        raise_timeout,
+    )
+
+    from scripts.development.version_bump import fetch_baseline_refs
+
+    fetch_baseline_refs()
+
+    assert "Could not fetch origin" in capsys.readouterr().err
+
+
+def test_bump_minor_fetches_before_collecting_baselines(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    call_order: list[str] = []
+
+    monkeypatch.setenv("PRE_COMMIT_FROM_REF", "origin/main")
+    monkeypatch.setenv("PRE_COMMIT_TO_REF", "HEAD")
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "fetch_baseline_refs",
+        lambda: call_order.append("fetch"),
+    )
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "collect_hash_baseline_refs",
+        lambda _from_ref: call_order.append("collect") or ["origin/main"],
+    )
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "required_version_for_hash_change",
+        lambda _to_ref, _refs: None,
+    )
+
+    assert bump_minor_on_hash_change.main() == 0
+    assert call_order == ["fetch", "collect"]
+
+
+def test_bump_minor_continues_when_fetch_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PRE_COMMIT_FROM_REF", "origin/main")
+    monkeypatch.setenv("PRE_COMMIT_TO_REF", "HEAD")
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "is_checked_out_head",
+        lambda _revision: True,
+    )
+
+    real_run = subprocess.run
+
+    def selective_run(
+        args: list[str],
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if args[:3] == ["git", "fetch", "--quiet"]:
+            raise subprocess.CalledProcessError(1, args)
+        return real_run(args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        "scripts.development.version_bump.subprocess.run",
+        selective_run,
+    )
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "collect_hash_baseline_refs",
+        lambda _from_ref: ["origin/main"],
+    )
+    monkeypatch.setattr(
+        bump_minor_on_hash_change,
+        "required_version_for_hash_change",
+        lambda _to_ref, _refs: None,
+    )
+
+    assert bump_minor_on_hash_change.main() == 0
+
+
 def test_bump_minor_skips_when_hashes_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -477,7 +607,7 @@ def test_changed_compatibility_areas_lists_api_and_schema_keys(
     )
 
     assert changed_compatibility_areas("before", "after") == [
-        "API companies",
+        "API of companies",
         "schema companies",
     ]
 
@@ -487,14 +617,14 @@ def test_format_minor_bump_commit_message_includes_version_tag_and_areas(
 ) -> None:
     monkeypatch.setattr(
         "scripts.development.version_bump.changed_compatibility_areas",
-        lambda _baseline, _to_ref: ["API companies"],
+        lambda _baseline, _to_ref: ["API of companies"],
     )
 
     message = format_minor_bump_commit_message(
         Version(1, 2, 0), "HEAD", ["origin/main"]
     )
 
-    assert message == "v1.2.0: compatibility changed for API companies"
+    assert message == "v1.2.0: compatibility changed for API of companies"
 
 
 COMPUTED_HASHES = {

@@ -9,8 +9,59 @@
     "job_assignment_history": "0f47c24fd0080599",
     "job_assignments": "2d519eb5a8b05ffb",
     "part_time": "13d4b122d1248c79",
-    "version": "4401c35321b46c17",
+    "version": "f7ebcaa76970c40c",
     "village_data": "e501f4f69fe59581"
+  },
+  "api_method_compatibility_hashes": {
+    "attendance": {
+      "get": "5c59ef1490499442",
+      "post": "b5f5e2b707adbe4e"
+    },
+    "auth": {
+      "get": "cab02bdf6da285b7",
+      "post": "ff3ab3a52ae2c7de"
+    },
+    "companies": {
+      "delete": "ef8c7a5917e8065e",
+      "get": "773cd48370e19929",
+      "post": "ae6e558fa04abf42",
+      "put": "d5c64106142a311e"
+    },
+    "company_jobs_max": {
+      "delete": "3148e08fa63b9822",
+      "get": "439ca2dfac45ce55",
+      "post": "827baceb591b4855",
+      "put": "c366ba7efa5f03cc"
+    },
+    "employees": {
+      "delete": "2ed7e84d4b2a5202",
+      "get": "dd93c3f1c328aa03",
+      "post": "067bf27dd6f3e4d1",
+      "put": "126e8569b849ec0a"
+    },
+    "health": {
+      "get": "9523b633fca0d2dc"
+    },
+    "job_assignment_history": {
+      "get": "0f47c24fd0080599"
+    },
+    "job_assignments": {
+      "delete": "2855af2bb052707c",
+      "get": "120696747cfd6dc4",
+      "post": "02511d322ba0b43e"
+    },
+    "part_time": {
+      "delete": "b6d3b38f18b0f548",
+      "get": "a8001fa3f44549e6",
+      "post": "b1d3b73bfc1ecc38",
+      "put": "a2e0bbb29348baff"
+    },
+    "version": {
+      "get": "f7ebcaa76970c40c"
+    },
+    "village_data": {
+      "get": "e501f4f69fe59581"
+    }
   },
   "schema_compatibility_hashes": {
     "attendances": "f41eb55f24b514b7",

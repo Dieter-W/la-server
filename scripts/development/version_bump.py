@@ -141,6 +141,24 @@ def git_rev_parse(revision: str) -> str | None:
     return result.stdout.strip()
 
 
+def fetch_baseline_refs(root: Path | None = None) -> None:
+    """Refresh remote-tracking refs so baseline comparisons see the current remote."""
+    try:
+        subprocess.run(
+            ["git", "fetch", "--quiet", "origin"],
+            cwd=root or project_root,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+        print(
+            f"Could not fetch origin ({exc}); using local baseline refs",
+            file=sys.stderr,
+        )
+
+
 def is_checked_out_head(revision: str) -> bool:
     """True when revision refers to the commit currently checked out."""
     head = git_rev_parse("HEAD")

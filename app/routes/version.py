@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify
 
 from app.contract_version import (
     compute_api_compatibility_hashes,
+    compute_api_method_compatibility_hashes,
     compute_schema_compatibility_hashes,
 )
 from app.version import SERVER_VERSION
@@ -18,6 +19,7 @@ def get_version():
         {
             "server_version": SERVER_VERSION,
             "api_compatibility_hashes": compute_api_compatibility_hashes(),
+            "api_method_compatibility_hashes": compute_api_method_compatibility_hashes(),
             "schema_compatibility_hashes": compute_schema_compatibility_hashes(),
         }
     )
